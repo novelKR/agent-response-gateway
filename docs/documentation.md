@@ -80,3 +80,16 @@ archive 검사도 예약 경로와 링크·특수 파일을 거부하며, 선택
 `license_audit.py bundle`의 고지 묶음도 `scripts/archive_notices.py`로 tar를
 만들어 호스트 메타데이터를 제외하고 위 archive 검사를 적용한다.
 공개 소스에 `.private/`가 없어도 라이선스 검사·고지 생성이 가능해야 한다.
+
+## Ref와 로컬 설정의 검사 범위
+
+commit ref의 전체 도달 이력과 분리된 HEAD의 이력을 검사한다. tree ref는
+해당 트리의 경로·일반 파일·내용을 같은 규칙으로 검사한다. 중첩 annotated
+tag도 원문·대상 객체 유형을 확인한 뒤 최종 commit 또는 tree를 검사한다.
+직접 blob을 가리키는 ref나 tag는 지원하지 않으며 명시적으로 실패한다.
+tree ref를 무시하거나 검사 통과를 위해 ref를 삭제하지 않는다.
+
+`.codex/`는 개인 실행 설정용 예약 경로다. index·이력·tree ref·archive에
+포함되면 거부한다. 정상적인 tree 객체라는 사실은 그 내용이 공개 가능하다는
+뜻이 아니다. 내부 설정을 포함한 로컬 snapshot이 있으면 전체 로컬 검사는
+계속 실패할 수 있으며, 실제 공개할 ref와 산출물의 검증 결과와 구분한다.
