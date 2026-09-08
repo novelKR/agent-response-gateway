@@ -56,6 +56,8 @@ operation. No unsupported turn listing is needed to hash the private history fil
   independently verified compatible history and the complete tool identity set.
   Unresolved tools/approvals block recovery. The reference is an audit identity,
   not evidence of user approval; approval remains the caller's responsibility.
+  If the first request was interrupted before any completed turn, preserve
+  `last_completed_turn: null` instead of inventing a completion identity.
 - `switch`: require an explicit host transition and a fresh thread. Bind portable
   user/assistant text and completed tool results by digest, retain completed tool
   IDs, and record omitted opaque state and the source record digest. Pending

@@ -252,6 +252,8 @@ def recover(record, identity, thread, completed_turn, *, decision_reference, com
     require(set(previous["state"]["completed_tool_ids"]).issubset(ids), "recovery cannot forget completed tools")
     value = _next(previous, "recovered")
     value["thread"] = current
-    value["state"].update(status="ready", pending_kind=None, last_completed_turn=label(completed_turn), completed_tool_ids=ids)
+    value["state"].update(status="ready", pending_kind=None,
+                          last_completed_turn=label(completed_turn) if completed_turn is not None else None,
+                          completed_tool_ids=ids)
     value["transition"]["recovery_reference"] = label(decision_reference)
     return validate_record(value)

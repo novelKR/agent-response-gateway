@@ -94,6 +94,12 @@ class ContinuityTests(unittest.TestCase):
             c.create(changed, thread())
 
     def test_recovery_requires_reconciliation_and_preserves_budget_and_tool_evidence(self):
+        first = c.interrupted(c.begin(c.create(identity(), thread()), "turn"), upstream_closed=False)
+        first_recovered = c.recover(first, identity(), thread(), None,
+            decision_reference="synthetic-first-turn-cancel", pending_tools=False, pending_approvals=False)
+        self.assertIsNone(first_recovered["state"]["last_completed_turn"])
+        self.assertEqual(first_recovered["requests_issued"], 1)
+        c.resume(first_recovered, identity(), thread())
         old = c.complete(c.begin(c.create(identity(), thread()), "turn"), thread(), "turn-1", completed_tool_ids=["tool-1"])
         unknown = c.interrupted(c.begin(old, "turn"), upstream_closed=False)
         kwargs = {"decision_reference": "synthetic-host-decision", "completed_tool_ids": ["tool-1", "tool-2"],
