@@ -17,7 +17,8 @@ separate local token and Codex home. Upstream keys are not in the Codex child
 environment. The gateway continues to own transport only; Codex executes the
 synthetic patch and the host replies to dynamic tools and approval requests.
 
-The program emits one payload-free JSON result per scenario and exits nonzero
+The default command runs both native Responses and Messages. `--api responses` or
+`--api messages` selects one route. The program emits one payload-free JSON result per scenario and exits nonzero
 if any scenario fails. It still collects later results after an earlier failure.
 Its `gpt-5.4` model identifier selects Codex's tool profile; all model traffic goes
 to the synthetic provider and is routed to `synthetic-model`. It is not a live
@@ -66,3 +67,27 @@ The same heartbeat case remains mandatory in CI. A single passing run on the old
 version does not erase the repeated local reproduction or the source-level gap.
 This fixture does not guarantee a provider will stop already-processed work or
 reverse charges.
+
+## Messages profile and extended checks
+
+Messages runs the eight common scenarios plus parallel_tools, grammar_failure
+and text_followup. The host derives a minimal compatible catalog from the pinned
+binary's `debug models --bundled` output, retaining all original prompts and
+changing only the declared optional reasoning/verbosity/search capability fields.
+It disables host search and multi-agent tools in this test profile. The gateway
+never strips required semantic fields to pass the fixture. Catalog digest and
+timing fields appear in the result; no catalog, prompt or body is uploaded.
+
+The custom test validates the forwarded grammar fingerprint, applies a real
+synthetic patch and returns its result. Grammar failure must produce a failed
+turn with zero execution and no retry. Both cancellation variants require socket
+closure within 5000 ms of the interrupt, measured from the interrupt itself.
+The text-followup test starts a second actual turn and checks retained assistant
+text. Parallel tools preserve both call IDs and results.
+
+Timing fields describe this synthetic end-to-end path. first_client_text_ms may
+follow a tool round trip; turn_elapsed_ms excludes setup; cancellation reports
+interrupt_to_upstream_close_ms. These are not provider latency or isolated gateway
+overhead. See [Messages support](../../docs/messages.md) for the exact profile,
+limitations and one local measurement. Consumer activation and live-model tests
+remain separate from this suite.
