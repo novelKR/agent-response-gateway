@@ -154,6 +154,77 @@ class PublicBoundaryTests(unittest.TestCase):
         self.repo = shallow
         self.check(ok=False)
 
+    def test_clean_tree_ref_is_checked_without_modifying_refs(self):
+        self.stage()
+        self.commit()
+        tree = self.git("write-tree").strip().decode()
+        self.git("update-ref", "refs/snapshots/clean", tree)
+        before = self.git("show-ref")
+        self.check()
+        self.assertEqual(before, self.git("show-ref"))
+
+    def test_tree_ref_content_survives_index_cleanup(self):
+        self.write("README.md", MARKER)
+        self.stage()
+        tree = self.git("write-tree").strip().decode()
+        self.git("update-ref", "refs/snapshots/hidden", tree)
+        self.write("README.md", "Public fixture\n")
+        self.stage()
+        self.commit()
+        self.check(ok=False)
+
+    def test_reserved_local_config_in_tree_ref_is_rejected(self):
+        self.write(".codex/config.toml", "synthetic = true\n")
+        self.stage()
+        tree = self.git("write-tree").strip().decode()
+        self.git("update-ref", "refs/snapshots/local", tree)
+        self.git("rm", "-q", "--cached", ".codex/config.toml")
+        self.commit()
+        self.check(ok=False)
+
+    def test_tree_ref_symlink_and_gitlink_are_rejected(self):
+        self.stage()
+        commit = self.commit()
+        blob = self.git("rev-parse", "HEAD:README.md").strip().decode()
+        for mode, oid in [("120000", blob), ("160000", commit)]:
+            with self.subTest(mode=mode):
+                self.git("update-index", "--add", "--cacheinfo", mode, oid, "nested")
+                tree = self.git("write-tree").strip().decode()
+                self.git("update-ref", "refs/snapshots/nonregular", tree)
+                self.git("update-index", "--force-remove", "nested")
+                self.check(ok=False)
+
+    def test_nested_tags_to_tree_preserve_tree_and_tag_checks(self):
+        self.stage()
+        self.commit()
+        tree = self.git("write-tree").strip().decode()
+        self.git("tag", "-a", "tree-inner", tree, "-m", "Public tree")
+        self.git("tag", "-a", "tree-outer", "tree-inner", "-m", "Public wrapper")
+        self.check()
+        self.git("tag", "-a", "private-wrapper", "tree-inner", "-m", MARKER)
+        self.check(ok=False)
+
+    def test_blob_refs_and_tags_are_explicitly_unsupported(self):
+        self.stage()
+        self.commit()
+        blob = self.git("rev-parse", "HEAD:README.md").strip().decode()
+        self.git("update-ref", "refs/snapshots/blob", blob)
+        self.check(ok=False)
+        self.git("update-ref", "-d", "refs/snapshots/blob")
+        self.git("tag", "-a", "blob-tag", blob, "-m", "Public wrapper")
+        self.check(ok=False)
+
+    def test_detached_history_is_checked_without_any_branch(self):
+        self.write("README.md", MARKER)
+        self.stage()
+        self.commit()
+        self.write("README.md", "Public fixture\n")
+        self.stage()
+        self.commit()
+        self.git("checkout", "--detach", "-q")
+        self.git("branch", "-D", "main")
+        self.check(ok=False)
+
     def test_untracked_marker_rejected_only_in_worktree_mode(self):
         self.stage()
         self.write("notes.txt", MARKER)
