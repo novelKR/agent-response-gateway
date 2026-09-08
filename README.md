@@ -6,9 +6,9 @@ Rust로 작성한 독립 Responses 프록시의 초기 기반이다. 등록한 �
 소비할 수 있도록 구성한다.
 
 현재는 **루프백 전용 Responses → Responses 전달과 명시적 프로필의
-Responses → Messages 변환**을 제공한다. 고정 Codex와 합성 upstream의
+Responses → Messages·Chat Completions 변환**을 제공한다. 고정 Codex와 합성 upstream의
 도구·승인 거절·취소 시험을 통과했다. 실제 공급자 모델 qualification,
-Chat Completions 변환, 소비자 내장·장기 운영·정식 배포 수락은 후속 단계다.
+소비자 내장·장기 운영·정식 배포 수락은 후속 단계다.
 
 ## 시작하기
 
@@ -22,7 +22,7 @@ cp config.example.toml config.local.toml
 
 `config.local.toml`의 공급자 `base_url`과 `upstream_model`을 사용할 경로로
 수정한다. `base_url`은 `/v1` 등의 API 접두사이며 API 선언에 따라
-`/responses` 또는 `/messages`를 붙인다. Messages 설정은
+`/responses`, `/messages` 또는 `/chat/completions`를 붙인다. Messages 설정은
 [전용 예제](config.messages.example.toml)와 [지원표](docs/messages.md)를 따른다. 최초 검증에는 모의 공급자 주소와 합성 입력을 사용한다.
 실제 공급자에 아래 클라이언트로 요청하면 공급자 정책에 따라 비용이 발생할 수 있다.
 
@@ -75,7 +75,7 @@ python3 examples/client.py --base-url http://127.0.0.1:43127/v1 --model example/
 native Responses는 도구·구조화 출력·추론 항목을 재구성하지 않는다. JSON 필드는 모델
 치환과 `store:false` 정규화를 제외하고 보존되지만 JSON 직렬화 바이트가
 동일하다는 뜻은 아니다. SSE 응답 본문은 바이트 그대로 전달한다.
-Messages는 선언된 함수·custom·namespace 도구와 텍스트를 변환하며 미지원
+변환 경로는 선언된 함수·custom·namespace 도구와 텍스트를 변환하며 미지원
 필수 기능을 전송 전에 거부한다. `/v1/models` 등록은 모델 호환성 검증이 아니다.
 
 저장 요청, 이전 response ID와 conversation 기반 상태, 압축, background 실행,
@@ -87,7 +87,7 @@ Messages는 선언된 함수·custom·namespace 도구와 텍스트를 변환하
 라이브러리에는 요청 의미, 출력 이벤트 상태, 기능 판정과 origin-bound 불투명
 상태를 표현하는 IR v1을 제공한다. 순수 Responses 요청 왕복 codec과 custom
 tool JSON·namespace·patch 문법 bridge, 이벤트 상태 검증을 포함한다.
-Messages HTTP 경로는 이 계약을 사용하고 native 경로는 원형 전달을 유지한다. 지원 부분집합과 후속 어댑터 경계는
+변환 HTTP 경로는 이 계약을 사용하고 native 경로는 원형 전달을 유지한다. 지원 부분집합과 후속 어댑터 경계는
 [IR 계약](docs/ir.md)에 정리했다.
 
 후속 구현의 우선순위·의존성과 완료 기준은 [구현 마일스톤](docs/roadmap.md),
@@ -138,3 +138,6 @@ Codex 버전에 강제하거나 실제 공급자·소비자 운영 수락을 대
 공개 문서는 범용 제품 계약만 다룬다. 로컬 메모를 별도 저장소로 관리하는
 경우 부모 Git과 배포물의 추적 대상에서 제외한다. 공개 경계 검사와
 소스 배포 절차는 [문서 관리](docs/documentation.md)에 설명한다.
+
+세 경로의 공통 검증과 기능 차이는 [적합성 표](docs/conformance.md),
+Chat Completions 설정은 [예시](config.chat.example.toml)를 참조한다.

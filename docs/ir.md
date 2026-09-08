@@ -179,8 +179,8 @@ Serialize도 제공하지 않는다. 현재 source-bound 자료를 같은 경로
 binding 변경, wrapper 복원, 교차 이벤트와 모든 문자열 분할 위치를 시험한다.
 기존 HTTP 전달 테스트와 함께 수행하며 private 기록이 없는 소스에서도 확인한다.
 
-현재 Messages codec·SSE 변환과 HTTP 연결은 G09의 실제 Codex 합성 시험을
-통과했다. Chat Completions 어댑터, 실제 공급자 모델 검증,
+현재 Messages와 Chat Completions codec·SSE 변환·HTTP 연결은 G12의 실제
+Codex 합성 시험을 통과했다. 실제 공급자 모델 검증,
 상태 저장·압축·복구, tenant 인증과 실제 모델 qualification은 후속 단계다. 라이브러리 계약을 통과한 선언을 운영 수락으로
 간주하지 않는다.
 
@@ -194,7 +194,7 @@ binding 변경, wrapper 복원, 교차 이벤트와 모든 문자열 분할 위�
 Native Responses는 JSON과 SSE의 기존 passthrough를 유지하며 변환 경로는
 검증된 RequestIR에서 기능 요구와 TranslationPlan을 도출한다. 선언 프로필은
 실제 모델 qualification이나 자격 증명 세대의 증명이 아니다. Namespace와
-grammar bridge를 Messages HTTP 경로에 연결하며 Chat Completions는 아직 거부한다.
+grammar bridge를 Messages·Chat Completions HTTP 경로에 연결한다.
 
 Messages adapter는 별도 순수 codec으로 제공한다. 승인된
 `MessagesInstructionEnvelope` bridge는 선행 지시의 원문·역할·위치를 유지해
@@ -209,4 +209,10 @@ HTTP 변환은 route admission에서 만든 TranslationPlan을 재사용해 요�
 
 Chat Completions의 요청·일반 응답·스트림은 별도 순수 codec으로 제공한다. 도구 정체성·
 선택·호출 수·출력 복원 검증은 Messages와 공유하고, API별 role·finish 의미는
-각 어댑터에 둔다. HTTP 활성화 전 범위는 [Chat 지원표](chat-completions.md)를 따른다.
+각 어댑터에 둔다. HTTP 지원 범위는 [Chat 지원표](chat-completions.md)를 따른다.
+
+완료 메시지 status와 output_text의 annotations도 typed 필드로 보존한다.
+변환 이력은 완료/생략 status와 비어 있는/생략 annotations만 허용한다.
+의미 있는 주석, 미완료 메시지와 알 수 없는 확장은 명시적으로 거부한다.
+메시지 도구 호출 뒤 같은 assistant 구간의 텍스트는 Messages 블록 순서를
+유지하며, 도구 결과 일부가 나온 뒤 assistant 내용을 끼워 넣지 않는다.

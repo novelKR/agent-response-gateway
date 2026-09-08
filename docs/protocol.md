@@ -1,9 +1,9 @@
 # HTTP 지원 계약
 
-이 계약은 native Responses 전달과 선언된 Messages 변환의 범위를 설명한다. 모델 출력의 의미,
+이 계약은 native Responses 전달과 선언된 Messages·Chat Completions 변환의 범위를 설명한다. 모델 출력의 의미,
 Codex 도구 실행, 압축·재개나 소비자의 승인 절차를 인증하는 계약은 아니다.
 별도의 [IR v1](ir.md)은 내부 라이브러리 계약이며 이 HTTP 지원 범위를
-자동으로 확장하지 않는다. stateless admission 규칙은 두 경로가 공유한다.
+자동으로 확장하지 않는다. stateless admission 규칙은 세 경로가 공유한다.
 
 ## 설정과 인증
 
@@ -41,7 +41,7 @@ qualification을 확인하지 않는다. 루트의 소스 URL도 존재 여부�
 
 JSON 객체와 등록된 문자열 `model`을 받는다. native Responses 경로는 모델명을
 공급자 모델명으로 치환하며 나머지 필드를 아래 제한 외에는 JSON 값으로 보존한다.
-Messages 경로는 등록된 기능 부분집합을 변환하며 미지원 필드는 전송 전에 거부한다.
+Messages·Chat Completions 경로는 등록된 기능 부분집합을 변환하며 미지원 필드는 전송 전에 거부한다.
 아래 표의 원형 전달 규칙은 native 경로에 적용한다.
 `stream:true`이면 SSE, 생략하거나 false이면 JSON 응답을 사용한다.
 
@@ -55,13 +55,13 @@ Messages 경로는 등록된 기능 부분집합을 변환하며 미지원 필�
 | 함수·custom tool·구조화 출력·reasoning 필드 | JSON 값 보존; 공급자 기능 보장은 별도 검증 필요 |
 
 native 경로는 response ID를 저장·변환하지 않고 정상 응답의 model 필드를
-다시 쓰지 않는다. Messages는 공급자 ID를 기반으로 Responses 응답·항목 ID를
-만들며 원래 도구 호출 ID를 유지한다. 두 경로 모두 response ID 조회·저장은 없다. 공급자의 오류 본문은 prompt나 자격 증명을 되돌려줄 수 있으므로
+다시 쓰지 않는다. 변환 경로는 공급자 ID를 기반으로 Responses 응답·항목 ID를
+만들며 원래 도구 호출 ID를 유지한다. 세 경로 모두 response ID 조회·저장은 없다. 공급자의 오류 본문은 prompt나 자격 증명을 되돌려줄 수 있으므로
 전달하지 않고 로컬 오류와 HTTP 상태를 반환한다. redirect는 따라가지 않고
 502로 처리한다. 정상 응답과 SSE 이벤트 본문은 전달되므로 공유 서비스나
 tenant 격리 용도로 이 계약을 확장 해석하지 않는다.
 
-native SSE 본문은 전체 수집이나 JSON 재해석 없이 전달한다. Messages는 SSE를
+native SSE 본문은 전체 수집이나 JSON 재해석 없이 전달한다. 변환 경로는 SSE를
 증분 해석하고 검증된 Responses 이벤트를 출력한다. 청크 경계는 이벤트·문자·
 JSON 경계가 아닐 수 있다. 이미 전송을 시작한 스트림에서 실패하면 연결을
 종료하고 다른 공급자 응답을 이어 붙이거나 성공 종료 이벤트를 만들어내지 않는다.
@@ -74,7 +74,7 @@ JSON 숫자는 임의 정밀도로 파싱하여 큰 정수와 소수의 값을 �
 기본 제한은 요청 8 MiB, 비스트리밍 응답 16 MiB, 동시 요청 32개,
 요청 본문 대기 30초, 연결 10초, 응답 헤더 60초, 스트림 유휴 대기 60초,
 종료 유예 5초다. 정확한 설정값은 TOML의 `[limits]`에 둔다.
-native 스트림은 전체 수집 없이 전달한다. Messages는 최종 Responses output을
+native 스트림은 전체 수집 없이 전달한다. 변환 경로는 최종 Responses output을
 구성하기 위해 텍스트와 도구 입력을 제한된 버퍼에 유지하며, max_response_bytes가
 개별 SSE 이벤트와 누적 출력에도 적용된다. custom wrapper는 검증 후 복원한다.
 
@@ -95,7 +95,9 @@ native 스트림은 전체 수집 없이 전달한다. Messages는 최종 Respon
 모델에 `api`, `auth`, `capability_profile`, `messages_version`을 선언할 수 있다.
 기존 설정의 API는 `responses`이며 Bearer 인증을 유지한다. Messages는 G09의
 고정 Codex·합성 upstream과 HTTP 검증 후 명시적 프로필로 활성화할 수 있다.
-Chat Completions는 G12 검증 전까지 서버 시작 시 거부한다.
+Chat Completions도 G12의 공통 실제 Codex·합성 upstream 검증 후 명시적
+프로필로 활성화한다. [세 API 지원표](conformance.md)는 검증된 부분집합과
+실제 공급자·소비자 수락의 미검증 경계를 구분한다.
 
 프로필은 공급자·실제 모델·API를 모델 매핑과 일치시켜야 한다. 키가 프로필 ID이며
 `version`, `tested_codex_version`, `context_window`, `max_output_tokens`을 명시한다.
@@ -118,8 +120,8 @@ SSE를 보존하며, 기능별 semantic admission은 변환 경로에서 적용�
 증명하는 자격 증명 세대가 아니다. 영속 재개는 별도 연속성 계약을 따른다.
 변환 admission은 명시한 client_metadata·prompt_cache_key·선택적 encrypted
 reasoning 출력 요청만 전송 힌트로 제외한다. 알 수 없는 확장과 opaque 입력은
-거부한다. Messages의 namespace·grammar bridge와 실제 Codex 합성 시험 범위는
-[Messages 지원표](messages.md)에 기록한다. 실제 공급자 모델 검증은 별도다.
+거부한다. namespace·grammar bridge와 실제 Codex 합성 시험 범위는
+[Messages 지원표](messages.md)와 [Chat 지원표](chat-completions.md)에 기록한다. 실제 공급자 모델 검증은 별도다.
 
 ## 오프라인 내장 계약
 
@@ -129,6 +131,5 @@ reasoning 출력 요청만 전송 힌트로 제외한다. 알 수 없는 확장�
 `configuration_sha256`가 포함된다. 새 HTTP 관리 엔드포인트는 없다.
 상세 schema와 호스트 책임은 [내장 계약](embedded-design.md)에 명시한다.
 
-Chat Completions는 요청·일반 응답·스트림 codec을 제공하며, 서버 설정은
-실제 Codex G12 검증 전까지 거부한다. [초기 Chat 프로필](chat-completions.md)은
+Chat Completions는 요청·일반 응답·스트림 codec과 명시적 HTTP 경로를 제공한다. [초기 Chat 프로필](chat-completions.md)은
 function wire와 명시적 custom JSON bridge의 지원 범위를 구분한다.
