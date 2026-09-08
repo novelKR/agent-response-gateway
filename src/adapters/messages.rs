@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 pub use stream::MessagesStream;
 
 use super::{
-    json::{known_fields, object, string},
+    json::{event_text_chunks, known_fields, object, string},
     toolset::{PreparedTools, tool_output},
 };
 use serde_json::{Map, Value, json};
@@ -29,6 +29,7 @@ pub struct PreparedMessages {
     pub payload: Value,
     model: String,
     tools: PreparedTools,
+    text_format: Option<Value>,
 }
 
 fn unsupported() -> IrError {
@@ -95,6 +96,10 @@ pub(crate) fn encode_admitted(
                 | Feature::InstructionHierarchy
                 | Feature::Images
                 | Feature::FunctionTools
+                | Feature::StrictToolArguments
+                | Feature::StrictStructuredOutput
+                | Feature::StructuredOutput
+                | Feature::ReasoningEffort
                 | Feature::CustomTools
                 | Feature::CustomGrammar
                 | Feature::NamespacedTools
@@ -165,7 +170,10 @@ pub(crate) fn encode_admitted(
                     Item::Message(message)
                         if matches!(message.role, Role::User | Role::Assistant) =>
                     {
-                        if !pending.is_empty() {
+                        if !pending.is_empty()
+                            && (message.role != Role::Assistant
+                                || !messages.last().is_some_and(|v| v["role"] == "assistant"))
+                        {
                             return Err(IrError::InvalidToolMapping);
                         }
                         push_message(
@@ -248,9 +256,6 @@ pub(crate) fn encode_admitted(
         let ToolDefinitionKind::Function { parameters, strict } = &tool.kind else {
             return Err(unsupported());
         };
-        if strict == &Some(true) {
-            return Err(unsupported());
-        }
         let schema = parameters.clone().unwrap_or_else(
             || json!({"type":"object","properties":{},"additionalProperties":false}),
         );
@@ -258,6 +263,9 @@ pub(crate) fn encode_admitted(
             return Err(unsupported());
         }
         let mut definition = json!({"name":tool.identity.name,"input_schema":schema});
+        if let Some(strict) = strict {
+            definition["strict"] = json!(strict);
+        }
         if let Some(description) = &tool.description {
             definition["description"] = json!(description);
         }
@@ -292,10 +300,36 @@ pub(crate) fn encode_admitted(
             choice["disable_parallel_tool_use"] = json!(!parallel);
         }
     }
+    let mut text_format = None;
     if let Some(output) = &request.generation.output
-        && !matches!(output.format, None | Some(OutputFormat::Text(_)))
+        && let Some(format) = &output.format
     {
-        return Err(unsupported());
+        match format {
+            OutputFormat::Text(_) => {}
+            OutputFormat::JsonSchema {
+                name,
+                schema,
+                strict: Some(true),
+                ..
+            } if !name.is_empty() && schema.is_object() => {
+                payload.insert(
+                    "output_config".into(),
+                    json!({"format":{"type":"json_schema","schema":schema}}),
+                );
+                // The source name labels the format; never inject it into schema constraints.
+                text_format =
+                    Some(json!({"type":"json_schema","name":name,"schema":schema,"strict":true}));
+            }
+            _ => return Err(unsupported()),
+        }
+    }
+    if let Some(reasoning) = &request.generation.reasoning
+        && let Some(effort) = &reasoning.effort
+    {
+        if !matches!(effort.as_str(), "low" | "medium" | "high" | "xhigh" | "max") {
+            return Err(unsupported());
+        }
+        payload.entry("output_config").or_insert_with(|| json!({}))["effort"] = json!(effort);
     }
     for (name, value) in [
         ("temperature", &request.generation.temperature),
@@ -312,6 +346,7 @@ pub(crate) fn encode_admitted(
         payload: Value::Object(payload),
         model: plan.route.model.clone(),
         tools: PreparedTools::new(registry, request),
+        text_format,
     })
 }
 
@@ -365,11 +400,13 @@ impl PreparedMessages {
                         index: ContentIndex(0),
                         kind: EventPartKind::Text,
                     })?;
-                    validator.apply(EventIR::TextDelta {
-                        item: item_id.clone(),
-                        index: ContentIndex(0),
-                        text: text.into(),
-                    })?;
+                    for chunk in event_text_chunks(text) {
+                        validator.apply(EventIR::TextDelta {
+                            item: item_id.clone(),
+                            index: ContentIndex(0),
+                            text: chunk.into(),
+                        })?;
+                    }
                     validator.apply(EventIR::PartFinished {
                         item: item_id.clone(),
                         index: ContentIndex(0),
@@ -410,10 +447,12 @@ impl PreparedMessages {
                             kind,
                         },
                     })?;
-                    validator.apply(EventIR::ArgumentsDelta {
-                        item: item_id.clone(),
-                        text: arguments.clone(),
-                    })?;
+                    for chunk in event_text_chunks(&arguments) {
+                        validator.apply(EventIR::ArgumentsDelta {
+                            item: item_id.clone(),
+                            text: chunk.into(),
+                        })?;
+                    }
                     output.push(tool_output(&call, "completed"));
                     tool_count += 1;
                 }
@@ -442,12 +481,17 @@ impl PreparedMessages {
                 item["status"] = json!("incomplete");
             }
         }
-        Ok(
-            json!({"id":id.as_str(),"object":"response","created_at":std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_err(|_| IrError::InvalidField("response_time"))?.as_secs(),"model":self.model,"status":status,"output":output,
+        let mut response = json!({"id":id.as_str(),"object":"response","created_at":std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_err(|_| IrError::InvalidField("response_time"))?.as_secs(),"model":self.model,"status":status,"output":output,
             "error":Value::Null,
             "incomplete_details":if terminal == Terminal::Incomplete {json!({"reason":reason})} else {Value::Null},
-            "usage":{"input_tokens":input_total,"output_tokens":generated,"total_tokens":total}}),
-        )
+            "usage":{"input_tokens":input_total,"output_tokens":generated,"total_tokens":total}});
+        self.reflect_format(&mut response);
+        Ok(response)
+    }
+    fn reflect_format(&self, response: &mut Value) {
+        if let Some(format) = &self.text_format {
+            response["text"] = json!({"format":format});
+        }
     }
 }
 

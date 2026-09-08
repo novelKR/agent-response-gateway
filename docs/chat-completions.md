@@ -1,8 +1,8 @@
 # Chat Completions adapter support
 
-G10/G11 provide pure request, JSON response and stream codecs. The Chat
-Completions server route remains disabled until G12 actual-Codex/mock
-qualification passes. No live provider model is qualified by these fixtures.
+G10–G12 provide request, JSON response, stream and HTTP conversion behind an
+explicit profile. The pinned actual-Codex/mock and HTTP suites pass for the
+function-wire profile. No live provider model is qualified by these fixtures.
 
 This initial profile uses the standard function-tool wire shape. Custom freeform
 tools use the explicitly declared CustomToolJson bridge, with the same request-
@@ -11,7 +11,7 @@ API also defines native custom tools; that separate wire dialect is not part of
 this adapter's implemented/qualified subset. A Native custom declaration fails
 explicitly and is never silently converted into the JSON bridge.
 
-| Contract | G10 codec behavior |
+| Contract | Implemented behavior |
 |---|---|
 | Top-level instructions | Leading system message |
 | Explicit system/developer/user/assistant messages | Native role fields in the original order, including later instructions |
@@ -50,8 +50,9 @@ The codec and streaming tests cover role/order/options, namespace/custom named c
 parallel history, required effort/strict schema controls, raw numeric arguments,
 cache/reasoning counters, missing usage,
 token truncation, unsupported inputs and malformed outputs. Existing Messages
-regressions remain required after shared-helper changes. Native Responses HTTP
-behavior and Chat's startup rejection remain unchanged.
+regressions remain required after shared-helper changes. Native Responses keeps
+its raw JSON/SSE contract. The common dispatch state uses each translated
+request's admitted plan once and owns its stream/permit until completion or drop.
 
 Primary contracts: [Chat Completions create](https://developers.openai.com/api/reference/typescript/resources/chat/subresources/completions/methods/create)
 and [custom tools](https://developers.openai.com/api/docs/guides/function-calling#custom-tools).
@@ -64,8 +65,9 @@ when the declared profile supports the required features. It does not lower effo
 rewrite schema rules or replace strict generation with a prompt. Schema dialect
 support, output adherence and effort behavior remain native-provider contracts;
 the gateway does not introduce a second general JSON Schema validator. The host
-must still validate its resulting data. G12 must exercise these controls with the
-actual pinned Codex and synthetic upstream before consumer acceptance is claimed.
+must still validate its resulting data. G12 verifies explicit high effort and
+strict output schema with the actual pinned Codex and a synthetic upstream;
+consumer operational acceptance remains separate.
 
 ## Streaming contract
 
@@ -95,5 +97,14 @@ is never completed or executed as a repaired argument object.
 Tests include every byte split of a late-text/parallel-tool stream, independent
 fragments for IDs/names/arguments, exact non-streaming/streaming equivalence,
 truncated streams, malformed custom envelopes, identity/order failures, missing
-usage, large accumulated text and aggregate argument/output limits. Actual HTTP
-cancellation and pinned-Codex Chat qualification remain G12 acceptance gates.
+usage, large accumulated text and aggregate argument/output limits. HTTP tests
+cover credential isolation, pre-dispatch errors, JSON, split streams, sanitized
+errors, EOF, aggregate limits, cancellation and capacity release for both adapters.
+
+The [common conformance matrix](conformance.md) records thirteen actual-Codex Chat
+scenarios, including tool/namespace/custom and parallel round trips, mixed output
+replay, subsequent text turns, explicit effort/schema, approval denial, grammar
+failure, transport loss and two cancellation modes. The test host derives the same
+restricted catalog described by [Messages](messages.md), with optional defaults
+disabled but explicit per-turn controls retained. Configuration example:
+[Chat Completions](../config.chat.example.toml).

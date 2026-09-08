@@ -3,30 +3,29 @@
 listen = "127.0.0.1:0"
 local_token_env = "ARG_LOCAL_TOKEN"
 
-[providers.messages]
-base_url = "https://your-messages-provider.example/v1"
-api_key_env = "ARG_MESSAGES_API_KEY"
+[providers.chat]
+base_url = "https://your-chat-provider.example/v1"
+api_key_env = "ARG_CHAT_API_KEY"
 
-[models."example/messages"]
-provider = "messages"
+[models."example/chat"]
+provider = "chat"
 upstream_model = "replace-with-your-verified-model"
-api = "messages"
-auth = "api_key"
-messages_version = "2023-06-01"
-capability_profile = "messages-profile"
+api = "chat_completions"
+auth = "bearer"
+capability_profile = "chat-profile"
 
-[capability_profiles.messages-profile]
+[capability_profiles.chat-profile]
 version = "1"
-provider = "messages"
+provider = "chat"
 upstream_model = "replace-with-your-verified-model"
-api = "messages"
+api = "chat_completions"
 context_window = 32768
 max_output_tokens = 1024
 tested_codex_version = "0.154.0-alpha.6"
 
-[capability_profiles.messages-profile.support]
+[capability_profiles.chat-profile.support]
 instructions = "native"
-instruction_hierarchy = "bridged_instruction_envelope"
+instruction_hierarchy = "native"
 function_tools = "native"
 custom_tools = "bridged_custom_tool_json"
 custom_grammar = "bridged_codex_patch_grammar"

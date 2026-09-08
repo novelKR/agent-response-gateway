@@ -583,3 +583,36 @@ fn namespace_bridge_uses_one_bijective_registry_for_functions_and_custom_tools()
     }
     assert_ne!(registry.definitions()[1].identity.name, "arg_namespaced_0");
 }
+
+#[test]
+fn completed_message_metadata_roundtrips_and_meaningful_annotations_stay_explicit() {
+    let body = json!({"model":"synthetic","store":false,"input":[{"type":"message","id":"m","role":"assistant","status":"completed","content":[{"type":"output_text","text":"synthetic","annotations":[]}]}]});
+    let mut ir = responses::decode(body.clone(), None).unwrap();
+    assert_eq!(responses::encode(&ir, None).unwrap(), body);
+    assert!(!requirements(&ir).unwrap().contains(Feature::Extensions));
+    if let Some(Input::Items(items)) = &mut ir.input {
+        let Item::Message(message) = &mut items[0] else {
+            unreachable!()
+        };
+        message
+            .extensions
+            .fields
+            .insert("status".into(), json!("incomplete"));
+    }
+    assert!(ir.validate().is_err());
+    let mut annotated = body.clone();
+    annotated["input"][0]["content"][0]["annotations"] =
+        json!([{"type":"url_citation","url":"https://example.test"}]);
+    let annotated = responses::decode(annotated, None).unwrap();
+    assert!(
+        requirements(&annotated)
+            .unwrap()
+            .contains(Feature::Extensions)
+    );
+    for status in ["in_progress", "incomplete"] {
+        let mut pending = body.clone();
+        pending["input"][0]["status"] = json!(status);
+        let ir = responses::decode(pending, None).unwrap();
+        assert!(requirements(&ir).is_err());
+    }
+}

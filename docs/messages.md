@@ -1,6 +1,6 @@
 # Messages adapter support
 
-G07–G09 provide Messages request, JSON response and incremental stream conversion
+G07–G12 provide Messages request, JSON response and incremental stream conversion
 behind an explicitly declared Messages route. The pinned actual-Codex/mock and
 HTTP cancellation suites pass for the profile below. Tests use synthetic data
 only; no actual provider model has been qualified.
@@ -18,7 +18,10 @@ only; no actual provider model has been qualified.
 | Custom text tools | Explicit `bridged_custom_tool_json`, one-string JSON wrapper and exact restoration |
 | Ordered namespace groups | Explicit `bridged_tool_namespace`, flat aliases shared by definitions, choices, history, results and output; group/member descriptions retained |
 | Registered patch grammar | Explicit `bridged_codex_patch_grammar`, exact SHA-256/version selection and post-generation syntax validation |
-| Strict tools, structured output, reasoning controls/state | Explicitly unsupported by this codec |
+| Strict function tools | Native strict flag, only with declared strict_tool_arguments support |
+| Strict JSON schema output | Native output_config.format with unchanged schema rules; strict_structured_output and structured_output required |
+| Reasoning effort | Native output_config.effort for low/medium/high/xhigh/max; other values reject |
+| Loose JSON schema/json_object, reasoning summaries/state, verbosity | Explicitly unsupported |
 | Non-streaming text/tool output | Validate through EventIR and produce Responses JSON; untrusted bytes reject duplicate JSON keys |
 | Streaming text and function arguments | Incremental Responses events, stable IDs/indices and ordered sequence numbers |
 | Streaming custom input | Buffer the envelope per tool; emit restored input only after wrapper and grammar validation |
@@ -115,17 +118,20 @@ canonical catalog digest for this pinned profile is
 `5730ed50d14b2432b960cfb821c6de91edcdc70665e650f71f0dff032ab14b8a`.
 The catalog is derived at runtime and is not copied into public fixtures.
 
-Completed tool-call status is a typed IR field. Native round trips retain it;
-Messages history admits only an absent or completed status and rejects incomplete
-or in-progress calls. The adapter does not discard unknown required fields to
-obtain a successful round trip. Required reasoning, verbosity, strict arguments,
-structured output, opaque state and hosted search remain unsupported.
+Message and tool-call status and output-text annotations are typed IR fields.
+Native round trips retain them. Converted history admits an absent/completed
+status and absent/empty annotations; unfinished messages/calls and meaningful
+annotations reject. A tool-use/text/tool-use assistant block sequence is retained
+before its results. Assistant continuation after only some results rejects.
+Unknown required fields, reasoning summaries, verbosity, opaque state and hosted
+search remain unsupported.
 
-The eleven actual-Codex scenarios cover text, functions, namespaces, patch
+The thirteen actual-Codex scenarios cover text, functions, namespaces, patch
 application/result replay, approval denial, two parallel calls, a subsequent text
 turn, eventful/heartbeat cancellation, transport loss and grammar failure before
-tool execution. The default CI command runs these alongside the eight native
-Responses scenarios. Local HTTP tests additionally cover non-streaming JSON,
+tool execution, explicit high effort plus strict output schema, and mixed
+tool/text result replay. The default CI command runs all 35 scenarios across the
+three API routes; see the [common matrix](conformance.md). Local HTTP tests additionally cover non-streaming JSON,
 auth/version headers, pre-dispatch rejection, incremental bytes, sanitized errors,
 EOF and aggregate limits.
 
@@ -146,3 +152,23 @@ See [the Messages configuration example](../config.messages.example.toml).
 
 Messages와 Chat Completions는 반환된 도구 선택·호출 수·원래 정체성의 검증을
 공유한다. API별 finish 처리와 지시 계층 변환 범위는 각각의 계약을 유지한다.
+
+## Native output controls
+
+Explicit profile support is required for strict tools, reasoning effort and
+strict structured output. Messages uses output_config.effort without renaming
+levels and output_config.format with the original JSON schema. Only source
+json_schema with strict=true is supported: json_object, loose/unspecified strict
+schemas and unsupported effort labels reject before dispatch. The source format
+name is a descriptor with no Messages wire field; it remains in the canonical IR
+and returned Responses text.format. It is never injected into schema rules or a
+prompt. The schema and strict tool constraints are provider/host contracts, not a
+second gateway JSON Schema implementation.
+
+Equal effort labels do not establish equal reasoning, compute or cost across
+providers. Schema dialect support, model-specific capabilities and actual output
+adherence require provider qualification and host validation. The pinned synthetic
+scenario verifies explicit controls reach the wire and its known valid JSON reaches
+Codex; it does not certify model compliance. Primary contracts are
+[structured outputs](https://platform.claude.com/docs/en/build-with-claude/structured-outputs)
+and [effort](https://platform.claude.com/docs/en/build-with-claude/effort).

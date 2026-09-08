@@ -37,6 +37,7 @@ fn target() -> ContinuityBinding {
                     Temperature,
                     TopP,
                     StructuredOutput,
+                    StrictStructuredOutput,
                     ReasoningEffort,
                 ]
                 .into_iter()
@@ -133,10 +134,9 @@ fn parallel_tool_history_keeps_call_and_result_identity() {
 fn declarations_cannot_enable_unimplemented_semantics_or_hidden_extensions() {
     for extra in [
         json!({"input":[{"role":"developer","content":"required role"},{"role":"user","content":"input"}]}),
-        json!({"tools":[{"type":"function","name":"echo","strict":true}]}),
         json!({"tools":[{"type":"custom","name":"custom"}]}),
-        json!({"text":{"format":{"type":"json_schema","name":"out","schema":{"type":"object"},"strict":true}}}),
-        json!({"reasoning":{"effort":"high"}}),
+        json!({"text":{"format":{"type":"json_schema","name":"out","schema":{"type":"object"},"strict":false}}}),
+        json!({"reasoning":{"effort":"minimal"}}),
         json!({"input":[{"role":"user","content":[{"type":"input_image","image_url":"https://example.test/image.png","detail":"high"}]}]}),
         json!({"unmapped":"required"}),
     ] {
@@ -570,4 +570,74 @@ fn completed_call_status_roundtrips_but_unfinished_history_cannot_dispatch() {
                 .is_err()
         );
     }
+}
+
+#[test]
+fn messages_native_controls_preserve_schema_and_reject_unrepresentable_options() {
+    let mut body = request();
+    body["tools"][0]["strict"] = json!(true);
+    body["reasoning"] = json!({"effort":"high"});
+    let schema = json!({"type":"object","properties":{"answer":{"type":"string"}},"required":["answer"],"additionalProperties":false});
+    body["text"] = json!({"format":{"type":"json_schema","name":"synthetic_answer","schema":schema,"strict":true}});
+    let prepared = encode(&responses::decode(body.clone(), None).unwrap(), &target()).unwrap();
+    assert_eq!(prepared.payload["tools"][0]["strict"], true);
+    assert_eq!(
+        prepared.payload["output_config"],
+        json!({"effort":"high","format":{"type":"json_schema","schema":schema}})
+    );
+    assert_eq!(prepared.decode(response()).unwrap()["text"], body["text"]);
+    for feature in [
+        Feature::ReasoningEffort,
+        Feature::StructuredOutput,
+        Feature::StrictToolArguments,
+    ] {
+        let mut limited = target();
+        limited.route.capabilities.support.remove(&feature);
+        assert!(encode(&responses::decode(body.clone(), None).unwrap(), &limited).is_err());
+    }
+    for effort in ["none", "minimal", "ultra"] {
+        body["reasoning"]["effort"] = json!(effort);
+        assert!(encode(&responses::decode(body.clone(), None).unwrap(), &target()).is_err());
+    }
+}
+
+#[test]
+fn messages_replay_preserves_tool_then_text_without_crossing_result_boundary() {
+    let mut body = request();
+    let prepared = encode(&responses::decode(body.clone(), None).unwrap(), &target()).unwrap();
+    let mut upstream = response();
+    upstream["stop_reason"] = json!("tool_use");
+    upstream["content"] = json!([
+        {"type":"tool_use","id":"c1","name":"echo","input":{"text":"x"}},
+        {"type":"text","text":"after tool"},
+        {"type":"tool_use","id":"c2","name":"echo","input":{"text":"y"}}
+    ]);
+    let decoded = prepared.decode(upstream.clone()).unwrap();
+    let mut items = vec![json!({"role":"user","content":"begin"})];
+    items.extend(decoded["output"].as_array().unwrap().clone());
+    items.push(json!({"type":"function_call_output","call_id":"c1","output":"one"}));
+    items.push(json!({"type":"function_call_output","call_id":"c2","output":"two"}));
+    body["input"] = json!(items);
+    let replay = encode(&responses::decode(body.clone(), None).unwrap(), &target()).unwrap();
+    assert_eq!(
+        replay.payload["messages"][1]["content"],
+        upstream["content"]
+    );
+    body["input"].as_array_mut().unwrap().insert(
+        5,
+        json!({"role":"assistant","content":"after partial results"}),
+    );
+    assert!(encode(&responses::decode(body, None).unwrap(), &target()).is_err());
+}
+
+#[test]
+fn messages_nonstream_large_text_uses_bounded_ir_deltas_without_truncation() {
+    let prepared = encode(&responses::decode(request(), None).unwrap(), &target()).unwrap();
+    let text = "합성🧪".repeat(150_000);
+    let mut upstream = response();
+    upstream["content"][0]["text"] = json!(text);
+    assert_eq!(
+        prepared.decode(upstream).unwrap()["output"][0]["content"][0]["text"],
+        text
+    );
 }

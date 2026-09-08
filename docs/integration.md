@@ -63,14 +63,15 @@ Bearer 토큰과 프로세스별 공급자 설정을 tenant별 보안 경계로 
 게이트웨이의 요청별 RouteSnapshot은 라우팅 선언이며 저장 이력의 재개 인증이
 아니다. 프로필의 context_window를 호스트 압축 설정에 연결해야 하며 실제 입력
 토큰 판정은 모델별 계수 근거가 필요하다. 출력 한도 검사는 HTTP 전송 전 적용한다.
-Messages는 명시적 프로필로 활성화할 수 있으며 G09의 실제 Codex + 합성
-upstream 검증 범위만 확인됐다. Chat Completions는 G12 검증 전까지 거부한다.
+Messages와 Chat Completions는 명시적 프로필로 활성화할 수 있으며 G12의
+실제 Codex + 합성 upstream 공통 검증 범위만 확인됐다. [공통 지원표](conformance.md)를
+따르고 실제 모델의 출력·도구·컨텍스트 적합성과 소비자 수락을 별도로 검증한다.
 
 Messages 지시 bridge는 프로필의 명시적 선택 기능이다. 호스트는 native 역할
 구분과 다른 한계를 알고 qualification해야 하며, 실제 도구 권한이나 사용자
 승인 판단을 모델의 지시 해석으로 대체해서는 안 된다.
 
-Messages 경로는 namespace·custom tool의 요청별 매핑과 제한된 스트림
+변환 경로는 namespace·custom tool의 요청별 매핑과 제한된 스트림
 변환을 제공한다. 호스트는 문법 bridge를 native constrained decoding으로
 간주하지 않아야 한다. 구문 검사와 승인·파일 실행은 별도 책임이며, 현재 검증된
 호스트 프로필과 byte 한도는 [Messages 지원표](messages.md)를 따른다.

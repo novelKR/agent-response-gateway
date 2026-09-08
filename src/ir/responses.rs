@@ -87,12 +87,27 @@ fn decode_part(value: Value) -> Result<Part, IrError> {
         },
         _ => {
             return Ok(Part {
+                annotations: None,
                 kind: PartKind::Extension(value),
                 extensions: Extensions::responses(),
             });
         }
     };
+    let annotations = if matches!(
+        kind,
+        PartKind::Text {
+            kind: TextKind::Output,
+            ..
+        }
+    ) {
+        take(&mut fields, "annotations")
+            .map(|v| array(v, "annotations"))
+            .transpose()?
+    } else {
+        None
+    };
     Ok(Part {
+        annotations,
         kind,
         extensions: ext(fields),
     })
@@ -122,6 +137,9 @@ fn decode_item(value: Value, binding: Option<&ContinuityBinding>) -> Result<Item
             _ => return Err(IrError::InvalidField("role")),
         };
         return Ok(Item::Message(Message {
+            status: take(&mut fields, "status")
+                .map(|v| serde_json::from_value(v).map_err(|_| IrError::InvalidField("status")))
+                .transpose()?,
             id: item_id(&mut fields)?,
             role,
             content: decode_content(
@@ -418,6 +436,11 @@ fn retained(value: &Value, protocol: ApiProtocol) -> Result<Value, IrError> {
 
 fn encode_part(part: &Part) -> Result<Value, IrError> {
     let mut data = fields(&part.extensions)?;
+    optional(
+        &mut data,
+        "annotations",
+        part.annotations.clone().map(Value::Array),
+    )?;
     match &part.kind {
         PartKind::Text { kind, text } => {
             put(
@@ -460,6 +483,13 @@ fn encode_item(item: &Item, binding: Option<&ContinuityBinding>) -> Result<Value
     match item {
         Item::Message(message) => {
             data = fields(&message.extensions)?;
+            optional(
+                &mut data,
+                "status",
+                message
+                    .status
+                    .map(|v| serde_json::to_value(v).expect("enum serializes")),
+            )?;
             if message.explicit_type {
                 put(&mut data, "type", "message")?;
             }

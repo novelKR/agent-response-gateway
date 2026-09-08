@@ -237,13 +237,8 @@ impl Config {
                 ));
             }
         }
-        for (id, model) in &self.models {
+        for id in self.models.keys() {
             self.resolve_route(id)?;
-            if model.api == ApiProtocol::ChatCompletions {
-                return Err(ConfigError(
-                    "Configured API adapter is not yet qualified for dispatch".into(),
-                ));
-            }
         }
         let l = &self.limits;
         if !(1..=64 * 1024 * 1024).contains(&l.max_request_bytes)
