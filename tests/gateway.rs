@@ -766,3 +766,15 @@ async fn network_failure_is_a_sanitized_gateway_error() {
     assert!(!body.contains(&base_url));
     assert!(!body.contains(UPSTREAM_TOKEN));
 }
+
+#[tokio::test]
+async fn http_passthrough_remains_independent_of_stricter_ir_projection() {
+    let harness = Harness::new(Mode::Json, |_| {}).await;
+    let mut request = json!({"model":"writer","input":[{"type":"function_call_output","call_id":"external-call","output":"external-result"}],"tools":[{"type":"future_hosted_tool"}],"future_option":{"enabled":true}});
+    assert!(agent_response_gateway::ir::responses::decode(request.clone(), None).is_err());
+    let response = harness.post().json(&request).send().await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    request["store"] = json!(false);
+    request["model"] = json!("actual-model");
+    assert_eq!(harness.mock.requests.lock().unwrap()[0].body, request);
+}

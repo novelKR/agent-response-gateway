@@ -76,6 +76,14 @@ python3 examples/client.py --base-url http://127.0.0.1:43127/v1 --model example/
 응답 조회·삭제, 자동 재시도·fallback, WebSocket, OAuth·계정 풀은 미지원이다.
 상세 계약과 제한은 [프로토콜 문서](docs/protocol.md)를 참조한다.
 
+## 내부 IR v1
+
+라이브러리에는 요청 의미, 출력 이벤트 상태, 기능 판정과 origin-bound 불투명
+상태를 표현하는 IR v1을 제공한다. 순수 Responses 요청 왕복 codec과 custom
+tool JSON bridge, 이벤트 상태 검증을 포함한다. 기존 HTTP 전달 경로에
+공급자 변환을 활성화하지는 않는다. 지원 부분집합과 후속 어댑터 경계는
+[IR 계약](docs/ir.md)에 정리했다.
+
 ## 검증
 
 ```sh
