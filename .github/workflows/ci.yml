@@ -146,6 +146,7 @@ jobs:
       - run: python3 -B scripts/codex_runtime.py schema --profile experimental
       - run: cargo +1.98.0 build --locked
       - name: Run every synthetic Codex scenario
+        shell: bash
         run: python3 -B tests/codex/conformance.py | tee .local/conformance-results.jsonl
       - name: Report payload-free outcomes
         if: ${{ always() }}

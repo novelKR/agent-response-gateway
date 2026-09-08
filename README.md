@@ -5,9 +5,10 @@ Rust로 작성한 독립 Responses 프록시의 초기 기반이다. 등록한 �
 전달한다. 에이전트 런타임과 백엔드 서비스가 같은 HTTP 인터페이스를
 소비할 수 있도록 구성한다.
 
-현재는 **루프백 전용 Responses → Responses 전달**을 제공한다. Messages와
-Chat Completions 변환, Codex 실제 호환성, 백엔드의 tenant·egress 통합과
-생산 운영 수락은 아직 완료되지 않았다.
+현재는 **루프백 전용 Responses → Responses 전달과 명시적 프로필의
+Responses → Messages 변환**을 제공한다. 고정 Codex와 합성 upstream의
+도구·승인 거절·취소 시험을 통과했다. 실제 공급자 모델 qualification,
+Chat Completions 변환, 소비자 내장·장기 운영·정식 배포 수락은 후속 단계다.
 
 ## 시작하기
 
@@ -20,8 +21,9 @@ cp config.example.toml config.local.toml
 ```
 
 `config.local.toml`의 공급자 `base_url`과 `upstream_model`을 사용할 경로로
-수정한다. `base_url`은 `/v1` 등의 API 접두사이며 게이트웨이가 `/responses`를
-붙인다. 최초 검증에는 모의 공급자 주소와 합성 입력을 사용한다.
+수정한다. `base_url`은 `/v1` 등의 API 접두사이며 API 선언에 따라
+`/responses` 또는 `/messages`를 붙인다. Messages 설정은
+[전용 예제](config.messages.example.toml)와 [지원표](docs/messages.md)를 따른다. 최초 검증에는 모의 공급자 주소와 합성 입력을 사용한다.
 실제 공급자에 아래 클라이언트로 요청하면 공급자 정책에 따라 비용이 발생할 수 있다.
 
 환경변수 `ARG_LOCAL_TOKEN`에는 32~4096자의 공백 없는 ASCII 토큰을,
@@ -67,10 +69,11 @@ python3 examples/client.py --base-url http://127.0.0.1:43127/v1 --model example/
 | `GET /v1/models` | Bearer 인증 후 설정된 모델명 목록 |
 | `POST /v1/responses` | Bearer 인증 후 모델 치환·공급자 인증 교체·JSON/SSE 전달 |
 
-도구·구조화 출력·추론 항목은 재구성하지 않는다. 원래 JSON 필드는 모델
+native Responses는 도구·구조화 출력·추론 항목을 재구성하지 않는다. JSON 필드는 모델
 치환과 `store:false` 정규화를 제외하고 보존되지만 JSON 직렬화 바이트가
 동일하다는 뜻은 아니다. SSE 응답 본문은 바이트 그대로 전달한다.
-공급자 모델을 `/v1/models`에 등록했다는 사실은 기능 호환성 검증을 의미하지 않는다.
+Messages는 선언된 함수·custom·namespace 도구와 텍스트를 변환하며 미지원
+필수 기능을 전송 전에 거부한다. `/v1/models` 등록은 모델 호환성 검증이 아니다.
 
 저장 요청, 이전 response ID와 conversation 기반 상태, 압축, background 실행,
 응답 조회·삭제, 자동 재시도·fallback, WebSocket, OAuth·계정 풀은 미지원이다.
@@ -80,8 +83,8 @@ python3 examples/client.py --base-url http://127.0.0.1:43127/v1 --model example/
 
 라이브러리에는 요청 의미, 출력 이벤트 상태, 기능 판정과 origin-bound 불투명
 상태를 표현하는 IR v1을 제공한다. 순수 Responses 요청 왕복 codec과 custom
-tool JSON bridge, 이벤트 상태 검증을 포함한다. 기존 HTTP 전달 경로에
-공급자 변환을 활성화하지는 않는다. 지원 부분집합과 후속 어댑터 경계는
+tool JSON·namespace·patch 문법 bridge, 이벤트 상태 검증을 포함한다.
+Messages HTTP 경로는 이 계약을 사용하고 native 경로는 원형 전달을 유지한다. 지원 부분집합과 후속 어댑터 경계는
 [IR 계약](docs/ir.md)에 정리했다.
 
 후속 구현의 우선순위·의존성과 완료 기준은 [구현 마일스톤](docs/roadmap.md),

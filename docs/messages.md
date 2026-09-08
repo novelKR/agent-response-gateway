@@ -1,8 +1,9 @@
 # Messages adapter support
 
-G07/G08 provide pure Messages request, JSON response and incremental stream codecs.
-G09 actual pinned-Codex qualification and HTTP cancellation tests remain required
-before route activation. Tests use synthetic data only.
+G07–G09 provide Messages request, JSON response and incremental stream conversion
+behind an explicitly declared Messages route. The pinned actual-Codex/mock and
+HTTP cancellation suites pass for the profile below. Tests use synthetic data
+only; no actual provider model has been qualified.
 
 | Contract | Implemented codec behavior |
 |---|---|
@@ -76,11 +77,69 @@ bounds deltas to 1 MiB, accumulated arguments to 8 MiB and output items to 4096.
 Text and raw tool fragments share the aggregate output budget. No response is
 completed without message_delta followed by message_stop; EOF or dropping the
 state is not a successful terminal event. Actual HTTP disconnect/cancellation is
-owned by the transport and is an additional G09 acceptance gate.
+owned by the transport. G09 tests both socket closure and permit release, including
+a source sending only SSE comments. The existing max_response_bytes configuration
+also bounds each converted SSE event and aggregate retained output. Native SSE
+keeps its existing unbuffered passthrough behavior.
 
 The regression suite checks every byte split of a text/parallel-function/custom
 stream, exact custom text restoration, namespace collisions and choice/history
 mapping, duplicate JSON, malformed wrappers, early EOF, error/unknown/order
-failures and aggregate limits. Pure codec success does not establish actual Codex
-or provider qualification. The streaming contract follows the primary
+failures and aggregate limits. These codec tests complement the actual-Codex checks below and do not establish
+provider qualification. The streaming contract follows the primary
 [Messages streaming documentation](https://platform.claude.com/docs/en/build-with-claude/streaming).
+
+## Qualified synthetic Codex profile
+
+The verified test artifact is the temporary `0.154.0-alpha.6` / macOS ARM64 baseline
+in [the runtime lock](../tests/codex/runtime-lock.json). The host uses its bundled
+`gpt-5.4` catalog entry to select the test tool contract; the gateway routes every
+model request to a synthetic upstream model. This is not a GPT-5.4 provider call.
+The generated catalog retains all original prompts and other model fields, with
+these explicit capability overrides:
+
+| Catalog field | Test setting |
+|---|---|
+| support_verbosity | false |
+| default_verbosity | null |
+| default_reasoning_level | null |
+| supported_reasoning_levels | empty array |
+| supports_search_tool | false |
+
+The isolated host config disables model reasoning metadata, tool_search,
+search_tool, multi_agent and web search. Function tools, the registered freeform
+patch tool, dynamic namespace tools and approval handling remain enabled. Generic
+config flags alone did not remove all unsupported fields from the pinned runtime;
+the suite verifies the effective wire request after applying this catalog. The
+canonical catalog digest for this pinned profile is
+`5730ed50d14b2432b960cfb821c6de91edcdc70665e650f71f0dff032ab14b8a`.
+The catalog is derived at runtime and is not copied into public fixtures.
+
+Completed tool-call status is a typed IR field. Native round trips retain it;
+Messages history admits only an absent or completed status and rejects incomplete
+or in-progress calls. The adapter does not discard unknown required fields to
+obtain a successful round trip. Required reasoning, verbosity, strict arguments,
+structured output, opaque state and hosted search remain unsupported.
+
+The eleven actual-Codex scenarios cover text, functions, namespaces, patch
+application/result replay, approval denial, two parallel calls, a subsequent text
+turn, eventful/heartbeat cancellation, transport loss and grammar failure before
+tool execution. The default CI command runs these alongside the eight native
+Responses scenarios. Local HTTP tests additionally cover non-streaming JSON,
+auth/version headers, pre-dispatch rejection, incremental bytes, sanitized errors,
+EOF and aggregate limits.
+
+Results emit payload-free timing fields: turn_elapsed_ms, first_client_text_ms
+when text is observed, and interrupt_to_upstream_close_ms for cancellation.
+These measure the synthetic control/HTTP path, including host processing; a
+function scenario's first text follows its tool round trip. They are not model
+latency, isolated gateway overhead or a production service-level guarantee.
+One local qualification run on 2026-09-08 observed first text at 27.520 ms for the
+text scenario and upstream closure at 109.056 ms / 104.698 ms for eventful /
+heartbeat interruption, against the required 5000 ms bound measured from the
+interrupt. CI reruns the bounds and records fresh timings.
+
+Provider-specific context counting, real-model behavior, consumer integration,
+long-term continuity and release acceptance remain separate stages. A profile
+configuration or this synthetic success does not certify an operator's model.
+See [the Messages configuration example](../config.messages.example.toml).

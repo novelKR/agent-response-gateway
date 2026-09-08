@@ -549,3 +549,25 @@ fn invalid_custom_envelopes_and_duplicate_provider_json_fail_before_tool_complet
     );
     assert!(prepared.decode_bytes(raw.as_bytes()).is_err());
 }
+
+#[test]
+fn completed_call_status_roundtrips_but_unfinished_history_cannot_dispatch() {
+    let mut body = request();
+    body["store"] = json!(false);
+    body["input"] = json!([
+        {"role":"user","content":"start"},
+        {"type":"function_call","name":"echo","call_id":"call_status","status":"completed","arguments":"{}"},
+        {"type":"function_call_output","call_id":"call_status","output":"result"}
+    ]);
+    let ir = responses::decode(body.clone(), None).unwrap();
+    assert_eq!(responses::encode(&ir, None).unwrap(), body);
+    encode(&ir, &target()).unwrap();
+    for status in ["in_progress", "incomplete", "unknown"] {
+        body["input"][1]["status"] = json!(status);
+        assert!(
+            responses::decode(body.clone(), None)
+                .and_then(|ir| encode(&ir, &target()))
+                .is_err()
+        );
+    }
+}

@@ -1,4 +1,4 @@
-//! Pure Responses request projection. This codec is intentionally not in the HTTP path.
+//! Pure Responses request projection for translated routes; native HTTP remains passthrough.
 use serde_json::{Map, Number, Value};
 
 use super::{
@@ -144,6 +144,9 @@ fn decode_item(value: Value, binding: Option<&ContinuityBinding>) -> Result<Item
                 ToolInput::Freeform(required(&mut fields, "input")?)
             };
             Ok(Item::ToolCall(ToolCall {
+                status: take(&mut fields, "status")
+                    .map(|v| serde_json::from_value(v).map_err(|_| IrError::InvalidField("status")))
+                    .transpose()?,
                 item_id,
                 call_id,
                 tool,
@@ -478,6 +481,12 @@ fn encode_item(item: &Item, binding: Option<&ContinuityBinding>) -> Result<Value
             put_id(&mut data, call.item_id.as_ref())?;
             put(&mut data, "call_id", call.call_id.as_str())?;
             put_tool(&mut data, &call.tool)?;
+            optional(
+                &mut data,
+                "status",
+                call.status
+                    .map(|v| serde_json::to_value(v).expect("status enum")),
+            )?;
             match &call.input {
                 ToolInput::Json(raw) => {
                     put(&mut data, "type", "function_call")?;

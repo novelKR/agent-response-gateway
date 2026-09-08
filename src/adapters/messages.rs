@@ -8,7 +8,7 @@ use serde_json::{Map, Value, json};
 use crate::ir::{
     ApiProtocol, CallId, IrError, ItemId, ResponseId, ToolIdentity, ToolKind,
     bridge::CustomToolBridge,
-    capability::{BridgeRule, Feature, plan_translation},
+    capability::{BridgeRule, Feature, TranslationPlan, plan_translation},
     continuity::ContinuityBinding,
     event::{
         ContentIndex, EventIR, EventLimits, EventValidator, OutputIndex, OutputKind,
@@ -16,7 +16,7 @@ use crate::ir::{
     },
     request::{
         Content, Extensions, Input, Item, OutputFormat, PartKind, RequestIR, Role, ToolCall,
-        ToolChoice, ToolDefinitionKind, ToolInput,
+        ToolCallStatus, ToolChoice, ToolDefinitionKind, ToolInput,
     },
 };
 
@@ -74,6 +74,17 @@ pub fn encode(
         return Err(IrError::WrongProtocol);
     }
     let plan = plan_translation(request, target)?;
+    encode_admitted(request, &plan)
+}
+
+/// Internal HTTP entry: use the plan produced by route admission exactly once.
+pub(crate) fn encode_admitted(
+    request: &RequestIR,
+    plan: &TranslationPlan,
+) -> Result<PreparedMessages, IrError> {
+    if plan.route.api != ApiProtocol::Messages {
+        return Err(IrError::WrongProtocol);
+    }
     // Profile declarations cannot enable an unimplemented semantic conversion.
     for feature in plan.required.iter() {
         if !matches!(
@@ -115,11 +126,11 @@ pub fn encode(
         envelope.push(json!({"role":"protocol_default", "position":"request", "text":text}));
     }
     let mut payload = Map::new();
-    payload.insert("model".into(), json!(target.route.model));
+    payload.insert("model".into(), json!(plan.route.model));
     let maximum = request
         .generation
         .max_output_tokens
-        .or(target.route.max_output_tokens)
+        .or(plan.route.max_output_tokens)
         .ok_or(IrError::InvalidField("max_output_tokens"))?;
     payload.insert("max_tokens".into(), json!(maximum));
     payload.insert(
@@ -297,7 +308,7 @@ pub fn encode(
     }
     Ok(PreparedMessages {
         payload: Value::Object(payload),
-        model: target.route.model.clone(),
+        model: plan.route.model.clone(),
         registry,
         parallel: request.generation.parallel_tool_calls,
         choice: request.generation.tool_choice.clone(),
@@ -484,6 +495,7 @@ impl PreparedMessages {
         raw: String,
     ) -> Result<ToolCall, IrError> {
         let call = self.registry.restore_call(&ToolCall {
+            status: Some(ToolCallStatus::Completed),
             item_id: Some(item),
             call_id,
             tool: ToolIdentity::new(None, name)?,

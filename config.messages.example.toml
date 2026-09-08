@@ -1,0 +1,36 @@
+# Replace the endpoint, model, limits and profile with a verified provider contract.
+# These numeric limits are synthetic examples, not a qualified provider model.
+listen = "127.0.0.1:0"
+local_token_env = "ARG_LOCAL_TOKEN"
+
+[providers.messages]
+base_url = "https://your-messages-provider.example/v1"
+api_key_env = "ARG_MESSAGES_API_KEY"
+
+[models."example/messages"]
+provider = "messages"
+upstream_model = "replace-with-your-verified-model"
+api = "messages"
+auth = "api_key"
+messages_version = "2023-06-01"
+capability_profile = "messages-profile"
+
+[capability_profiles.messages-profile]
+version = "1"
+provider = "messages"
+upstream_model = "replace-with-your-verified-model"
+api = "messages"
+context_window = 32768
+max_output_tokens = 1024
+tested_codex_version = "0.154.0-alpha.6"
+
+[capability_profiles.messages-profile.support]
+instructions = "native"
+instruction_hierarchy = "bridged_instruction_envelope"
+function_tools = "native"
+custom_tools = "bridged_custom_tool_json"
+custom_grammar = "bridged_codex_patch_grammar"
+namespaced_tools = "bridged_tool_namespace"
+tool_choice = "native"
+parallel_tool_control = "native"
+max_output_tokens = "native"

@@ -215,6 +215,7 @@ impl MessagesStream<'_> {
                         let call = CallId::new(string(block, "id")?)?;
                         let item = tool_output(
                             &ToolCall {
+                                status: Some(ToolCallStatus::InProgress),
                                 item_id: Some(id.clone()),
                                 call_id: call.clone(),
                                 tool: tool.clone(),
