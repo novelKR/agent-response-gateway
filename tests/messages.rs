@@ -289,3 +289,263 @@ fn tool_choice_and_nonportable_provider_state_remain_explicit_errors() {
         .remove(&Feature::FunctionTools);
     assert!(encode(&responses::decode(request(), None).unwrap(), &wrong).is_err());
 }
+
+fn bridged_target() -> ContinuityBinding {
+    use agent_response_gateway::ir::capability::BridgeRule;
+    let mut target = target();
+    for (feature, rule) in [
+        (Feature::CustomTools, BridgeRule::CustomToolJson),
+        (Feature::NamespacedTools, BridgeRule::ToolNamespace),
+        (Feature::CustomGrammar, BridgeRule::CodexPatchGrammar),
+    ] {
+        target
+            .route
+            .capabilities
+            .support
+            .insert(feature, Support::Bridged(rule));
+    }
+    target
+}
+fn namespaced_request() -> Value {
+    json!({"model":"writer", "input":"synthetic", "tools":[
+        {"type":"function","name":"echo","parameters":{"type":"object"}},
+        {"type":"namespace","name":"group","description":"Namespace fixture", "tools":[
+            {"type":"function","name":"echo","description":"Member fixture","parameters":{"type":"object"}},
+            {"type":"custom","name":"echo","format":{"type":"text"}}
+        ]}
+    ]})
+}
+
+#[test]
+fn namespace_registry_preserves_definitions_choices_history_and_output() {
+    let mut body = namespaced_request();
+    // Distinct custom name within one namespace, same leaf name across flat/group definitions.
+    body["tools"][1]["tools"][1]["name"] = json!("patch");
+    body["tool_choice"] = json!({"type":"function","namespace":"group","name":"echo"});
+    body["input"] = json!([
+        {"role":"user","content":"begin"},
+        {"type":"function_call","name":"echo","call_id":"flat","arguments":"{}"},
+        {"type":"function_call","namespace":"group","name":"echo","call_id":"member","arguments":"{}"},
+        {"type":"custom_tool_call","namespace":"group","name":"patch","call_id":"custom","input":"quoted \"한글\"\n\\"},
+        {"type":"custom_tool_call_output","call_id":"custom","output":"custom result"},
+        {"type":"function_call_output","call_id":"member","output":"member result"},
+        {"type":"function_call_output","call_id":"flat","output":"flat result"}
+    ]);
+    let prepared = encode(&responses::decode(body, None).unwrap(), &bridged_target()).unwrap();
+    let tools = prepared.payload["tools"].as_array().unwrap();
+    assert_eq!(tools[0]["name"], "echo");
+    assert_ne!(tools[1]["name"], tools[0]["name"]);
+    assert_ne!(tools[2]["name"], tools[1]["name"]);
+    let description: Value =
+        serde_json::from_str(tools[1]["description"].as_str().unwrap()).unwrap();
+    assert_eq!(description["namespace_description"], "Namespace fixture");
+    assert_eq!(description["tool_description"], "Member fixture");
+    assert_eq!(prepared.payload["tool_choice"]["name"], tools[1]["name"]);
+    for (i, tool) in tools.iter().enumerate() {
+        assert_eq!(
+            prepared.payload["messages"][1]["content"][i]["name"],
+            tool["name"]
+        );
+    }
+    assert_eq!(
+        prepared.payload["messages"][1]["content"][2]["input"]["input"],
+        "quoted \"한글\"\n\\"
+    );
+    let mut upstream = response();
+    upstream["stop_reason"] = json!("tool_use");
+    upstream["content"] = json!([{"type":"tool_use","id":"original_call","name":tools[1]["name"],"input":{"n":9007199254740993123_u64}}]);
+    let decoded = prepared.decode(upstream).unwrap();
+    assert_eq!(decoded["output"][0]["namespace"], "group");
+    assert_eq!(decoded["output"][0]["name"], "echo");
+    assert_eq!(decoded["output"][0]["call_id"], "original_call");
+    assert!(
+        decoded["output"][0]["arguments"]
+            .as_str()
+            .unwrap()
+            .contains("9007199254740993123")
+    );
+    assert!(responses::decode(namespaced_request(), None).is_err());
+}
+
+fn stream_events(function: &str, custom: &str) -> Vec<Value> {
+    let mut result = vec![
+        json!({"type":"message_start","message":{"id":"msg_synthetic","type":"message","role":"assistant","model":"synthetic-model","content":[],"stop_reason":null,"usage":{"input_tokens":10,"output_tokens":1}}}),
+        json!({"type":"ping"}),
+        json!({"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}),
+        json!({"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"합성 🧪"}}),
+        json!({"type":"content_block_stop","index":0}),
+        json!({"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"function_call","name":function,"input":{}}}),
+        json!({"type":"content_block_start","index":2,"content_block":{"type":"tool_use","id":"custom_call","name":custom,"input":{}}}),
+    ];
+    for (index, text) in [
+        (1, "{\"x\":"),
+        (2, "{\"input\":\"한글"),
+        (1, "9007199254740993123}"),
+        (2, "\\n\\\"quoted\\\"\"}"),
+    ] {
+        result.push(json!({"type":"content_block_delta","index":index,"delta":{"type":"input_json_delta","partial_json":text}}));
+    }
+    result.extend([
+        json!({"type":"content_block_stop","index":2}),
+        json!({"type":"content_block_stop","index":1}),
+        json!({"type":"message_delta","delta":{"stop_reason":"tool_use","stop_sequence":null},"usage":{"output_tokens":12}}),
+        json!({"type":"message_stop"}),
+    ]);
+    result
+}
+fn stream_prepared() -> agent_response_gateway::adapters::messages::PreparedMessages {
+    let mut body = namespaced_request();
+    body["tools"][1]["tools"][1]["name"] = json!("patch");
+    encode(&responses::decode(body, None).unwrap(), &bridged_target()).unwrap()
+}
+fn event(value: &Value) -> agent_response_gateway::adapters::sse::SseEvent {
+    agent_response_gateway::adapters::sse::SseEvent {
+        event: value["type"].as_str().unwrap().into(),
+        data: value.to_string(),
+    }
+}
+
+#[test]
+fn incremental_stream_preserves_parallel_tools_utf8_and_custom_input_at_every_split() {
+    use agent_response_gateway::adapters::sse::SseDecoder;
+    let prepared = stream_prepared();
+    let events = stream_events(
+        prepared.payload["tools"][1]["name"].as_str().unwrap(),
+        prepared.payload["tools"][2]["name"].as_str().unwrap(),
+    );
+    let wire: Vec<u8> = events
+        .iter()
+        .map(|v| {
+            format!(
+                "event: {}\r\ndata: {}\r\n\r\n",
+                v["type"].as_str().unwrap(),
+                v
+            )
+        })
+        .collect::<String>()
+        .into_bytes();
+    // A full pass for every byte split includes cuts inside UTF-8, JSON escapes and SSE separators.
+    for split in 0..=wire.len() {
+        let mut framing = SseDecoder::new(1024 * 1024).unwrap();
+        let mut stream = prepared.stream(1024 * 1024).unwrap();
+        let mut output = Vec::new();
+        for chunk in [&wire[..split], &wire[split..]] {
+            let mut rest = chunk;
+            while let Some(event) = framing.next_event(&mut rest).unwrap() {
+                output.extend(stream.event(event).unwrap());
+            }
+        }
+        framing.finish().unwrap();
+        stream.finish().unwrap();
+        for (sequence, value) in output.iter().enumerate() {
+            assert_eq!(value["sequence_number"], sequence);
+        }
+        let complete = &output.last().unwrap()["response"];
+        assert_eq!(complete["status"], "completed");
+        assert_eq!(complete["output"][0]["content"][0]["text"], "합성 🧪");
+        assert_eq!(complete["output"][1]["namespace"], "group");
+        assert_eq!(complete["output"][1]["name"], "echo");
+        assert_eq!(
+            complete["output"][1]["arguments"],
+            "{\"x\":9007199254740993123}"
+        );
+        assert_eq!(complete["output"][2]["type"], "custom_tool_call");
+        assert_eq!(complete["output"][2]["input"], "한글\n\"quoted\"");
+        assert_eq!(complete["output"][2]["call_id"], "custom_call");
+        assert_eq!(complete["usage"]["total_tokens"], 22);
+        assert_eq!(
+            output
+                .iter()
+                .filter(|v| v["type"] == "response.custom_tool_call_input.delta")
+                .count(),
+            1
+        );
+        let text_delta = output
+            .iter()
+            .position(|v| v["type"] == "response.output_text.delta")
+            .unwrap();
+        let tool_added = output
+            .iter()
+            .position(|v| v["type"] == "response.output_item.added" && v["output_index"] == 1)
+            .unwrap();
+        assert!(text_delta < tool_added);
+    }
+}
+
+#[test]
+fn incomplete_error_and_invalid_streams_never_manufacture_completion() {
+    let prepared = stream_prepared();
+    let events = stream_events(
+        prepared.payload["tools"][1]["name"].as_str().unwrap(),
+        prepared.payload["tools"][2]["name"].as_str().unwrap(),
+    );
+    for end in 0..events.len() {
+        let mut stream = prepared.stream(1024 * 1024).unwrap();
+        for value in &events[..end] {
+            assert!(
+                stream
+                    .event(event(value))
+                    .unwrap()
+                    .iter()
+                    .all(|v| v["type"] != "response.completed")
+            );
+        }
+        assert!(stream.finish().is_err());
+    }
+    for bad in [
+        json!({"type":"error","error":{"type":"overloaded_error","message":"synthetic"}}),
+        json!({"type":"unknown"}),
+        json!({"type":"message_stop"}),
+        json!({"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"orphan"}}),
+        json!({"type":"content_block_start","index":7,"content_block":{"type":"text","text":""}}),
+    ] {
+        let mut stream = prepared.stream(1024 * 1024).unwrap();
+        stream.event(event(&events[0])).unwrap();
+        assert!(stream.event(event(&bad)).is_err());
+        assert!(stream.event(event(&events[2])).is_err());
+        assert!(stream.finish().is_err());
+    }
+    // Repeated valid small deltas exceed the aggregate limit; single-event limits alone are insufficient.
+    let mut stream = prepared.stream(512).unwrap();
+    stream.event(event(&events[0])).unwrap();
+    stream.event(event(&events[2])).unwrap();
+    let chunk = json!({"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"x".repeat(100)}});
+    for _ in 0..5 {
+        stream.event(event(&chunk)).unwrap();
+    }
+    assert!(matches!(
+        stream.event(event(&chunk)),
+        Err(IrError::SizeLimit)
+    ));
+    assert!(stream.finish().is_err());
+}
+
+#[test]
+fn invalid_custom_envelopes_and_duplicate_provider_json_fail_before_tool_completion() {
+    let prepared = stream_prepared();
+    let alias = prepared.payload["tools"][2]["name"].as_str().unwrap();
+    let start = stream_events("unused", alias)[0].clone();
+    for raw in [
+        "{",
+        "{}",
+        "{\"input\":4}",
+        "{\"input\":\"a\",\"input\":\"b\"}",
+        "{\"input\":\"a\",\"extra\":true}",
+    ] {
+        let mut stream = prepared.stream(1024 * 1024).unwrap();
+        stream.event(event(&start)).unwrap();
+        stream.event(event(&json!({"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"c","name":alias,"input":{}}}))).unwrap();
+        let deltas = stream.event(event(&json!({"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":raw}}))).unwrap();
+        assert!(deltas.is_empty());
+        assert!(
+            stream
+                .event(event(&json!({"type":"content_block_stop","index":0})))
+                .is_err()
+        );
+        assert!(stream.finish().is_err());
+    }
+    let raw = format!(
+        r#"{{"id":"msg_synthetic","type":"message","role":"assistant","model":"synthetic-model","content":[{{"type":"tool_use","id":"c","name":"{alias}","input":{{"input":"a","input":"b"}}}}],"stop_reason":"tool_use","usage":{{"input_tokens":1,"output_tokens":1}}}}"#
+    );
+    assert!(prepared.decode_bytes(raw.as_bytes()).is_err());
+}
