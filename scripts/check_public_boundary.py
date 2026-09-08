@@ -18,7 +18,7 @@ import sys
 import tarfile
 
 
-RESERVED = {b".private", b".git", b".build", b".local", b"target", b".gitmodules"}
+RESERVED = {b".private", b".codex", b".git", b".build", b".local", b"target", b".gitmodules"}
 MAX_FILE = 64 * 1024 * 1024
 MAX_TOTAL = 1024 * 1024 * 1024
 MAX_ENTRIES = 100_000
@@ -132,49 +132,66 @@ class Checker:
             self.content(data)
         return paths
 
+    def tree(self, oid: bytes) -> None:
+        for entry in self.git("ls-tree", "-r", "-t", "-z", oid.decode("ascii")).split(b"\0"):
+            if not entry:
+                continue
+            metadata, path = entry.split(b"\t", 1)
+            mode, kind, child = metadata.split()
+            self.path(path, mode)
+            if kind == b"tree" and mode == b"040000":
+                continue
+            if kind != b"blob":
+                raise BoundaryError
+            self.blob(child)
+
     def history(self) -> int:
         if self.git("rev-parse", "--is-shallow-repository").strip() != b"false":
             raise BoundaryError
         refs = self.git("for-each-ref", "--format=%(refname)%00%(objecttype)%00%(objectname)").splitlines()
         if len(refs) > MAX_ENTRIES:
             raise BoundaryError
-        tags: set[bytes] = set()
+        tags: dict[bytes, tuple[bytes, bytes]] = {}
+        trees: set[bytes] = set()
         for ref in refs:
             label, kind, oid = ref.split(b"\0")
             self.content(label)
-            while kind == b"tag" and oid not in tags:
-                tags.add(oid)
-                if len(tags) > MAX_ENTRIES:
+            visited: set[bytes] = set()
+            while kind == b"tag":
+                if oid in visited:
                     raise BoundaryError
-                name = oid.decode("ascii")
-                length = int(self.git("cat-file", "-s", name))
-                self.size(length)
-                data = self.git("cat-file", "tag", name)
-                if len(data) != length:
+                visited.add(oid)
+                if oid not in tags:
+                    if len(tags) >= MAX_ENTRIES:
+                        raise BoundaryError
+                    name = oid.decode("ascii")
+                    length = int(self.git("cat-file", "-s", name))
+                    self.size(length)
+                    data = self.git("cat-file", "tag", name)
+                    if len(data) != length:
+                        raise BoundaryError
+                    self.content(data)
+                    headers = dict(line.split(b" ", 1) for line in data.split(b"\n\n", 1)[0].splitlines())
+                    tags[oid] = headers[b"object"], headers[b"type"]
+                oid, kind = tags[oid]
+                if self.git("cat-file", "-t", oid.decode("ascii")).strip() != kind:
                     raise BoundaryError
-                self.content(data)
-                headers = dict(line.split(b" ", 1) for line in data.split(b"\n\n", 1)[0].splitlines())
-                oid, kind = headers[b"object"], headers[b"type"]
-            if kind not in {b"commit", b"tag"}:
+            if kind == b"tree":
+                if oid not in trees:
+                    trees.add(oid)
+                    self.tree(oid)
+            elif kind != b"commit":
                 raise BoundaryError
-        commits = self.git("rev-list", "--all").splitlines()
+        # --all does not include a detached HEAD. An unborn HEAD yields no revision.
+        head = self.git("rev-parse", "--revs-only", "HEAD").splitlines()
+        commits = self.git("rev-list", "--all", *(oid.decode("ascii") for oid in head)).splitlines()
         if len(commits) > MAX_ENTRIES:
             raise BoundaryError
         for commit in commits:
             name = commit.decode("ascii")
             # Messages and identities can also disclose configured markers.
             self.content(self.git("cat-file", "commit", name))
-            for entry in self.git("ls-tree", "-r", "-t", "-z", name).split(b"\0"):
-                if not entry:
-                    continue
-                metadata, path = entry.split(b"\t", 1)
-                mode, kind, oid = metadata.split()
-                self.path(path, mode)
-                if kind == b"tree" and mode == b"040000":
-                    continue
-                if kind != b"blob":
-                    raise BoundaryError
-                self.blob(oid)
+            self.tree(commit)
         return len(commits)
 
     def archive(self, archive: Path) -> int:
