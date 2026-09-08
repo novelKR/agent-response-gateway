@@ -91,3 +91,15 @@ interrupt_to_upstream_close_ms. These are not provider latency or isolated gatew
 overhead. See [Messages support](../../docs/messages.md) for the exact profile,
 limitations and one local measurement. Consumer activation and live-model tests
 remain separate from this suite.
+
+## Embedded child contract
+
+Before each scenario the harness inspects the offline manifest without credentials,
+recomputes its canonical configuration SHA-256 in Python, and validates the child's
+bounded readiness line against that schema/version/digest and configured numeric
+loopback address. The Codex child receives a dedicated HOME/CODEX_HOME and local
+token only; upstream values remain confined to the gateway child environment.
+The host fixture raises on mismatched readiness or startup timeout and its existing
+cleanup stack reaps started children. Separate script/Rust tests cover malformed
+frames, deadline cleanup, bind failure and graceful shutdown with an active body.
+Executable/release provenance and consumer operational acceptance remain separate.

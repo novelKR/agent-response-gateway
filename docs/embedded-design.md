@@ -1,6 +1,6 @@
 # G13 — Host-owned embedded process contract
 
-Status: **proposed; implementation awaits explicit user approval**.
+Status: **explicitly approved on 2026-09-08; implemented and covered by synthetic contract tests**.
 This is a generic gateway contract. It does not activate a consumer, select a
 consumer runtime upgrade, enable service mode or create a release.
 
@@ -30,7 +30,7 @@ needed.
 
 ## Proposed CLI and manifest
 
-Add `agent-response-gateway manifest --config <path>`:
+`agent-response-gateway manifest --config <path>`:
 
 - Parse and validate configuration with the same code as serve/check-config.
 - Produce one JSON object on stdout and exit successfully; no listener, credential
@@ -39,7 +39,9 @@ Add `agent-response-gateway manifest --config <path>`:
   API and the `host-supervised-process/v1` lifecycle contract.
 - Include a normalized configuration object containing configured listen address,
   optional source URL, local token environment-variable reference, limits and a
-  stable alias-ordered route list.
+  stable alias-ordered route list. The projection also lists every configured
+  provider credential environment reference, since existing serve validates keys
+  for unused configured providers as well.
 - Each route contains alias, provider ID, resolved endpoint, upstream model/API,
   auth scheme, credential environment-variable reference, optional Messages version,
   adapter version, capability-profile ID/version/support, context/output limits and
@@ -133,7 +135,7 @@ approved generic validation/host contract; consumer records belong in consumer
 repositories. A changed digest blocks blind same-context reuse until the host
 performs the approved explicit transition or starts fresh.
 
-This approval does not upgrade a consumer's pinned Codex. The temporary gateway test
+This contract does not upgrade a consumer's pinned Codex. The temporary gateway test
 baseline and a consumer runtime's own bundle/notice/state compatibility are distinct.
 G14 must present its concrete consumer integration and any runtime or authentication
 mode change for separate approval. No model/provider spend or production activation
@@ -177,3 +179,23 @@ executable/configuration combination. Older hosts continue reading existing read
 fields; new hosts that require the manifest contract fail explicitly when paired
 with an older binary instead of silently bypassing verification. No state migration
 or destructive cleanup is required.
+
+## Implemented interface
+
+`Config::manifest()` returns an immutable EmbeddedManifest projection. Its
+configuration_sha256 getter supplies readiness from the same Config used for
+router/listener setup. The CLI serializes the report without reading Secrets.
+Known unsupported capability entries are normalized to their omitted default;
+explicit legacy auth/API defaults and equivalent resolved URLs produce the same
+digest. The shared SHA-256 primitive retains the existing grammar API and adds
+no dependency.
+
+The standalone Rust tests cover default/URL normalization, profile/auth/key-reference/
+limit changes, stable route ordering, offline inspection, bind failure and bounded
+shutdown with an active response. The synthetic host fixture validates the exact
+manifest/ready schema, independently recomputes the digest in Python, checks the
+configured numeric loopback address and verifies child credential/home separation.
+The actual Codex suite performs these checks before every native/Messages scenario.
+Malformed/mismatched readiness and an unready child deadline are separate tests.
+These are generic contract checks; consumer activation and operational acceptance
+still belong to G14/G17.

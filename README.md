@@ -40,14 +40,17 @@ export ARG_LOCAL_TOKEN="$(python3 -c 'import secrets; print(secrets.token_urlsaf
 
 ```sh
 cargo run --locked -- check-config --config config.local.toml
+cargo run --locked -- manifest --config config.local.toml
 cargo run --locked -- serve --config config.local.toml
 ```
 
 기본 바인딩 `127.0.0.1:0`은 가용 포트를 선택한다. 준비 완료 시 stdout에
-다음 형태의 JSON 한 줄을 출력한다. 로그는 stderr로 출력한다.
+준비 JSON 한 줄을 출력한다. 로그는 stderr로 출력한다. 기존 필드에 내장 계약의
+schema·manifest_schema·configuration_sha256가 추가된다. 호스트는 오프라인
+manifest와 이 digest를 대조하며 키 값은 manifest에 포함되지 않는다.
 
 ```json
-{"event":"ready","address":"127.0.0.1:43127","base_url":"http://127.0.0.1:43127/v1","version":"0.1.0"}
+{"event":"ready","address":"127.0.0.1:43127","base_url":"http://127.0.0.1:43127/v1","version":"0.1.0","schema":"gateway-ready/v1","manifest_schema":"gateway-embedded-manifest/v1","configuration_sha256":"<64 lowercase hex characters>"}
 ```
 
 별도 셸에서도 같은 `ARG_LOCAL_TOKEN`을 사용한다. 아래 주소의 포트는 실제
@@ -120,7 +123,7 @@ Codex 버전에 강제하거나 실제 공급자·소비자 운영 수락을 대
 호스트 애플리케이션은 검증된 게이트웨이 릴리스를 버전·해시로 고정하고
 런타임 관리자가 에이전트와 함께 관리할 수 있다. 백엔드 서비스는 기존
 워크플로·자격 증명·외부 호출의 책임을 유지하면서 HTTP 경로를 연결한다.
-[통합 경계](docs/integration.md)와 [배포 절차](docs/release.md)에
+[통합 경계](docs/integration.md), [내장 계약](docs/embedded-design.md)과 [배포 절차](docs/release.md)에
 소비자별 후속 검증과 책임을 정리했다.
 
 공개 라이선스는 [AGPL-3.0-only](LICENSE)다. 별도 상용 계약을 제공할 정책은
