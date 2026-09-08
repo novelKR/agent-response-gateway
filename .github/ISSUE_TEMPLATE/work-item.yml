@@ -1,0 +1,26 @@
+name: Implementation work item
+description: A bounded implementation or validation task
+title: "[Work item] "
+body:
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Outcome
+      description: Describe the externally observable behavior or verification result.
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies and approval
+      description: Link prerequisite public issues and identify approval boundaries.
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance and validation
+      description: Separate mock tests, hosted CI, provider qualification and consumer acceptance.
+    validations:
+      required: true
+  - type: markdown
+    attributes:
+      value: "Use synthetic inputs. Keep private consumer details, credentials and request/response bodies out of public issues."

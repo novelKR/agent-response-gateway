@@ -1,5 +1,6 @@
 /target/
 /.private/
+/.codex/
 /.build/
 /.local/
 /config.local.toml
