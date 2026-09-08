@@ -1,0 +1,2 @@
+# Preserve upstream notice bytes, including CRLF and intentional whitespace.
+licensing/texts/*.txt -text -whitespace
