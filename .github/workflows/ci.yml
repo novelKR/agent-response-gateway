@@ -148,11 +148,17 @@ jobs:
       - name: Run every synthetic Codex scenario
         shell: bash
         run: python3 -B tests/codex/conformance.py | tee .local/conformance-results.jsonl
+      - name: Verify host-owned continuity with the pinned Codex
+        shell: bash
+        run: python3 -B tests/codex/continuity.py | tee .local/continuity-results.jsonl
       - name: Report payload-free outcomes
         if: ${{ always() }}
         run: |
           if test -f .local/conformance-results.jsonl; then
             cat .local/conformance-results.jsonl >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if test -f .local/continuity-results.jsonl; then
+            cat .local/continuity-results.jsonl >> "$GITHUB_STEP_SUMMARY"
           fi
 
   package-smoke:

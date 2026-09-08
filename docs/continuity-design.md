@@ -100,6 +100,10 @@ the retry budget and recovery decision; the gateway continues to make one
 upstream attempt. Compaction is not triggered while tool results or approvals are
 pending in the host's workflow.
 
+The [host contract implementation](continuity.md) defines executable record
+validation and synthetic conformance. Consumer persistence and operational
+acceptance remain separate.
+
 ## G16/G17 acceptance and migration
 
 - Add reusable, synthetic continuation tests for tool result replay, explicit
