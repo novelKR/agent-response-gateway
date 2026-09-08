@@ -95,8 +95,9 @@ Completions는 선언 검증과 순수 변환 admission까지만 구현되어 �
 `version`, `tested_codex_version`, `context_window`, `max_output_tokens`을 명시한다.
 이 값은 운영자의 선언이며 런타임·공급자 qualification을 자동 증명하지 않는다.
 `support`는 기능 이름을 `native`, `bridged_custom_tool_json`, `unsupported`에
-매핑하며 누락된 기능은 Unsupported다. 현재 bridge 선언은 custom_tools에만
-허용한다. 설정 예시는 `config.example.toml`의 선택적 프로필을 참조한다.
+매핑하며 누락된 기능은 Unsupported다. custom_tools에는 JSON bridge를,
+Messages의 instruction_hierarchy에는 승인된 bridged_instruction_envelope를
+명시할 수 있다. 설정 예시는 `config.example.toml`의 선택적 프로필을 참조한다.
 
 프로필이 있는 경로는 요청한 `max_output_tokens`가 양의 정수인지와 선언 한도
 이하인지를 전송 전에 검사한다. 입력 토큰 계수는 구현·검증되지 않았으며,
