@@ -103,3 +103,10 @@ The host fixture raises on mismatched readiness or startup timeout and its exist
 cleanup stack reaps started children. Separate script/Rust tests cover malformed
 frames, deadline cleanup, bind failure and graceful shutdown with an active body.
 Executable/release provenance and consumer operational acceptance remain separate.
+
+## Continuity
+
+Run `python3 -B tests/codex/continuity.py` for the actual pinned Codex tool, local
+compaction, process restart and explicit model-switch probe. It uses synthetic
+loopback traffic and the [host-owned continuity contract](../../docs/continuity.md).
+The result does not qualify a provider or consumer workflow.
