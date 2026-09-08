@@ -1,6 +1,7 @@
 # Messages instruction-role lowering — approval addendum
 
-Status: proposal; no instruction lowering is applied.
+Status: explicitly approved on 2026-09-08 after detailed review of the semantic
+limits. Implementation is tracked by G07/G08; this PR changes documentation only.
 
 ## Observed boundary
 
