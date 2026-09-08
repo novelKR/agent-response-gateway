@@ -207,6 +207,6 @@ system 영역에 표시하되 native 역할 우선순위와 동일하다고 주�
 HTTP 변환은 route admission에서 만든 TranslationPlan을 재사용해 요구 기능을
 한 번 도출하고, 어댑터의 실제 구현 범위를 추가로 확인한다.
 
-Chat Completions의 요청·일반 응답은 별도 순수 codec으로 제공한다. 도구 정체성·
+Chat Completions의 요청·일반 응답·스트림은 별도 순수 codec으로 제공한다. 도구 정체성·
 선택·호출 수·출력 복원 검증은 Messages와 공유하고, API별 role·finish 의미는
 각 어댑터에 둔다. HTTP 활성화 전 범위는 [Chat 지원표](chat-completions.md)를 따른다.
