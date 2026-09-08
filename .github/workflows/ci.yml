@@ -120,9 +120,43 @@ jobs:
           python3 -B scripts/archive_notices.py .local/release/licenses-a .local/release/license-notices.tar
           python3 -B scripts/check_public_boundary.py --archive .local/release/license-notices.tar
 
+  codex-conformance:
+    runs-on: macos-15
+    timeout-minutes: 25
+    env:
+      CARGO_HOME: ${{ github.workspace }}/.local/cargo-home
+      CARGO_TARGET_DIR: ${{ github.workspace }}/target
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.14'
+      - run: rustup toolchain install 1.98.0 --profile minimal
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            .local/cargo-home/registry
+            .local/codex-runtime
+            target
+          key: conformance-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'tests/codex/runtime-lock.json') }}
+      - run: python3 -B scripts/codex_runtime.py prepare
+      - run: python3 -B scripts/codex_runtime.py verify
+      - run: python3 -B scripts/codex_runtime.py schema --profile experimental
+      - run: cargo +1.98.0 build --locked
+      - name: Run every synthetic Codex scenario
+        run: python3 -B tests/codex/conformance.py | tee .local/conformance-results.jsonl
+      - name: Report payload-free outcomes
+        if: ${{ always() }}
+        run: |
+          if test -f .local/conformance-results.jsonl; then
+            cat .local/conformance-results.jsonl >> "$GITHUB_STEP_SUMMARY"
+          fi
+
   ci-required:
     if: ${{ always() }}
-    needs: [format, rust-linux, rust-macos, publication, licenses]
+    needs: [format, rust-linux, rust-macos, publication, licenses, codex-conformance]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:

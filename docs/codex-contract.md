@@ -1,6 +1,6 @@
 # Pinned Codex contract
 
-The test baseline is the official Codex **0.153.4** package for macOS ARM64.
+The temporary test baseline is the official Codex **0.154.0-alpha.6** package for macOS ARM64.
 `tests/codex/runtime-lock.json` records the official archive URL, byte size and
 SHA-256, each executable/package member, and stable/experimental generated schema
 bundle digests. These values were obtained from the official release and the
@@ -22,7 +22,7 @@ bundles are checked, not overwritten. Executables and schemas remain under ignor
 directory. Preparation does not log in, call a model or modify a personal Codex home.
 
 The official archive digest is
-`35438da1fbf7a6db7ddb3bcec84448fa6015ba188461472a97d9d1da7d9c4353`.
+`ae37c70e6c86f1f4248303e084cd03480d8628b74df57649c128730ce4159d50`.
 The generated stable and experimental bundles have different digests; choose the
 matching profile instead of treating experimental fields as stable protocol.
 
@@ -62,5 +62,26 @@ The G04 harness will record which of these tests actually ran. Binary integrity,
 schema generation and synthetic archive tests alone are not Codex conformance,
 provider qualification, consumer acceptance or a production release.
 
+## Temporary baseline and stable replacement
+
+The former stable baseline 0.153.4 failed the heartbeat cancellation scenario.
+Paired synthetic tests and the pinned source indicate that a stream-lifetime
+management defect in that stable release is the likely cause: its reader waits
+for a parsed SSE event without also waiting for receiver closure. The official
+0.154.0-alpha.6 contains that closure check and passed all eight identical local
+conformance scenarios. The user approved this temporary test-baseline change.
+
+Replace this prerelease with **0.154.0 or a later stable release** when available,
+after verifying the official artifact, regenerating both schema profiles and
+passing the complete conformance and repository gates. Keep the replacement as
+a reviewed PR with exact version/digest evidence. Do not relabel alpha bytes as
+0.154.0, fetch an unverified latest build, or treat a prerelease as stable.
+
+This is a test-only baseline. It neither changes a consumer's installed runtime
+nor authorizes a production rollout. The previous release and comparison evidence
+remain documented for reproduction; no consumer history or state is migrated.
+
 References: [official App Server documentation](https://learn.chatgpt.com/docs/app-server),
-[official pinned release](https://github.com/openai/codex/releases/tag/rust-v0.153.4).
+[official temporary release](https://github.com/openai/codex/releases/tag/rust-v0.154.0-alpha.6),
+[previous stable SSE reader](https://github.com/openai/codex/blob/rust-v0.153.4/codex-rs/codex-api/src/sse/responses.rs),
+[candidate receiver-closure fix](https://github.com/openai/codex/blob/rust-v0.154.0-alpha.6/codex-rs/codex-api/src/sse/responses.rs).
