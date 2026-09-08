@@ -26,7 +26,7 @@ The output directory must not exist. No existing candidate is overwritten.
 Prepare the cache and cargo-deny as described in [licensing](../licensing/README.md).
 Use x86_64-unknown-linux-gnu on the native Linux builder. These commands never
 publish or create an attestation. A checksum establishes internal consistency;
-G19 supplies authenticated build provenance and protected promotion.
+[G19](release-promotion.md) supplies authenticated build provenance and protected promotion.
 
 | Candidate file | Evidence |
 |---|---|
@@ -88,6 +88,6 @@ The PR package-smoke matrix builds and retains only verified public candidate
 assets, not compiler logs or local state. Its result joins ci-required. A PR
 artifact is for review and is never eligible for formal promotion. A release
 candidate must come from a verified main commit with authenticated provenance.
-G19 must verify that provenance and promote the exact retained bytes after user
+G19 verifies that provenance and promotes the exact retained bytes after user
 approval. Consumer integration, long-running acceptance, live-model qualification
 and release approval remain separate recorded stages.

@@ -1,0 +1,84 @@
+name: Preview promotion
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_run_id:
+        description: Successful main Release candidate run
+        required: true
+        type: string
+      expected_commit:
+        description: Exact source commit of that candidate
+        required: true
+        type: string
+      release_tag:
+        description: Candidate version plus preview number (vVERSION-preview.N)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: preview-promotion
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    if: github.repository == 'novelKR/agent-response-gateway' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.14'
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.candidate_run_id }}
+          pattern: release-candidate-*
+          path: .local/candidates
+      - name: Verify both signed targets and prepare the exact promotion receipt
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_RUN: ${{ inputs.candidate_run_id }}
+          EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          python3 -B scripts/release_provenance.py prepare-promotion --directory .local/candidates --commit "$EXPECTED_COMMIT" --run-id "$CANDIDATE_RUN" --tag "$RELEASE_TAG" --track preview --output .local/promotion
+          cat .local/promotion/promotion.json >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: verified-preview-promotion
+          path: .local/promotion/*
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    needs: verify
+    environment: release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      ARG_RELEASE_APPROVED_ENVIRONMENT: release
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.14'
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: verified-preview-promotion
+          path: .local/promotion
+      - name: Reverify protected promotion inputs and publish the same bytes
+        run: python3 -B scripts/release_provenance.py publish --directory .local/promotion
