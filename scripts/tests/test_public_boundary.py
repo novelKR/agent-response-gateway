@@ -279,10 +279,11 @@ class PublicBoundaryTests(unittest.TestCase):
     def test_oversized_archive_member_is_rejected_without_reading_it(self):
         self.stage()
         archive = self.base / "oversized.tar"
-        with tarfile.open(archive, "w") as output:
-            entry = tarfile.TarInfo("large.bin")
-            entry.size = 64 * 1024 * 1024 + 1
-            output.addfile(entry)
+        entry = tarfile.TarInfo("large.bin")
+        entry.size = 64 * 1024 * 1024 + 1
+        # Deliberately omit the body. Python 3.14's addfile requires fileobj
+        # for non-empty regular files, so write only the synthetic header.
+        archive.write_bytes(entry.tobuf())
         self.check("--archive", archive, ok=False)
 
 
