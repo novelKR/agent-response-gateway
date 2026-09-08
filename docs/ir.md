@@ -179,8 +179,8 @@ Serialize도 제공하지 않는다. 현재 source-bound 자료를 같은 경로
 binding 변경, wrapper 복원, 교차 이벤트와 모든 문자열 분할 위치를 시험한다.
 기존 HTTP 전달 테스트와 함께 수행하며 private 기록이 없는 소스에서도 확인한다.
 
-현재 Messages 순수 codec·SSE 변환은 추가되었으며 서버 경로 활성화는 G09
-검증 전까지 거부한다. Chat Completions 어댑터, 변환 경로의 실제 Codex 도구 왕복,
+현재 Messages codec·SSE 변환과 HTTP 연결은 G09의 실제 Codex 합성 시험을
+통과했다. Chat Completions 어댑터, 실제 공급자 모델 검증,
 상태 저장·압축·복구, tenant 인증과 실제 모델 qualification은 후속 단계다. 라이브러리 계약을 통과한 선언을 운영 수락으로
 간주하지 않는다.
 
@@ -194,10 +194,15 @@ binding 변경, wrapper 복원, 교차 이벤트와 모든 문자열 분할 위�
 Native Responses는 JSON과 SSE의 기존 passthrough를 유지하며 변환 경로는
 검증된 RequestIR에서 기능 요구와 TranslationPlan을 도출한다. 선언 프로필은
 실제 모델 qualification이나 자격 증명 세대의 증명이 아니다. Namespace와
-grammar bridge는 G08의 순수 코드로 제공하며 미검증 API는 서버 시작 시 거부한다.
+grammar bridge를 Messages HTTP 경로에 연결하며 Chat Completions는 아직 거부한다.
 
 Messages adapter는 별도 순수 codec으로 제공한다. 승인된
 `MessagesInstructionEnvelope` bridge는 선행 지시의 원문·역할·위치를 유지해
 system 영역에 표시하되 native 역할 우선순위와 동일하다고 주장하지 않는다.
 이 bridge는 Messages 프로필에서 instruction_hierarchy에만 선언할 수 있다.
 현재 요청·일반 응답·스트림 지원 범위는 [Messages 지원표](messages.md)를 따른다.
+
+도구 호출의 선택적 status는 ToolCallStatus로 보존한다. Messages 이력은 생략
+또는 completed만 받으며 in_progress·incomplete를 완료된 호출로 바꾸지 않는다.
+HTTP 변환은 route admission에서 만든 TranslationPlan을 재사용해 요구 기능을
+한 번 도출하고, 어댑터의 실제 구현 범위를 추가로 확인한다.
