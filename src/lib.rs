@@ -9,3 +9,5 @@ pub use http::router;
 
 pub mod ir;
 mod responses_policy;
+
+pub mod routing;

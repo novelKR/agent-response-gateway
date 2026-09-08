@@ -3,7 +3,13 @@ use std::{collections::BTreeMap, net::SocketAddr};
 use serde::Deserialize;
 use url::Url;
 
-use crate::ConfigError;
+use crate::{
+    ConfigError,
+    ir::{
+        ApiProtocol,
+        capability::{BridgeRule, CapabilityProfile, Feature, Support},
+    },
+};
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -17,6 +23,8 @@ pub struct Config {
     pub limits: Limits,
     pub providers: BTreeMap<String, Provider>,
     pub models: BTreeMap<String, Model>,
+    #[serde(default)]
+    pub capability_profiles: BTreeMap<String, ModelProfile>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -31,6 +39,67 @@ pub struct Provider {
 pub struct Model {
     pub provider: String,
     pub upstream_model: String,
+    #[serde(default)]
+    pub api: ApiProtocol,
+    pub auth: Option<UpstreamAuth>,
+    pub capability_profile: Option<String>,
+    pub messages_version: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum UpstreamAuth {
+    #[default]
+    Bearer,
+    ApiKey,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DeclaredSupport {
+    Native,
+    BridgedCustomToolJson,
+    Unsupported,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ModelProfile {
+    pub version: String,
+    pub provider: String,
+    pub upstream_model: String,
+    pub api: ApiProtocol,
+    pub context_window: u64,
+    pub max_output_tokens: u64,
+    pub tested_codex_version: String,
+    #[serde(default)]
+    pub support: BTreeMap<Feature, DeclaredSupport>,
+}
+
+impl ModelProfile {
+    pub fn capabilities(&self, id: &str) -> CapabilityProfile {
+        CapabilityProfile {
+            id: id.into(),
+            version: self.version.clone(),
+            protocol: self.api,
+            support: self
+                .support
+                .iter()
+                .map(|(feature, support)| {
+                    (
+                        *feature,
+                        match support {
+                            DeclaredSupport::Native => Support::Native,
+                            DeclaredSupport::BridgedCustomToolJson => {
+                                Support::Bridged(BridgeRule::CustomToolJson)
+                            }
+                            DeclaredSupport::Unsupported => Support::Unsupported,
+                        },
+                    )
+                })
+                .collect(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -128,6 +197,22 @@ impl Config {
             }
             provider.responses_url()?;
         }
+        for (id, profile) in &self.capability_profiles {
+            if !safe_label(id)
+                || !safe_label(&profile.version)
+                || !safe_label(&profile.tested_codex_version)
+                || !self.providers.contains_key(&profile.provider)
+                || profile.upstream_model.is_empty()
+                || profile.upstream_model.len() > 256
+                || profile.upstream_model.chars().any(char::is_control)
+                || profile.context_window == 0
+                || profile.max_output_tokens == 0
+                || profile.max_output_tokens > profile.context_window
+                || profile.capabilities(id).validate().is_err()
+            {
+                return Err(ConfigError("Invalid capability profile declaration".into()));
+            }
+        }
         for (id, model) in &self.models {
             if !safe_label(id)
                 || !self.providers.contains_key(&model.provider)
@@ -137,6 +222,14 @@ impl Config {
             {
                 return Err(ConfigError(
                     "Invalid model mapping or unknown provider".into(),
+                ));
+            }
+        }
+        for (id, model) in &self.models {
+            self.resolve_route(id)?;
+            if model.api != ApiProtocol::Responses {
+                return Err(ConfigError(
+                    "Configured API adapter is not yet qualified for dispatch".into(),
                 ));
             }
         }
@@ -160,8 +253,50 @@ impl Config {
     }
 }
 
+impl Config {
+    pub(crate) fn validate_route(&self, model: &Model) -> Result<(), ConfigError> {
+        let converted = model.api != ApiProtocol::Responses;
+        if converted && (model.auth.is_none() || model.capability_profile.is_none()) {
+            return Err(ConfigError(
+                "Converted routes require explicit auth and capability_profile".into(),
+            ));
+        }
+        if let Some(id) = &model.capability_profile {
+            let profile = self
+                .capability_profiles
+                .get(id)
+                .ok_or_else(|| ConfigError("Unknown capability_profile".into()))?;
+            if profile.api != model.api
+                || profile.provider != model.provider
+                || profile.upstream_model != model.upstream_model
+            {
+                return Err(ConfigError(
+                    "Model and capability profile bindings differ".into(),
+                ));
+            }
+        }
+        match (&model.messages_version, model.api) {
+            (Some(version), ApiProtocol::Messages)
+                if !version.is_empty()
+                    && version.len() <= 128
+                    && version.bytes().all(|b| b.is_ascii_graphic()) => {}
+            (None, ApiProtocol::Responses | ApiProtocol::ChatCompletions) => {}
+            _ => {
+                return Err(ConfigError(
+                    "messages_version is required only for Messages routes".into(),
+                ));
+            }
+        }
+        Ok(())
+    }
+}
+
 impl Provider {
     pub fn responses_url(&self) -> Result<Url, ConfigError> {
+        self.api_url(ApiProtocol::Responses)
+    }
+
+    pub fn api_url(&self, api: ApiProtocol) -> Result<Url, ConfigError> {
         let mut url = Url::parse(&self.base_url)
             .map_err(|_| ConfigError("Invalid provider base_url".into()))?;
         let loopback = url
@@ -177,7 +312,12 @@ impl Provider {
         {
             return Err(ConfigError("Provider base_url requires HTTPS (HTTP only for a numeric loopback host), without credentials, query or fragment".into()));
         }
-        let path = format!("{}/responses", url.path().trim_end_matches('/'));
+        let endpoint = match api {
+            ApiProtocol::Responses => "responses",
+            ApiProtocol::Messages => "messages",
+            ApiProtocol::ChatCompletions => "chat/completions",
+        };
+        let path = format!("{}/{endpoint}", url.path().trim_end_matches('/'));
         url.set_path(&path);
         Ok(url)
     }

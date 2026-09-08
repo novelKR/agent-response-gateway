@@ -20,3 +20,20 @@ api_key_env = "ARG_EXAMPLE_API_KEY"
 [models."example/writer"]
 provider = "example"
 upstream_model = "replace-with-your-verified-model"
+# Optional explicit declarations (legacy defaults: responses + bearer):
+# api = "responses"
+# auth = "bearer"
+# capability_profile = "writer-profile"
+
+# Fill this with verified model limits and the tested Codex identity before use.
+# [capability_profiles.writer-profile]
+# version = "1"
+# provider = "example"
+# upstream_model = "replace-with-your-verified-model"
+# api = "responses"
+# context_window = 32000
+# max_output_tokens = 1024
+# tested_codex_version = "replace-with-your-verified-version"
+# [capability_profiles.writer-profile.support]
+# instructions = "native"
+# max_output_tokens = "native"
