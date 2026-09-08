@@ -59,6 +59,7 @@ pub enum UpstreamAuth {
 pub enum DeclaredSupport {
     Native,
     BridgedCustomToolJson,
+    BridgedInstructionEnvelope,
     Unsupported,
 }
 
@@ -92,6 +93,9 @@ impl ModelProfile {
                             DeclaredSupport::Native => Support::Native,
                             DeclaredSupport::BridgedCustomToolJson => {
                                 Support::Bridged(BridgeRule::CustomToolJson)
+                            }
+                            DeclaredSupport::BridgedInstructionEnvelope => {
+                                Support::Bridged(BridgeRule::MessagesInstructionEnvelope)
                             }
                             DeclaredSupport::Unsupported => Support::Unsupported,
                         },

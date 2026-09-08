@@ -35,6 +35,7 @@ pub enum Feature {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BridgeRule {
     CustomToolJson,
+    MessagesInstructionEnvelope,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Support {
@@ -57,8 +58,14 @@ impl CapabilityProfile {
             return Err(IrError::InvalidField("capability_profile"));
         }
         for (feature, support) in &self.support {
-            if matches!(support, Support::Bridged(_)) && *feature != Feature::CustomTools {
-                return Err(IrError::UnsupportedFeature);
+            match support {
+                Support::Bridged(BridgeRule::CustomToolJson)
+                    if *feature == Feature::CustomTools => {}
+                Support::Bridged(BridgeRule::MessagesInstructionEnvelope)
+                    if *feature == Feature::InstructionHierarchy
+                        && self.protocol == ApiProtocol::Messages => {}
+                Support::Bridged(_) => return Err(IrError::UnsupportedFeature),
+                _ => {}
             }
         }
         Ok(())
@@ -301,7 +308,10 @@ pub fn plan_translation(
         }
         match route.capabilities.support(feature) {
             Support::Native => {}
-            Support::Bridged(rule) => {
+            Support::Bridged(BridgeRule::MessagesInstructionEnvelope) => {
+                bridges.push(BridgeRule::MessagesInstructionEnvelope);
+            }
+            Support::Bridged(rule @ BridgeRule::CustomToolJson) => {
                 if required.contains(Feature::CustomGrammar)
                     || required.contains(Feature::NamespacedTools)
                     || route.capabilities.support(Feature::FunctionTools) != Support::Native
