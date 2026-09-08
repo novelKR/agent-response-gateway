@@ -192,3 +192,9 @@ Native Responses는 JSON과 SSE의 기존 passthrough를 유지하며 변환 경
 검증된 RequestIR에서 기능 요구와 TranslationPlan을 도출한다. 선언 프로필은
 실제 모델 qualification이나 자격 증명 세대의 증명이 아니다. Namespace와
 grammar bridge 확장은 G08에서 구현하며 미완성 API는 서버 시작 시 거부한다.
+
+Messages adapter는 별도 순수 codec으로 제공한다. 승인된
+`MessagesInstructionEnvelope` bridge는 선행 지시의 원문·역할·위치를 유지해
+system 영역에 표시하되 native 역할 우선순위와 동일하다고 주장하지 않는다.
+이 bridge는 Messages 프로필에서 instruction_hierarchy에만 선언할 수 있다.
+현재 요청·일반 응답 지원 범위는 [Messages 지원표](messages.md)를 따른다.

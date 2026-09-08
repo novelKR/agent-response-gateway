@@ -65,3 +65,7 @@ Bearer 토큰과 프로세스별 공급자 설정을 tenant별 보안 경계로 
 토큰 판정은 모델별 계수 근거가 필요하다. 출력 한도 검사는 HTTP 전송 전 적용한다.
 Messages·Chat Completions의 현재 서버 활성화는 명시적으로 거부되며, 어댑터별
 실제 Codex + 합성 upstream qualification 이후에 활성화한다.
+
+Messages 지시 bridge는 프로필의 명시적 선택 기능이다. 호스트는 native 역할
+구분과 다른 한계를 알고 qualification해야 하며, 실제 도구 권한이나 사용자
+승인 판단을 모델의 지시 해석으로 대체해서는 안 된다.

@@ -11,3 +11,5 @@ pub mod ir;
 mod responses_policy;
 
 pub mod routing;
+
+pub mod adapters;
