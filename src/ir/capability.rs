@@ -115,6 +115,9 @@ fn extensions(
 fn parts(source: ApiProtocol, items: &[Part], set: &mut BTreeSet<Feature>) -> Result<(), IrError> {
     for part in items {
         extensions(source, &part.extensions, set)?;
+        if part.annotations.as_ref().is_some_and(|v| !v.is_empty()) {
+            set.insert(Feature::Extensions);
+        }
         match &part.kind {
             PartKind::Image { .. } => {
                 set.insert(Feature::Images);
@@ -148,6 +151,12 @@ pub fn requirements(request: &RequestIR) -> Result<RequiredCapabilities, IrError
         match item {
             Item::Message(message) => {
                 extensions(source, &message.extensions, &mut set)?;
+                if message
+                    .status
+                    .is_some_and(|v| v != super::request::ToolCallStatus::Completed)
+                {
+                    return Err(IrError::UnsupportedFeature);
+                }
                 if let Content::Parts(items) = &message.content {
                     parts(source, items, &mut set)?;
                 }

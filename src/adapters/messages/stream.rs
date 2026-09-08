@@ -138,9 +138,10 @@ impl MessagesStream<'_> {
                 input_tokens: Some(input),
                 output_tokens: Some(generated),
             }))?;
-            let response = json!({"id":id.as_str(),"object":"response","status":"in_progress","model":self.prepared.model,
+            let mut response = json!({"id":id.as_str(),"object":"response","status":"in_progress","model":self.prepared.model,
                 "created_at":std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_err(|_| IrError::InvalidField("response_time"))?.as_secs(),
                 "output":[],"error":Value::Null,"incomplete_details":Value::Null,"usage":Value::Null});
+            self.prepared.reflect_format(&mut response);
             self.response = Some(response.clone());
             self.emit(
                 "response.created",

@@ -61,7 +61,7 @@ fn legacy_default_and_explicit_auth_and_profile_remain_compatible() {
 }
 
 #[test]
-fn invalid_profiles_and_unqualified_dispatch_fail_startup() {
+fn invalid_profiles_fail_startup() {
     let valid = declaration("responses");
     for candidate in [
         valid.replace(
@@ -86,7 +86,6 @@ fn invalid_profiles_and_unqualified_dispatch_fail_startup() {
         ),
         valid.replacen("api = \"responses\"", "api = \"messages\"", 1),
         valid.replace("auth = \"api_key\"", "auth = \"arbitrary-header\""),
-        declaration("chat_completions"),
         declaration("messages").replace("auth = \"api_key\"", ""),
         declaration("messages").replace("messages_version = \"2023-06-01\"", ""),
     ] {
@@ -165,4 +164,19 @@ fn native_admission_preserves_extensions_but_checks_declared_output_limit() {
         route.admit(invalid),
         Err(IrError::UnsupportedFeature)
     ));
+}
+
+#[test]
+fn chat_routes_are_explicit_and_require_matching_profiles() {
+    let config = Config::parse(&declaration("chat_completions")).unwrap();
+    assert_eq!(
+        config.resolve_route("writer").unwrap().endpoint.as_str(),
+        "http://127.0.0.1:1/v1/chat/completions"
+    );
+    assert!(
+        Config::parse(
+            &declaration("chat_completions").replace("capability_profile = \"tested\"", "")
+        )
+        .is_err()
+    );
 }

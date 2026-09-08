@@ -73,7 +73,10 @@ pub fn encode(request: &RequestIR, target: &ContinuityBinding) -> Result<Prepare
     let plan = plan_translation(request, target)?;
     encode_admitted(request, &plan)
 }
-fn encode_admitted(request: &RequestIR, plan: &TranslationPlan) -> Result<PreparedChat, IrError> {
+pub(crate) fn encode_admitted(
+    request: &RequestIR,
+    plan: &TranslationPlan,
+) -> Result<PreparedChat, IrError> {
     for feature in plan.required.iter() {
         if !matches!(
             feature,

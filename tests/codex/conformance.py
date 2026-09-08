@@ -45,8 +45,8 @@ def text_item():
     return {"id": "msg_fixture", "type": "message", "role": "assistant", "status": "completed", "content": [{"type": "output_text", "text": "Synthetic complete.", "annotations": []}]}
 
 
-def messages_route():
-    return """api="messages"
+def converted_route(api):
+    route = """api="messages"
 auth="api_key"
 messages_version="2023-06-01"
 capability_profile="synthetic-messages"
@@ -68,10 +68,17 @@ namespaced_tools="bridged_tool_namespace"
 tool_choice="native"
 parallel_tool_control="native"
 max_output_tokens="native"
+reasoning_effort="native"
+structured_output="native"
+strict_structured_output="native"
+strict_tool_arguments="native"
 """
+    if api == "chat_completions":
+        route = route.replace('api="messages"', 'api="chat_completions"').replace('auth="api_key"', 'auth="bearer"').replace('messages_version="2023-06-01"\n', '').replace('instruction_hierarchy="bridged_instruction_envelope"', 'instruction_hierarchy="native"').replace("synthetic-messages", "synthetic-chat")
+    return route
 
 
-def prepare_messages_profile(binary, home, env):
+def prepare_converted_profile(binary, home, env):
     # Derive from the verified runtime without copying its prompts into repository fixtures.
     raw = subprocess.run([str(binary), "debug", "models", "--bundled"], env=env, capture_output=True, text=True, check=True).stdout
     model = next(m for m in json.loads(raw)["models"] if m["slug"] == "gpt-5.4")
@@ -102,14 +109,89 @@ def messages_frames(blocks, number):
     return frames
 
 
-def messages_response(state, body):
+def chat_chunk(delta, number, finish=None):
+    value = {"id":f"chat_fixture_{number}","object":"chat.completion.chunk","created":0,"model":"synthetic-model","choices":[{"index":0,"delta":delta,"finish_reason":finish}]}
+    return ("data: " + json.dumps(value) + "\n\n").encode()
+
+
+def converted_frames(state, blocks):
+    if state.api == "messages":
+        return messages_frames(blocks, state.requests)
+    frames = [chat_chunk({"role":"assistant","content":""}, state.requests)]
+    tool_index = 0
+    for block in blocks:
+        if block["type"] == "tool_use":
+            arguments = json.dumps(block["input"], ensure_ascii=False)
+            cut = len(arguments) // 2
+            frames.append(chat_chunk({"tool_calls":[{"index":tool_index,"id":block["id"],"type":"function","function":{"name":block["name"],"arguments":arguments[:cut]}}]}, state.requests))
+            frames.append(chat_chunk({"tool_calls":[{"index":tool_index,"function":{"arguments":arguments[cut:]}}]}, state.requests))
+            tool_index += 1
+        else:
+            frames.append(chat_chunk({"content":block["text"]}, state.requests))
+    frames.append(chat_chunk({}, state.requests, "tool_calls" if tool_index else "stop"))
+    usage = {"id":f"chat_fixture_{state.requests}","object":"chat.completion.chunk","created":0,"model":"synthetic-model","choices":[],"usage":{"prompt_tokens":10,"completion_tokens":3,"total_tokens":13}}
+    frames.extend([("data: " + json.dumps(usage) + "\n\n").encode(), b"data: [DONE]\n\n"])
+    return frames
+
+
+CONTROL_SCHEMA = {"type":"object","properties":{"answer":{"type":"string"}},"required":["answer"],"additionalProperties":False}
+CONTROL_TEXT = '{"answer":"synthetic"}'
+
+
+def check_controls(body, api):
+    if api == "messages":
+        require(body.get("output_config") == {"effort":"high","format":{"type":"json_schema","schema":CONTROL_SCHEMA}}, "Messages explicit output controls changed")
+    elif api == "chat_completions":
+        require(body.get("reasoning_effort") == "high", "Chat explicit effort changed")
+        output = body.get("response_format", {}).get("json_schema", {})
+        require(output.get("schema") == CONTROL_SCHEMA and output.get("strict") is True and output.get("name"), "Chat explicit schema changed")
+    else:
+        require(body.get("reasoning", {}).get("effort") == "high", "Responses explicit effort changed")
+        output = body.get("text", {}).get("format", {})
+        require(output.get("schema") == CONTROL_SCHEMA and output.get("strict") is True, "Responses explicit schema changed")
+
+
+def chat_fixture_view(body):
+    # Only the test assertion view uses Messages-shaped blocks; production adapters stay independent.
+    require(body.get("store") is False and body.get("n") == 1 and body.get("max_completion_tokens") == 1024 and body.get("stream_options") == {"include_usage":True}, "Chat wire options changed")
+    require(not any(k in body for k in ("max_tokens", "input", "instructions", "reasoning", "text", "client_metadata", "include")), "unmapped Responses fields leaked into Chat")
+    roles = [m["role"] for m in body["messages"]]
+    require("system" in roles and "developer" in roles, "Chat instruction roles missing")
+    tools = []
+    for tool in body.get("tools", []):
+        require(tool["type"] == "function", "Chat function-wire declaration changed")
+        definition = tool["function"]
+        tools.append({"name":definition["name"],"description":definition.get("description", ""),"input_schema":definition["parameters"]})
+    messages = []
+    for message in body["messages"]:
+        role = message["role"]
+        if role in {"system", "developer"}:
+            continue
+        if role == "tool":
+            blocks = [{"type":"tool_result","tool_use_id":message["tool_call_id"],"content":message["content"]}]
+        else:
+            content = message.get("content")
+            blocks = [{"type":"text","text":content}] if isinstance(content, str) else list(content or [])
+            for call in message.get("tool_calls", []):
+                blocks.append({"type":"tool_use","id":call["id"],"name":call["function"]["name"],"input":json.loads(call["function"]["arguments"])})
+        messages.append({"role":role,"content":blocks})
+    return {**body,"tools":tools,"messages":messages}
+
+
+def converted_response(state, body):
     state.requests += 1
     require(state.requests <= 2, "unexpected retry or extra model request")
-    require(body.get("model") == "synthetic-model" and body.get("stream") is True and body.get("max_tokens") == 1024, "Messages routing/limit/stream differs")
-    require(not any(k in body for k in ("store", "input", "instructions", "reasoning", "text", "client_metadata", "prompt_cache_key", "include")), "unmapped Responses fields leaked into Messages")
-    require(body.get("system") and len(body["system"]) == 2, "approved instruction envelope missing")
-    records = json.loads(body["system"][1]["text"])
-    require(any(r.get("role") == "developer" for r in records) and all(r.get("role") in {"protocol_default", "developer", "system"} for r in records), "instruction provenance changed")
+    require(body.get("model") == "synthetic-model" and body.get("stream") is True, "converted routing/stream differs")
+    if state.name == "output_controls":
+        check_controls(body, state.api)
+    if state.api == "chat_completions":
+        body = chat_fixture_view(body)
+    else:
+        require(body.get("max_tokens") == 1024, "Messages output limit differs")
+        require(not any(k in body for k in ("store", "input", "instructions", "reasoning", "text", "client_metadata", "prompt_cache_key", "include")), "unmapped Responses fields leaked into Messages")
+        require(body.get("system") and len(body["system"]) == 2, "approved instruction envelope missing")
+        records = json.loads(body["system"][1]["text"])
+        require(any(r.get("role") == "developer" for r in records) and all(r.get("role") in {"protocol_default", "developer", "system"} for r in records), "instruction provenance changed")
     if state.requests == 2:
         if state.name == "text_followup":
             require(any(m.get("role") == "assistant" and any(b.get("text") == "Synthetic complete." for b in m["content"]) for m in body["messages"]), "prior assistant text is missing")
@@ -117,11 +199,16 @@ def messages_response(state, body):
             outputs = [b for m in body["messages"] for b in m["content"] if b["type"] == "tool_result"]
             expected = {"call_fixture_a", "call_fixture_b"} if state.name == "parallel_tools" else {"call_fixture"}
             require({o["tool_use_id"] for o in outputs} == expected and len(outputs) == len(expected), "Messages tool result identity changed")
-            if state.name in {"function_tool", "namespace_tool", "parallel_tools"}:
+            if state.name in {"function_tool", "namespace_tool", "parallel_tools", "mixed_tool_text"}:
                 require(all("synthetic-result" in o["content"] for o in outputs), "Messages tool results changed")
+        if state.name == "mixed_tool_text":
+            assistant = [m for m in body["messages"] if m["role"] == "assistant" and any(b.get("type") == "tool_use" for b in m["content"])]
+            require(len(assistant) == 1 and any(b.get("text") == "Synthetic after tool." for b in assistant[0]["content"]), "mixed assistant text lost on replay")
+            if state.api == "messages":
+                require([b["type"] for b in assistant[0]["content"]] == ["tool_use", "text"], "Messages block order changed on replay")
         state.result_seen = True
-        return messages_frames([{"type":"text","text":"Synthetic complete."}], state.requests)
-    if state.name in {"function_tool", "namespace_tool", "parallel_tools"}:
+        return converted_frames(state, [{"type":"text","text":"Synthetic complete."}])
+    if state.name in {"function_tool", "namespace_tool", "parallel_tools", "mixed_tool_text"}:
         if state.name == "namespace_tool":
             candidates = []
             for tool in body["tools"]:
@@ -150,7 +237,11 @@ def messages_response(state, body):
         blocks = [{"type":"tool_use","id":"call_fixture","name":candidates[0]["name"],"input":{"input":patch}}]
     else:
         blocks = [{"type":"text","text":"Synthetic complete."}]
-    return messages_frames(blocks, state.requests)
+    if state.name == "mixed_tool_text":
+        blocks.append({"type":"text","text":"Synthetic after tool."})
+    if state.name == "output_controls":
+        blocks = [{"type":"text","text":CONTROL_TEXT}]
+    return converted_frames(state, blocks)
 
 
 class Scenario:
@@ -166,12 +257,14 @@ class Scenario:
         self.tool_contracts = set()
 
     def response(self, body):
-        if self.api == "messages":
-            return messages_response(self, body)
+        if self.api != "responses":
+            return converted_response(self, body)
         self.requests += 1
         require(self.requests <= 2, "unexpected retry or extra model request")
         require(body.get("store") is False and body.get("model") == "synthetic-model", "gateway admission or routing differs")
         require(body.get("stream") is True, "Codex did not request SSE")
+        if self.name == "output_controls":
+            check_controls(body, self.api)
         for tool in body.get("tools", []):
             self.tool_contracts.add((tool.get("type", ""), tool.get("name", "")))
         if self.requests == 2:
@@ -195,6 +288,8 @@ class Scenario:
             item = {"id": "ct_fixture", "type": "custom_tool_call", "call_id": "call_fixture", "name": "apply_patch", "input": patch, "status": "completed"}
         else:
             item = text_item()
+        if self.name == "output_controls":
+            item["content"][0]["text"] = CONTROL_TEXT
         return wire_response(item, self.requests)
 
 
@@ -214,7 +309,7 @@ class UpstreamHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         state = self.server.scenario
         try:
-            require(self.path == ("/v1/messages" if state.api == "messages" else "/v1/responses"), "unexpected upstream endpoint")
+            require(self.path == {"messages":"/v1/messages", "chat_completions":"/v1/chat/completions", "responses":"/v1/responses"}[state.api], "unexpected upstream endpoint")
             if state.api == "messages":
                 require(self.headers.get("x-api-key") == "synthetic-upstream-key" and self.headers.get("Authorization") is None, "Messages credential selection differs")
                 require(self.headers.get("anthropic-version") == "2023-06-01", "Messages version header differs")
@@ -239,6 +334,8 @@ class UpstreamHandler(BaseHTTPRequestHandler):
                         event("content_block_start", index=0, content_block={"type":"text","text":""}),
                         event("content_block_delta", index=0, delta={"type":"text_delta","text":"Synthetic partial."}),
                     ]
+                elif state.api == "chat_completions":
+                    partial_frames = [chat_chunk({"content":"Synthetic partial."}, state.requests)]
                 else:
                     partial = {"id": "msg_fixture", "type": "message", "role": "assistant", "status": "in_progress", "content": []}
                     partial_frames = [
@@ -345,8 +442,8 @@ def run_scenario(name, binary, gateway_binary, api="responses"):
         gateway_env = {**env, "ARG_LOCAL_TOKEN": token, "ARG_MOCK_KEY": "synthetic-upstream-key"}
         config = root / "gateway.toml"
         config.write_text(f'listen="127.0.0.1:0"\n[providers.mock]\nbase_url="http://127.0.0.1:{server.server_port}/v1"\napi_key_env="ARG_MOCK_KEY"\n[models."gpt-5.4"]\nprovider="mock"\nupstream_model="synthetic-model"\n')
-        if api == "messages":
-            config.write_text(config.read_text() + messages_route())
+        if api != "responses":
+            config.write_text(config.read_text() + converted_route(api))
         manifest = embedded_contract.inspect_manifest(gateway_binary, config, env)
         gateway = subprocess.Popen([str(gateway_binary), "serve", "--config", str(config)], env=gateway_env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
         cleanup.callback(stop_process, gateway)
@@ -355,8 +452,8 @@ def run_scenario(name, binary, gateway_binary, api="responses"):
         codex_env = {**env, "HOME": str(home), "CODEX_HOME": str(home), "ARG_CODEX_TEST_TOKEN": token}
         embedded_contract.validate_credential_split(manifest, gateway_env, codex_env, "ARG_CODEX_TEST_TOKEN", home)
         profile_digest = None
-        if api == "messages":
-            profile_digest = prepare_messages_profile(binary, home, codex_env)
+        if api != "responses":
+            profile_digest = prepare_converted_profile(binary, home, codex_env)
         codex = subprocess.Popen([str(binary), "app-server"], cwd=workspace, env=codex_env, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, bufsize=1)
         cleanup.callback(stop_process, codex)
         rpc = RpcClient(codex)
@@ -368,7 +465,10 @@ def run_scenario(name, binary, gateway_binary, api="responses"):
         thread_id = thread["thread"]["id"]
         turn_started = time.monotonic()
         first_text_ms, interrupt_at = None, None
-        turn = rpc.call("turn/start", {"threadId": thread_id, "input": [{"type": "text", "text": "Exercise the synthetic fixture."}]})
+        params = {"threadId": thread_id, "input": [{"type": "text", "text": "Exercise the synthetic fixture."}]}
+        if name == "output_controls":
+            params.update(effort="high", outputSchema=CONTROL_SCHEMA)
+        turn = rpc.call("turn/start", params)
         if name.startswith("cancellation"):
             require(state.started.wait(10), "upstream did not start")
             deadline = time.monotonic() + 10
@@ -384,14 +484,17 @@ def run_scenario(name, binary, gateway_binary, api="responses"):
             interrupt_at = time.monotonic()
             rpc.call("turn/interrupt", {"threadId": thread_id, "turnId": turn["turn"]["id"]})
         calls, approvals, final = 0, 0, None
+        final_text = None
         deadline = time.monotonic() + 30
         while time.monotonic() < deadline:
             message = rpc.pending.pop(0) if rpc.pending else rpc.next(max(0.01, deadline - time.monotonic()))
             method = message.get("method")
             if method == "item/agentMessage/delta" and first_text_ms is None:
                 first_text_ms = round((time.monotonic() - turn_started) * 1000, 3)
+            if method == "item/completed" and message["params"]["item"].get("type") == "agentMessage":
+                final_text = message["params"]["item"].get("text")
             if method == "item/tool/call":
-                require(name in {"function_tool", "namespace_tool", "parallel_tools"}, "unexpected dynamic tool invocation")
+                require(name in {"function_tool", "namespace_tool", "parallel_tools", "mixed_tool_text"}, "unexpected dynamic tool invocation")
                 require(message["params"]["tool"] == echo["name"] and message["params"]["arguments"] == {"text": "synthetic"}, "dynamic tool identity or arguments changed")
                 require(message["params"].get("namespace") == ("fixture" if name == "namespace_tool" else None), "dynamic tool namespace changed")
                 calls += 1
@@ -413,7 +516,9 @@ def run_scenario(name, binary, gateway_binary, api="responses"):
         expected = "interrupted" if name.startswith("cancellation") else "failed" if name in {"transport_failure", "grammar_failure"} else "completed"
         require(final == expected, "unexpected final turn status")
         require(not state.errors, "mock upstream validation failed")
-        if name in {"function_tool", "namespace_tool"}:
+        if name == "output_controls":
+            require(json.loads(final_text) == {"answer":"synthetic"} and state.requests == 1, "explicit schema output did not reach Codex")
+        elif name in {"function_tool", "namespace_tool", "mixed_tool_text"}:
             require(calls == 1 and state.result_seen and state.requests == 2, "function tool round trip incomplete")
         elif name == "parallel_tools":
             require(calls == 2 and state.result_seen and state.requests == 2, "parallel tool round trip incomplete")
@@ -448,19 +553,19 @@ def run_scenario(name, binary, gateway_binary, api="responses"):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--gateway-bin", type=Path, default=ROOT / "target/debug/agent-response-gateway")
-    parser.add_argument("--api", choices=("responses", "messages"), action="append")
-    parser.add_argument("--scenario", choices=("text", "function_tool", "namespace_tool", "custom_patch", "approval_denial", "cancellation", "cancellation_heartbeat", "transport_failure", "parallel_tools", "grammar_failure", "text_followup"), action="append")
+    parser.add_argument("--api", choices=("responses", "messages", "chat_completions"), action="append")
+    parser.add_argument("--scenario", choices=("text", "function_tool", "namespace_tool", "custom_patch", "approval_denial", "cancellation", "cancellation_heartbeat", "transport_failure", "parallel_tools", "grammar_failure", "text_followup", "output_controls", "mixed_tool_text"), action="append")
     args = parser.parse_args()
     lock = json.loads(runtime.LOCK.read_text())
     binary = runtime.verify_bundle(runtime.BUNDLE, lock)
     failures = 0
-    for api in args.api or ["responses", "messages"]:
-        scenarios = args.scenario or ["text", "function_tool", "namespace_tool", "custom_patch", "approval_denial", "cancellation", "cancellation_heartbeat", "transport_failure"]
-        if args.scenario is None and api == "messages":
-            scenarios += ["parallel_tools", "grammar_failure", "text_followup"]
+    for api in args.api or ["responses", "messages", "chat_completions"]:
+        scenarios = args.scenario or ["text", "function_tool", "namespace_tool", "custom_patch", "approval_denial", "cancellation", "cancellation_heartbeat", "transport_failure", "output_controls"]
+        if args.scenario is None and api != "responses":
+            scenarios += ["parallel_tools", "grammar_failure", "text_followup", "mixed_tool_text"]
         for name in scenarios:
             try:
-                require(api == "messages" or name not in {"parallel_tools", "grammar_failure", "text_followup"}, "scenario requires Messages")
+                require(api != "responses" or name not in {"parallel_tools", "grammar_failure", "text_followup", "mixed_tool_text"}, "scenario requires converted API")
                 result = run_scenario(name, binary, args.gateway_bin.resolve(), api)
             except Exception as error:
                 failures += 1

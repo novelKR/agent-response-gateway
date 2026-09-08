@@ -52,12 +52,14 @@ pub enum PartKind {
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct Part {
+    pub annotations: Option<Vec<Value>>,
     pub kind: PartKind,
     pub extensions: Extensions,
 }
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct Message {
+    pub status: Option<ToolCallStatus>,
     pub id: Option<ItemId>,
     pub role: Role,
     pub content: Content,
@@ -280,7 +282,22 @@ fn validate_extensions(
 
 fn validate_parts(parts: &[Part], source: ApiProtocol) -> Result<(), IrError> {
     for part in parts {
+        if part.annotations.is_some()
+            && !matches!(
+                part.kind,
+                PartKind::Text {
+                    kind: TextKind::Output,
+                    ..
+                }
+            )
+        {
+            return Err(IrError::InvalidField("annotations"));
+        }
         let reserved: &[&str] = match &part.kind {
+            PartKind::Text {
+                kind: TextKind::Output,
+                ..
+            } => &["type", "text", "annotations"],
             PartKind::Text { .. } => &["type", "text"],
             PartKind::Image { .. } => &["type", "image_url", "detail"],
             PartKind::Extension(_) => &[],
@@ -468,7 +485,7 @@ impl RequestIR {
                         validate_extensions(
                             &value.extensions,
                             self.source,
-                            &["type", "id", "role", "content"],
+                            &["type", "id", "role", "content", "status"],
                         )?;
                         if let Content::Parts(parts) = &value.content {
                             validate_parts(parts, self.source)?;

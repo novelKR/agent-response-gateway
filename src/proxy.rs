@@ -16,11 +16,10 @@ use serde_json::Value;
 use tokio::sync::OwnedSemaphorePermit;
 
 use crate::{
-    adapters::{messages, sse::SseDecoder},
+    adapters::{PreparedAdapter, sse::SseDecoder},
     config::UpstreamAuth,
     error::ApiError,
     http::{GatewayState, RequestId},
-    ir::ApiProtocol,
     responses_policy::normalize_stateless,
     routing::AdmittedRequest,
 };
@@ -134,22 +133,14 @@ pub(crate) async fn responses(
     })?;
     let (payload, prepared) = match admitted {
         AdmittedRequest::Native(payload) => (Value::Object(payload), None),
-        AdmittedRequest::Translated { request, plan }
-            if route.snapshot.api == ApiProtocol::Messages =>
-        {
-            let mut prepared = messages::encode_admitted(&request, &plan).map_err(|_| {
+        AdmittedRequest::Translated { request, plan } => {
+            let mut prepared = PreparedAdapter::encode(&request, &plan).map_err(|_| {
                 bad(
                     "unsupported_request",
-                    "Request cannot be represented by the declared Messages profile",
+                    "Request cannot be represented by the declared API profile",
                 )
             })?;
-            (std::mem::take(&mut prepared.payload), Some(prepared))
-        }
-        AdmittedRequest::Translated { .. } => {
-            return Err(bad(
-                "unsupported_api",
-                "API adapter is not qualified for dispatch",
-            ));
+            (prepared.take_payload(), Some(prepared))
         }
     };
     let key = &state.secrets.upstream_keys[&route.snapshot.provider_id];
