@@ -75,7 +75,8 @@ jobs:
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.14'
-      - run: python3 -B -m unittest discover -s scripts/tests -v
+      - run: python3 -B -m unittest discover -s scripts/tests -p 'test_public_boundary.py' -v
+      - run: python3 -B -m unittest discover -s scripts/tests -p 'test_ci_results.py' -v
       - run: python3 -B scripts/check_public_boundary.py
       - name: Inspect committed source archive
         run: |
@@ -83,9 +84,45 @@ jobs:
           git archive --format=tar.gz --prefix=agent-response-gateway/ --output=.local/release/source.tar.gz HEAD
           python3 -B scripts/check_public_boundary.py --archive .local/release/source.tar.gz
 
+  licenses:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      CARGO_HOME: ${{ github.workspace }}/.local/cargo-home
+      CARGO_TARGET_DIR: ${{ github.workspace }}/target
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.14'
+      - run: rustup toolchain install 1.98.0 --profile minimal
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            .local/cargo-home/registry
+            .local/tools
+            target/license-tools
+          key: licenses-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'licensing/policy.json') }}
+      - name: Prepare pinned license tool and locked sources
+        run: |
+          cargo +1.98.0 install cargo-deny --version "$(python3 -c 'import json; print(json.load(open("licensing/policy.json"))["cargo_deny_version"])')" --locked --root .local/tools --target-dir target/license-tools
+          cargo +1.98.0 fetch --locked
+      - run: python3 -B -m unittest discover -s scripts/tests -v
+      - run: python3 -B scripts/license_audit.py check
+      - name: Reproduce and inspect notice bundles
+        run: |
+          python3 -B scripts/license_audit.py bundle --output .local/release/licenses-a
+          python3 -B scripts/license_audit.py bundle --output .local/release/licenses-b
+          diff -r .local/release/licenses-a .local/release/licenses-b
+          python3 -B scripts/archive_notices.py .local/release/licenses-a .local/release/license-notices.tar
+          python3 -B scripts/check_public_boundary.py --archive .local/release/license-notices.tar
+
   ci-required:
     if: ${{ always() }}
-    needs: [format, rust-linux, rust-macos, publication]
+    needs: [format, rust-linux, rust-macos, publication, licenses]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:

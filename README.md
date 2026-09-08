@@ -95,7 +95,12 @@ cargo fmt --check
 cargo clippy --all-targets --locked -- -D warnings
 cargo test --locked
 python3 -B -m unittest discover -s scripts/tests -v
+python3 -B scripts/license_audit.py check
 ```
+
+Python 검사에는 3.11 이상을 사용한다. 라이선스 검사는 별도로 준비한
+cargo-deny 0.20.2와 잠금 파일의 소스를 오프라인으로 읽는다.
+[도구 준비·고지 갱신 안내](licensing/README.md)를 먼저 따른다.
 
 테스트는 모의 upstream과 합성 데이터를 사용하며 실제 모델 API 키를 요구하지
 않는다. CI는 Linux와 macOS에서 Rust 1.98.0으로 같은 검사를 실행하도록

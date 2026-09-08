@@ -1,0 +1,37 @@
+{
+  "allowed_licenses": [
+    "MIT",
+    "Apache-2.0",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-3.0",
+    "CDLA-Permissive-2.0"
+  ],
+  "cargo_deny_version": "0.20.2",
+  "releases": [
+    {
+      "alternative_terms": "separately_executed_agreement",
+      "public_license": "AGPL-3.0-only",
+      "rights_status": "not_established",
+      "status": "unreleased",
+      "version": "0.1.0"
+    }
+  ],
+  "root": {
+    "license": "AGPL-3.0-only",
+    "license_sha256": "0d96a4ff68ad6d4b6f1f30f713b18d5184912ba8dd389f86aa7710db079abcb0",
+    "name": "agent-response-gateway"
+  },
+  "schema_version": 1,
+  "supplemental_notices": [
+    {
+      "name": "valuable",
+      "package_checksum": "ba73ea9cf16a25df0c8caa16c51acb937d5712a8429db78a3ee29d5dcacd3a65",
+      "path": "upstream/LICENSE",
+      "sha256": "ed60d479b8fd1f64e9cbc3de449a16a53ac1b3d1b6aeb9bf9d190a8e93061b44",
+      "url": "https://raw.githubusercontent.com/tokio-rs/valuable/9efc29b6e58cef28f6566a47aa7e142a55fead77/LICENSE",
+      "vcs_commit": "9efc29b6e58cef28f6566a47aa7e142a55fead77",
+      "version": "0.1.1"
+    }
+  ]
+}
