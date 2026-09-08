@@ -239,7 +239,7 @@ impl Config {
         }
         for (id, model) in &self.models {
             self.resolve_route(id)?;
-            if model.api != ApiProtocol::Responses {
+            if model.api == ApiProtocol::ChatCompletions {
                 return Err(ConfigError(
                     "Configured API adapter is not yet qualified for dispatch".into(),
                 ));

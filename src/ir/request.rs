@@ -86,8 +86,17 @@ impl ToolInput {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ToolCallStatus {
+    InProgress,
+    Completed,
+    Incomplete,
+}
+
 #[derive(Clone, PartialEq, Eq)]
 pub struct ToolCall {
+    pub status: Option<ToolCallStatus>,
     pub item_id: Option<ItemId>,
     pub call_id: CallId,
     pub tool: ToolIdentity,
@@ -492,7 +501,15 @@ impl RequestIR {
                         validate_extensions(
                             &value.extensions,
                             self.source,
-                            &["type", "id", "call_id", "name", "namespace", argument_field],
+                            &[
+                                "type",
+                                "id",
+                                "call_id",
+                                "name",
+                                "namespace",
+                                "status",
+                                argument_field,
+                            ],
                         )?;
                         if calls
                             .insert(value.call_id.clone(), value.input.kind())

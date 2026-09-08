@@ -321,6 +321,7 @@ fn custom_bridge_preserves_original_namespace_as_mapping_identity() {
     tools[1].identity.namespace = Some("synthetic_namespace".into());
     let bridge = CustomToolBridge::new(tools).unwrap();
     let mut call = ToolCall {
+        status: None,
         item_id: None,
         call_id: CallId::new("c").unwrap(),
         tool: tools[1].identity.clone(),
@@ -539,6 +540,7 @@ fn namespace_bridge_uses_one_bijective_registry_for_functions_and_custom_tools()
     let mut aliases = std::collections::BTreeSet::new();
     for definition in request.tool_definitions() {
         let original = ToolCall {
+            status: None,
             item_id: Some(ItemId::new("item").unwrap()),
             call_id: CallId::new("call").unwrap(),
             tool: definition.identity.clone(),

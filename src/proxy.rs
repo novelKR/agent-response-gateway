@@ -16,9 +16,11 @@ use serde_json::Value;
 use tokio::sync::OwnedSemaphorePermit;
 
 use crate::{
+    adapters::{messages, sse::SseDecoder},
     config::UpstreamAuth,
     error::ApiError,
     http::{GatewayState, RequestId},
+    ir::ApiProtocol,
     responses_policy::normalize_stateless,
     routing::AdmittedRequest,
 };
@@ -130,8 +132,19 @@ pub(crate) async fn responses(
             "Request is invalid or exceeds the declared route capabilities or limits",
         )
     })?;
-    let payload = match admitted {
-        AdmittedRequest::Native(payload) => payload,
+    let (payload, prepared) = match admitted {
+        AdmittedRequest::Native(payload) => (Value::Object(payload), None),
+        AdmittedRequest::Translated { request, plan }
+            if route.snapshot.api == ApiProtocol::Messages =>
+        {
+            let mut prepared = messages::encode_admitted(&request, &plan).map_err(|_| {
+                bad(
+                    "unsupported_request",
+                    "Request cannot be represented by the declared Messages profile",
+                )
+            })?;
+            (std::mem::take(&mut prepared.payload), Some(prepared))
+        }
         AdmittedRequest::Translated { .. } => {
             return Err(bad(
                 "unsupported_api",
@@ -252,12 +265,49 @@ pub(crate) async fn responses(
     if streaming {
         // No producer task or application queue: downstream demand drives upstream polling.
         // Capturing the lease outside the generator retains capacity even before its first poll.
+        let maximum = state.config.limits.max_response_bytes;
         let stream = async_stream::stream! {
             let _hold = &lease;
-            loop {
+            let mut framing = SseDecoder::new(maximum).expect("positive configured byte limit");
+            let mut converted = prepared.as_ref().map(|p| p.stream(maximum).expect("positive configured byte limit"));
+            'upstream: loop {
                 match tokio::time::timeout(idle, source.next()).await {
-                    Ok(Some(Ok(chunk))) => yield Ok::<Bytes, io::Error>(chunk),
-                    Ok(None) => { lease.mark("upstream_eof"); break; },
+                    Ok(Some(Ok(chunk))) => {
+                        if let Some(converted) = &mut converted {
+                            let mut remaining = chunk.as_ref();
+                            loop {
+                                let event = match framing.next_event(&mut remaining) {
+                                    Ok(Some(event)) => event,
+                                    Ok(None) => break,
+                                    Err(_) => {
+                                        lease.mark("upstream_invalid_stream");
+                                        yield Err(io::Error::other("Upstream stream is invalid"));
+                                        break 'upstream;
+                                    }
+                                };
+                                let events = match converted.event(event) {
+                                    Ok(events) => events,
+                                    Err(_) => {
+                                        lease.mark("upstream_invalid_stream");
+                                        yield Err(io::Error::other("Upstream stream cannot be converted"));
+                                        break 'upstream;
+                                    }
+                                };
+                                for event in events {
+                                    let kind = event["type"].as_str().expect("constructed Responses event type");
+                                    yield Ok::<Bytes, io::Error>(Bytes::from(format!("event: {kind}\ndata: {event}\n\n")));
+                                }
+                                if converted.is_complete() { lease.mark("converted_complete"); break 'upstream; }
+                            }
+                        } else { yield Ok::<Bytes, io::Error>(chunk); }
+                    },
+                    Ok(None) => {
+                        if converted.as_ref().is_some_and(|c| c.finish().is_err()) || (converted.is_some() && framing.finish().is_err()) {
+                            lease.mark("upstream_incomplete_stream");
+                            yield Err(io::Error::other("Upstream stream ended before completion"));
+                        } else { lease.mark("upstream_eof"); }
+                        break;
+                    },
                     Ok(Some(Err(_))) => { lease.mark("upstream_read_error"); yield Err(io::Error::other("Upstream stream interrupted")); break; },
                     Err(_) => { lease.mark("upstream_idle_timeout"); yield Err(io::Error::new(io::ErrorKind::TimedOut, "Upstream stream timed out")); break; },
                 }
@@ -310,7 +360,16 @@ pub(crate) async fn responses(
             }
             data.extend_from_slice(&chunk);
         }
-        if serde_json::from_slice::<Value>(&data).is_err() {
+        if let Some(prepared) = prepared {
+            let output = prepared.decode_bytes(&data).map_err(|_| {
+                ApiError::new(
+                    StatusCode::BAD_GATEWAY,
+                    "upstream_invalid_response",
+                    "Upstream response cannot be converted",
+                )
+            })?;
+            data = serde_json::to_vec(&output).expect("constructed JSON response");
+        } else if serde_json::from_slice::<Value>(&data).is_err() {
             return Err(ApiError::new(
                 StatusCode::BAD_GATEWAY,
                 "upstream_invalid_json",

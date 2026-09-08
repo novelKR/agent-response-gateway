@@ -151,6 +151,12 @@ impl CustomToolBridge {
         if !original.extensions.fields.is_empty() {
             return Err(IrError::UnsupportedExtension);
         }
+        if matches!(
+            original.status,
+            Some(ToolCallStatus::InProgress | ToolCallStatus::Incomplete)
+        ) {
+            return Err(IrError::InvalidToolMapping);
+        }
         let binding = self.binding(&original.tool)?;
         let input = match (&original.input, binding.grammar) {
             (ToolInput::Freeform(text), Some(grammar)) => {
@@ -161,6 +167,7 @@ impl CustomToolBridge {
             _ => return Err(IrError::InvalidToolMapping),
         };
         Ok(ToolCall {
+            status: original.status,
             item_id: original.item_id.clone(),
             call_id: original.call_id.clone(),
             tool: self.alias(&original.tool)?.clone(),
@@ -201,6 +208,7 @@ impl CustomToolBridge {
             ToolInput::Json(raw.clone())
         };
         Ok(ToolCall {
+            status: lowered.status,
             item_id: lowered.item_id.clone(),
             call_id: lowered.call_id.clone(),
             tool: binding.original.clone(),

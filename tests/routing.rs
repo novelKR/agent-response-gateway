@@ -86,7 +86,6 @@ fn invalid_profiles_and_unqualified_dispatch_fail_startup() {
         ),
         valid.replacen("api = \"responses\"", "api = \"messages\"", 1),
         valid.replace("auth = \"api_key\"", "auth = \"arbitrary-header\""),
-        declaration("messages"),
         declaration("chat_completions"),
         declaration("messages").replace("auth = \"api_key\"", ""),
         declaration("messages").replace("messages_version = \"2023-06-01\"", ""),
