@@ -10,7 +10,18 @@ pub mod responses;
 
 pub const VERSION: u16 = 1;
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, serde::Deserialize)]
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Default,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    serde::Deserialize,
+    serde::Serialize,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum ApiProtocol {
     #[default]

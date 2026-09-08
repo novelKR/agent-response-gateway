@@ -201,3 +201,120 @@ fn termination_immediately_after_ready_uses_registered_handler() {
     let (mut process, _) = Process::launch(&path);
     process.terminate();
 }
+
+#[test]
+fn manifest_is_offline_and_readiness_binds_the_same_effective_configuration() {
+    let root = scratch();
+    let path = config_file(root.path(), "http://127.0.0.1:1");
+    let inspect = || {
+        let output = Command::new(env!("CARGO_BIN_EXE_agent-response-gateway"))
+            .args(["manifest", "--config"])
+            .arg(&path)
+            .env_clear()
+            .env("ARG_LOCAL_TOKEN", "SECRET-INVALID-LOCAL")
+            .env("ARG_UPSTREAM_KEY", "SECRET-UPSTREAM-VALUE")
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "manifest does not validate or read secret values"
+        );
+        assert!(output.stderr.is_empty());
+        let text = String::from_utf8(output.stdout).unwrap();
+        assert_eq!(text.lines().count(), 1);
+        assert!(!text.contains("SECRET-INVALID-LOCAL"));
+        assert!(!text.contains("SECRET-UPSTREAM-VALUE"));
+        serde_json::from_str::<Value>(&text).unwrap()
+    };
+    let manifest = inspect();
+    let (mut process, ready) = Process::launch(&path);
+    assert_eq!(ready["schema"], "gateway-ready/v1");
+    assert_eq!(ready["manifest_schema"], manifest["schema"]);
+    assert_eq!(ready["version"], manifest["package"]["version"]);
+    assert_eq!(
+        ready["configuration_sha256"],
+        manifest["configuration_sha256"]
+    );
+    process.terminate();
+    let raw = std::fs::read_to_string(&path)
+        .unwrap()
+        .replace("actual-model", "different-model");
+    std::fs::write(&path, raw).unwrap();
+    let changed = inspect();
+    assert_ne!(
+        manifest["configuration_sha256"],
+        changed["configuration_sha256"]
+    );
+    let (mut process, ready) = Process::launch(&path);
+    assert_eq!(
+        ready["configuration_sha256"],
+        changed["configuration_sha256"]
+    );
+    process.terminate();
+}
+
+#[test]
+fn bind_failure_never_announces_readiness() {
+    let root = scratch();
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let path = config_file(root.path(), "http://127.0.0.1:1");
+    let raw = std::fs::read_to_string(&path).unwrap();
+    std::fs::write(
+        &path,
+        format!("listen=\"{}\"\n{raw}", listener.local_addr().unwrap()),
+    )
+    .unwrap();
+    let failed = Command::new(env!("CARGO_BIN_EXE_agent-response-gateway"))
+        .args(["serve", "--config"])
+        .arg(&path)
+        .env_clear()
+        .env("ARG_LOCAL_TOKEN", TOKEN)
+        .env("ARG_UPSTREAM_KEY", UPSTREAM_KEY)
+        .output()
+        .unwrap();
+    assert!(!failed.status.success());
+    assert!(failed.stdout.is_empty());
+    assert!(!String::from_utf8_lossy(&failed.stderr).contains(UPSTREAM_KEY));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn termination_with_active_response_uses_the_bounded_grace_window() {
+    use axum::{
+        body::{Body, Bytes},
+        http::Response,
+    };
+    use futures_util::StreamExt;
+    let upstream=Router::new().route("/v1/responses",post(||async {
+        let stream=async_stream::stream! {
+            yield Ok::<_,std::convert::Infallible>(Bytes::from_static(b"event: response.created\ndata: {}\n\n"));
+            std::future::pending::<()>().await;
+        };
+        Response::builder().header("content-type","text/event-stream").body(Body::from_stream(stream)).unwrap()
+    }));
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let base = format!("http://{}", listener.local_addr().unwrap());
+    let server = tokio::spawn(async { axum::serve(listener, upstream).await.unwrap() });
+    let root = scratch();
+    let path = config_file(root.path(), &base);
+    let (mut process, ready) = Process::launch(&path);
+    let response = reqwest::Client::builder()
+        .no_proxy()
+        .timeout(Duration::from_secs(3))
+        .build()
+        .unwrap()
+        .post(format!("{}/responses", ready["base_url"].as_str().unwrap()))
+        .bearer_auth(TOKEN)
+        .json(&json!({"model":"writer","stream":true}))
+        .send()
+        .await
+        .unwrap();
+    let mut stream = response.bytes_stream();
+    stream.next().await.unwrap().unwrap();
+    let logs = process.terminate();
+    assert!(logs.contains("shutdown_grace_expired"));
+    let result = tokio::time::timeout(Duration::from_secs(2), stream.next())
+        .await
+        .unwrap();
+    assert!(result.is_none() || result.unwrap().is_err());
+    server.abort();
+}

@@ -1,6 +1,8 @@
 pub mod config;
+mod digest;
 mod error;
 mod http;
+pub mod manifest;
 mod proxy;
 
 pub use config::{Config, Limits, Model, Provider, Secrets};
