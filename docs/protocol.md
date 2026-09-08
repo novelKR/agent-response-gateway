@@ -94,8 +94,10 @@ Completions는 선언 검증과 순수 변환 admission까지만 구현되어 �
 프로필은 공급자·실제 모델·API를 모델 매핑과 일치시켜야 한다. 키가 프로필 ID이며
 `version`, `tested_codex_version`, `context_window`, `max_output_tokens`을 명시한다.
 이 값은 운영자의 선언이며 런타임·공급자 qualification을 자동 증명하지 않는다.
-`support`는 기능 이름을 `native`, `bridged_custom_tool_json`, `unsupported`에
-매핑하며 누락된 기능은 Unsupported다. custom_tools에는 JSON bridge를,
+`support`는 기능 이름을 `native`, `unsupported` 또는 구현된 bridge 선언에
+매핑하며 누락된 기능은 Unsupported다. namespaced_tools에는
+`bridged_tool_namespace`, custom_grammar에는 `bridged_codex_patch_grammar`를
+선언할 수 있고 두 도구 bridge에는 native 함수 지원이 필요하다. custom_tools에는 JSON bridge를,
 Messages의 instruction_hierarchy에는 승인된 bridged_instruction_envelope를
 명시할 수 있다. 설정 예시는 `config.example.toml`의 선택적 프로필을 참조한다.
 
@@ -110,4 +112,5 @@ SSE를 보존하며, 기능별 semantic admission은 변환 경로에서 적용�
 증명하는 자격 증명 세대가 아니다. 영속 재개는 별도 연속성 계약을 따른다.
 변환 admission은 명시한 client_metadata·prompt_cache_key·선택적 encrypted
 reasoning 출력 요청만 전송 힌트로 제외한다. 알 수 없는 확장과 opaque 입력은
-거부하며, namespace·grammar 지원은 G08에서 후속 구현한다.
+거부한다. G08의 namespace·grammar 및 Messages 스트림은 순수 codec 범위이며
+실제 HTTP 활성화와 Codex 왕복·취소 검증은 G09의 별도 완료 조건이다.
