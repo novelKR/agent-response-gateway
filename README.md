@@ -84,6 +84,10 @@ tool JSON bridge, 이벤트 상태 검증을 포함한다. 기존 HTTP 전달 �
 공급자 변환을 활성화하지는 않는다. 지원 부분집합과 후속 어댑터 경계는
 [IR 계약](docs/ir.md)에 정리했다.
 
+후속 구현의 우선순위·의존성과 완료 기준은 [구현 마일스톤](docs/roadmap.md),
+PR·커밋·CI 운영 방식은 [GitHub 작업 절차](docs/github-workflow.md)에 정리했다.
+계획과 현재 지원 범위는 구분한다.
+
 ## 검증
 
 ```sh
