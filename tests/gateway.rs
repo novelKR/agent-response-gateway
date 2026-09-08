@@ -778,3 +778,71 @@ async fn http_passthrough_remains_independent_of_stricter_ir_projection() {
     request["model"] = json!("actual-model");
     assert_eq!(harness.mock.requests.lock().unwrap()[0].body, request);
 }
+
+#[tokio::test]
+async fn configured_api_key_auth_does_not_forward_consumer_headers() {
+    let h = Harness::new(Mode::Json, |config| {
+        config.models.get_mut("writer").unwrap().auth =
+            Some(agent_response_gateway::config::UpstreamAuth::ApiKey);
+    })
+    .await;
+    let response = h
+        .post()
+        .header("x-api-key", "consumer-key-must-not-forward")
+        .header("anthropic-version", "consumer-version")
+        .json(&json!({"model":"writer","input":"synthetic"}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let requests = h.mock.requests.lock().unwrap();
+    assert_eq!(requests.len(), 1);
+    assert_eq!(requests[0].headers["x-api-key"], UPSTREAM_TOKEN);
+    assert!(!requests[0].headers.contains_key("authorization"));
+    assert!(!requests[0].headers.contains_key("anthropic-version"));
+}
+
+#[tokio::test]
+async fn output_limit_rejections_send_zero_requests_and_boundary_is_allowed() {
+    let h = Harness::new(Mode::Json, |config| {
+        let profile: agent_response_gateway::config::ModelProfile = toml::from_str(
+            r#"
+version = "1"
+provider = "mock"
+upstream_model = "actual-model"
+api = "responses"
+context_window = 32000
+max_output_tokens = 1024
+tested_codex_version = "0.154.0-alpha.6"
+"#,
+        )
+        .unwrap();
+        config.capability_profiles.insert("tested".into(), profile);
+        config.models.get_mut("writer").unwrap().capability_profile = Some("tested".into());
+    })
+    .await;
+    for limit in [json!(1025), json!(0), json!(-1), json!(1.5), json!("1024")] {
+        let response = h
+            .post()
+            .json(&json!({"model":"writer","max_output_tokens":limit}))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(h.calls(), 0);
+    }
+    assert_eq!(
+        h.post()
+            .json(&json!({"model":"writer","max_output_tokens":1024,"future_extension":true}))
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::OK
+    );
+    assert_eq!(h.calls(), 1);
+    assert_eq!(
+        h.mock.requests.lock().unwrap()[0].body["future_extension"],
+        json!(true)
+    );
+}

@@ -16,9 +16,11 @@ use serde_json::Value;
 use tokio::sync::OwnedSemaphorePermit;
 
 use crate::{
+    config::UpstreamAuth,
     error::ApiError,
     http::{GatewayState, RequestId},
     responses_policy::normalize_stateless,
+    routing::AdmittedRequest,
 };
 
 struct StreamLease {
@@ -109,24 +111,46 @@ pub(crate) async fn responses(
     })??;
     let value = serde_json::from_slice(&raw)
         .map_err(|_| bad("invalid_json", "Request body is not valid JSON"))?;
-    let (mut payload, model_id, streaming) =
+    let (payload, model_id, streaming) =
         normalize_stateless(value).map_err(|e| bad(e.code, e.message))?;
-    let model = state.config.models.get(&model_id).ok_or_else(|| {
-        ApiError::new(
+    if !state.config.models.contains_key(&model_id) {
+        return Err(ApiError::new(
             StatusCode::NOT_FOUND,
             "model_not_found",
             "Model is not registered",
+        ));
+    }
+    let route = state
+        .config
+        .resolve_route(&model_id)
+        .expect("configuration was validated");
+    let admitted = route.admit(payload).map_err(|_| {
+        bad(
+            "unsupported_request",
+            "Request is invalid or exceeds the declared route capabilities or limits",
         )
     })?;
-    let provider = &state.config.providers[&model.provider];
-    payload.insert("model".into(), Value::String(model.upstream_model.clone()));
-    let url = provider
-        .responses_url()
-        .expect("configuration was validated");
-    let send = state
-        .client
-        .post(url)
-        .bearer_auth(&state.secrets.upstream_keys[&model.provider])
+    let payload = match admitted {
+        AdmittedRequest::Native(payload) => payload,
+        AdmittedRequest::Translated { .. } => {
+            return Err(bad(
+                "unsupported_api",
+                "API adapter is not qualified for dispatch",
+            ));
+        }
+    };
+    let key = &state.secrets.upstream_keys[&route.snapshot.provider_id];
+    let send = state.client.post(route.endpoint);
+    let send = match route.auth {
+        UpstreamAuth::Bearer => send.bearer_auth(key),
+        UpstreamAuth::ApiKey => send.header("x-api-key", key),
+    };
+    let send = if let Some(version) = &route.messages_version {
+        send.header("anthropic-version", version)
+    } else {
+        send
+    };
+    let send = send
         .header(
             header::ACCEPT,
             if streaming {

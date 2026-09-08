@@ -19,7 +19,8 @@ HTTP를 허용한다. URL의 사용자정보·query·fragment는 허용하지 �
 
 로컬 토큰은 32~4096자의 공백 없는 ASCII이고 공급자 키와 달라야 한다.
 소비자 `Authorization`을 upstream에 전달하지 않고 해당 공급자의 키로
-새 Bearer 헤더를 구성한다. 소비자 쿠키·임의 헤더도 전달하지 않는다.
+선언한 `auth`에 따라 Bearer 또는 `x-api-key` 헤더를 구성한다. 기본값은 Bearer다.
+소비자 쿠키·임의 헤더도 전달하지 않는다.
 브라우저 애플리케이션용 CORS나 공개 서비스 인증은 제공하지 않는다.
 
 ## 엔드포인트
@@ -82,3 +83,30 @@ JSON 숫자는 임의 정밀도로 파싱하여 큰 정수와 소수의 값을 �
 
 로그는 요청·경로 식별자, 상태와 소요 시간 같은 운영 메타데이터로 제한한다.
 본문, prompt, 인증정보와 헤더를 로그에 넣지 않는다.
+
+## 선언된 경로와 기능 프로필
+
+모델에 `api`, `auth`, `capability_profile`, `messages_version`을 선언할 수 있다.
+기존 설정의 API는 `responses`이며 Bearer 인증을 유지한다. Messages와 Chat
+Completions는 선언 검증과 순수 변환 admission까지만 구현되어 있어 실제
+서버 설정에서는 아직 시작 오류다. G09/G12의 어댑터 검증 후 각각 활성화한다.
+
+프로필은 공급자·실제 모델·API를 모델 매핑과 일치시켜야 한다. 키가 프로필 ID이며
+`version`, `tested_codex_version`, `context_window`, `max_output_tokens`을 명시한다.
+이 값은 운영자의 선언이며 런타임·공급자 qualification을 자동 증명하지 않는다.
+`support`는 기능 이름을 `native`, `bridged_custom_tool_json`, `unsupported`에
+매핑하며 누락된 기능은 Unsupported다. 현재 bridge 선언은 custom_tools에만
+허용한다. 설정 예시는 `config.example.toml`의 선택적 프로필을 참조한다.
+
+프로필이 있는 경로는 요청한 `max_output_tokens`가 양의 정수인지와 선언 한도
+이하인지를 전송 전에 검사한다. 입력 토큰 계수는 구현·검증되지 않았으며,
+`context_window`는 호스트 설정용 계약이다. 프로필 없는 native Responses는
+기존의 미검증 passthrough를 유지한다. 프로필이 있는 native 경로도 원형 JSON과
+SSE를 보존하며, 기능별 semantic admission은 변환 경로에서 적용한다.
+
+각 HTTP 요청은 해석한 공급자·모델·API·인증 참조·프로필·한도를 한 번 고정한다.
+여기서 환경 변수 이름은 요청 시 자격 증명을 선택하는 참조일 뿐, 이력 재개를
+증명하는 자격 증명 세대가 아니다. 영속 재개는 별도 연속성 계약을 따른다.
+변환 admission은 명시한 client_metadata·prompt_cache_key·선택적 encrypted
+reasoning 출력 요청만 전송 힌트로 제외한다. 알 수 없는 확장과 opaque 입력은
+거부하며, namespace·grammar 지원은 G08에서 후속 구현한다.
