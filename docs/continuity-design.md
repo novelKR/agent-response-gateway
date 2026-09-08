@@ -1,6 +1,6 @@
 # G15 — Continuity with host-owned history
 
-Status: **proposal awaiting explicit approval; no state or persistence change applied**.
+Status: **explicitly approved on 2026-09-08; implementation and acceptance tracked by G16/G17**.
 
 ## Evidence and recommendation
 
@@ -10,6 +10,9 @@ The pinned Codex selects local compaction when the configured provider declares
 remote compaction unsupported. A synthetic control-plane probe completed an
 initial turn, `thread/compact/start`, and a following turn through three ordinary
 `/v1/responses` calls; no gateway compact endpoint was needed.
+
+The same three-call local-compaction probe also passed with the separately
+approved temporary 0.154.0-alpha.6 test baseline.
 
 Source: [pinned compaction task selection](https://github.com/openai/codex/blob/rust-v0.153.4/codex-rs/core/src/tasks/compact.rs).
 This is evidence for the tested custom-provider profile, not every model/profile
