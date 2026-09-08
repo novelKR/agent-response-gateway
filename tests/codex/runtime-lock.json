@@ -1,0 +1,51 @@
+{
+  "archive": {
+    "sha256": "35438da1fbf7a6db7ddb3bcec84448fa6015ba188461472a97d9d1da7d9c4353",
+    "size": 111554884,
+    "url": "https://github.com/openai/codex/releases/download/rust-v0.153.4/codex-package-aarch64-apple-darwin.tar.gz"
+  },
+  "entrypoint": "bin/codex",
+  "files": {
+    "bin/codex": {
+      "executable": true,
+      "sha256": "b973d440acac501fd2594a43e7ca9ce41e0a65b9dfb28d0d7a7837c99e1261e3",
+      "size": 220584000
+    },
+    "bin/codex-code-mode-host": {
+      "executable": true,
+      "sha256": "d8a2222e017342718d16a5dbe092921c628961f812f62f42036b8d960e1ffe56",
+      "size": 62767552
+    },
+    "codex-package.json": {
+      "executable": false,
+      "sha256": "d9ca6b160a46bf8e06748df83ccadb91418ded2d1c35045518b7305f866c9a54",
+      "size": 200
+    },
+    "codex-path/rg": {
+      "executable": true,
+      "sha256": "3969d598288585478bd9b2fd6c9f7e120b711cf96c5a03844d0197ea6abec346",
+      "size": 4030432
+    },
+    "codex-resources/zsh/bin/zsh": {
+      "executable": true,
+      "sha256": "712ebaa416a7505fe6719ba99440ae3125423ce46d42d0174963553d81f3f8f1",
+      "size": 754208
+    }
+  },
+  "release_url": "https://github.com/openai/codex/releases/tag/rust-v0.153.4",
+  "schema_version": 1,
+  "schemas": {
+    "experimental": {
+      "file": "codex_app_server_protocol.schemas.json",
+      "sha256": "b06f77062369d481a59cc70720c12b89cb9dd49c385863923262102d3ad6c978",
+      "size": 815279
+    },
+    "stable": {
+      "file": "codex_app_server_protocol.schemas.json",
+      "sha256": "e8284c5cb8157554a3dd1e035aadbd4325aea501af56887e9c2e12eb1b9b9448",
+      "size": 683139
+    }
+  },
+  "target": "aarch64-apple-darwin",
+  "version": "0.153.4"
+}
