@@ -39,9 +39,9 @@ Runtime processes, upstream threads and temporary workspaces are cleaned up afte
 each scenario. Standard Rust tests still exercise the gateway without requiring
 Codex. See the [pinned contract](../../docs/codex-contract.md).
 
-## Known qualification failure in 0.153.4
+## Previous failure and temporary baseline
 
-The heartbeat cancellation scenario currently fails: the control turn becomes
+On stable 0.153.4 the heartbeat cancellation scenario failed: the control turn became
 `interrupted`, but the upstream socket remains open beyond the test's five-second
 closure bound. Sending another model event instead of an SSE comment makes the
 connection close. The fixture waits for client-observed partial output before
@@ -55,7 +55,14 @@ reproduction. See [pinned SSE implementation](https://github.com/openai/codex/bl
 
 The gateway cannot infer a control-plane interrupt while its HTTP client still
 holds the connection open. Do not inject artificial Responses events, shorten
-timeouts to conceal this gap or remove the failing case. G04 and M1 remain
-incomplete until the runtime or an explicitly approved cancellation contract
-passes the same test. This fixture does not guarantee a provider will stop work
-already processed or reverse charges.
+timeouts to conceal this gap or remove the regression case. The suspected stable-
+release stream-lifetime defect is addressed by the explicitly approved temporary
+**0.154.0-alpha.6** test baseline, whose receiver-closure fix passed all eight local
+scenarios. Replace it with **0.154.0 or a later stable version** after official
+artifact/schema verification and all checks pass. The actual alpha version and
+digest stay visible; this is not a consumer-runtime or production upgrade.
+
+The same heartbeat case remains mandatory in CI. A single passing run on the old
+version does not erase the repeated local reproduction or the source-level gap.
+This fixture does not guarantee a provider will stop already-processed work or
+reverse charges.
