@@ -129,6 +129,6 @@ reasoning 출력 요청만 전송 힌트로 제외한다. 알 수 없는 확장�
 `configuration_sha256`가 포함된다. 새 HTTP 관리 엔드포인트는 없다.
 상세 schema와 호스트 책임은 [내장 계약](embedded-design.md)에 명시한다.
 
-Chat Completions는 요청·일반 응답 codec만 제공하며, 서버 설정은 스트림과
-실제 Codex 검증 전까지 거부한다. [초기 Chat 프로필](chat-completions.md)은
+Chat Completions는 요청·일반 응답·스트림 codec을 제공하며, 서버 설정은
+실제 Codex G12 검증 전까지 거부한다. [초기 Chat 프로필](chat-completions.md)은
 function wire와 명시적 custom JSON bridge의 지원 범위를 구분한다.
