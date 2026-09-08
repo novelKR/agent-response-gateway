@@ -1,0 +1,61 @@
+# Real Codex, synthetic upstream
+
+This explicit conformance command starts the pinned Codex executable, the actual
+gateway binary and a synthetic loopback HTTP upstream. The upstream supplies
+newly authored fixtures; no reference implementation's tests or consumer content
+are copied. All generated homes, workspaces and files remain under `.local/`.
+
+```sh
+python3.14 -B scripts/codex_runtime.py prepare
+cargo build --locked
+python3.14 -B tests/codex/conformance.py
+```
+
+Only runtime preparation downloads the pinned official artifact. Conformance
+uses no provider account or personal authentication. Each scenario creates a
+separate local token and Codex home. Upstream keys are not in the Codex child
+environment. The gateway continues to own transport only; Codex executes the
+synthetic patch and the host replies to dynamic tools and approval requests.
+
+The program emits one payload-free JSON result per scenario and exits nonzero
+if any scenario fails. It still collects later results after an earlier failure.
+Its `gpt-5.4` model identifier selects Codex's tool profile; all model traffic goes
+to the synthetic provider and is routed to `synthetic-model`. It is not a live
+model test. The test's 32,768-token context and 24,576-token compaction threshold
+are synthetic settings, not assertions about any provider model.
+
+| Scenario | Contract |
+|---|---|
+| text | One request and explicit completed turn |
+| function_tool | Dynamic function call and result/follow-up round trip |
+| namespace_tool | Namespace identity and arguments survive the round trip |
+| custom_patch | Codex applies a synthetic patch; its result returns to the model |
+| approval_denial | An actual file-change approval is declined and no file is written |
+| cancellation | Client-observed output precedes interrupt; an eventful stream closes |
+| cancellation_heartbeat | The same interrupt must close a stream sending only SSE comments |
+| transport_failure | EOF without completion fails the turn without retry |
+
+Runtime processes, upstream threads and temporary workspaces are cleaned up after
+each scenario. Standard Rust tests still exercise the gateway without requiring
+Codex. See the [pinned contract](../../docs/codex-contract.md).
+
+## Known qualification failure in 0.153.4
+
+The heartbeat cancellation scenario currently fails: the control turn becomes
+`interrupted`, but the upstream socket remains open beyond the test's five-second
+closure bound. Sending another model event instead of an SSE comment makes the
+connection close. The fixture waits for client-observed partial output before
+interrupting; this is not a race with request startup.
+
+The pinned implementation spawns an SSE reader task and waits for the next parsed
+event or an idle timeout. It observes a dropped receiver when sending a parsed
+event, without selecting receiver closure while waiting. SSE comments do not
+produce such an event. This source path is consistent with the paired synthetic
+reproduction. See [pinned SSE implementation](https://github.com/openai/codex/blob/rust-v0.153.4/codex-rs/codex-api/src/sse/responses.rs).
+
+The gateway cannot infer a control-plane interrupt while its HTTP client still
+holds the connection open. Do not inject artificial Responses events, shorten
+timeouts to conceal this gap or remove the failing case. G04 and M1 remain
+incomplete until the runtime or an explicitly approved cancellation contract
+passes the same test. This fixture does not guarantee a provider will stop work
+already processed or reverse charges.
