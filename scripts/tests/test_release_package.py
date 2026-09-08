@@ -126,7 +126,7 @@ class ReleasePackageTests(unittest.TestCase):
                 package.verify_candidate(directory)
 
     def test_macos_minimum_version_excludes_dylib_versions(self):
-        raw = "cmd LC_BUILD_VERSION\nminos 11.0\nsdk 15.5\ncmd LC_SOURCE_VERSION\nversion 0.0\ncmd LC_ID_DYLIB\nversion 1267.0"
+        raw = "cmd LC_BUILD_VERSION\nminos 11.0\nsdk 15.5\ntools 1\ntool LD\nversion 1267.0\ncmd LC_SOURCE_VERSION\nversion 0.0\ncmd LC_ID_DYLIB\nversion 1267.0"
         self.assertEqual(package.macos_versions(raw), ["11.0"])
         with self.assertRaises(package.PackageError):
             package.macos_versions("cmd LC_ID_DYLIB\nversion 1267.0")

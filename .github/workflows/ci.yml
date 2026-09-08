@@ -155,9 +155,61 @@ jobs:
             cat .local/conformance-results.jsonl >> "$GITHUB_STEP_SUMMARY"
           fi
 
+  package-smoke:
+    name: package-smoke (${{ matrix.target }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+          - os: macos-15
+            target: aarch64-apple-darwin
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    env:
+      CARGO_HOME: ${{ github.workspace }}/.local/cargo-home
+      CARGO_TARGET_DIR: ${{ github.workspace }}/target
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.14'
+      - run: rustup toolchain install 1.98.0 --profile minimal
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            .local/cargo-home/registry
+            .local/tools
+            target/license-tools
+            target/release-candidate
+          key: package-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'licensing/policy.json', 'scripts/release_package.py') }}
+      - name: Prepare locked build sources and pinned notice tool
+        shell: bash
+        run: |
+          cargo +1.98.0 install cargo-deny --version "$(python3 -c 'import json; print(json.load(open("licensing/policy.json"))["cargo_deny_version"])')" --locked --root .local/tools --target-dir target/license-tools
+          cargo +1.98.0 fetch --locked
+      - run: python3 -B -m unittest discover -s scripts/tests -p 'test_release_package.py' -v
+      - name: Build committed source and verify candidate
+        env:
+          PACKAGE_TARGET: ${{ matrix.target }}
+        run: |
+          python3 -B scripts/release_package.py build --target "$PACKAGE_TARGET" --output .local/package-candidate
+          python3 -B scripts/release_package.py verify .local/package-candidate --commit "$GITHUB_SHA" --target "$PACKAGE_TARGET"
+      - name: Retain only verified public candidate files
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: package-${{ matrix.target }}
+          path: .local/package-candidate/*
+          if-no-files-found: error
+          retention-days: 14
+
   ci-required:
     if: ${{ always() }}
-    needs: [format, rust-linux, rust-macos, publication, licenses, codex-conformance]
+    needs: [format, rust-linux, rust-macos, publication, licenses, codex-conformance, package-smoke]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:

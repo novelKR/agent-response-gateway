@@ -217,7 +217,8 @@ def macos_versions(load):
         if line.strip().startswith("cmd "):
             command = line.strip().split()[1]
         if command in {"LC_BUILD_VERSION", "LC_VERSION_MIN_MACOSX"}:
-            match = re.fullmatch(r"\s*(?:minos|version) (\d+\.\d+(?:\.\d+)?)", line)
+            field = "minos" if command == "LC_BUILD_VERSION" else "version"
+            match = re.fullmatch(r"\s*" + field + r" (\d+\.\d+(?:\.\d+)?)", line)
             if match:
                 versions.append(match[1])
     require(versions, "Mach-O minimum macOS version missing")
