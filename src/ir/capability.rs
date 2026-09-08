@@ -35,6 +35,8 @@ pub enum Feature {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BridgeRule {
     CustomToolJson,
+    ToolNamespace,
+    CodexPatchGrammar,
     MessagesInstructionEnvelope,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -61,6 +63,10 @@ impl CapabilityProfile {
             match support {
                 Support::Bridged(BridgeRule::CustomToolJson)
                     if *feature == Feature::CustomTools => {}
+                Support::Bridged(BridgeRule::ToolNamespace)
+                    if *feature == Feature::NamespacedTools => {}
+                Support::Bridged(BridgeRule::CodexPatchGrammar)
+                    if *feature == Feature::CustomGrammar => {}
                 Support::Bridged(BridgeRule::MessagesInstructionEnvelope)
                     if *feature == Feature::InstructionHierarchy
                         && self.protocol == ApiProtocol::Messages => {}
@@ -178,7 +184,13 @@ pub fn requirements(request: &RequestIR) -> Result<RequiredCapabilities, IrError
             }
         }
     }
-    for tool in request.tools.iter().flatten() {
+    for group in request.tools.iter().flatten() {
+        if matches!(group.kind, ToolDefinitionKind::Namespace { .. }) {
+            extensions(source, &group.extensions, &mut set)?;
+            set.insert(Feature::NamespacedTools);
+        }
+    }
+    for tool in request.tool_definitions() {
         extensions(source, &tool.extensions, &mut set)?;
         if tool.identity.namespace.is_some() {
             set.insert(Feature::NamespacedTools);
@@ -196,6 +208,7 @@ pub fn requirements(request: &RequestIR) -> Result<RequiredCapabilities, IrError
                     set.insert(Feature::CustomGrammar);
                 }
             }
+            ToolDefinitionKind::Namespace { .. } => return Err(IrError::InvalidToolMapping),
         }
     }
     let g = &request.generation;
@@ -311,28 +324,37 @@ pub fn plan_translation(
             Support::Bridged(BridgeRule::MessagesInstructionEnvelope) => {
                 bridges.push(BridgeRule::MessagesInstructionEnvelope);
             }
-            Support::Bridged(rule @ BridgeRule::CustomToolJson) => {
-                if required.contains(Feature::CustomGrammar)
-                    || required.contains(Feature::NamespacedTools)
-                    || route.capabilities.support(Feature::FunctionTools) != Support::Native
+            Support::Bridged(
+                rule @ (BridgeRule::CustomToolJson
+                | BridgeRule::ToolNamespace
+                | BridgeRule::CodexPatchGrammar),
+            ) => {
+                if route.capabilities.support(Feature::FunctionTools) != Support::Native
+                    || (rule == BridgeRule::CodexPatchGrammar
+                        && route.capabilities.support(Feature::CustomTools)
+                            != Support::Bridged(BridgeRule::CustomToolJson))
                 {
                     return Err(IrError::UnsupportedFeature);
-                }
-                // Registry construction checks names, formats, and declaration availability.
-                let registry =
-                    super::bridge::CustomToolBridge::new(request.tools.as_deref().unwrap_or(&[]))?;
-                if let Some(Input::Items(items)) = &request.input {
-                    for item in items {
-                        if let Item::ToolCall(call) = item
-                            && matches!(call.input, ToolInput::Freeform(_))
-                        {
-                            registry.lower_call(call)?;
-                        }
-                    }
                 }
                 bridges.push(rule);
             }
             Support::Unsupported => return Err(IrError::UnsupportedFeature),
+        }
+    }
+    if bridges.iter().any(|rule| {
+        matches!(
+            rule,
+            BridgeRule::CustomToolJson | BridgeRule::ToolNamespace | BridgeRule::CodexPatchGrammar
+        )
+    }) {
+        let registry =
+            super::bridge::CustomToolBridge::new(request.tools.as_deref().unwrap_or(&[]))?;
+        if let Some(Input::Items(items)) = &request.input {
+            for item in items {
+                if let Item::ToolCall(call) = item {
+                    registry.lower_call(call)?;
+                }
+            }
         }
     }
     if let Some(Input::Items(items)) = &request.input {

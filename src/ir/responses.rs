@@ -216,6 +216,28 @@ fn decode_tool(value: Value) -> Result<ToolDefinition, IrError> {
         "custom" => ToolDefinitionKind::Custom {
             format: take(&mut fields, "format"),
         },
+        "namespace" => {
+            if identity.namespace.is_some() {
+                return Err(IrError::InvalidToolMapping);
+            }
+            let children = fields
+                .remove("tools")
+                .ok_or(IrError::InvalidField("tools"))?;
+            let tools = array(children, "tools")?
+                .into_iter()
+                .map(|value| {
+                    if value.get("type").and_then(Value::as_str) == Some("namespace")
+                        || value.get("namespace").is_some()
+                    {
+                        return Err(IrError::InvalidToolMapping);
+                    }
+                    let mut child = decode_tool(value)?;
+                    child.identity.namespace = Some(identity.name.clone());
+                    Ok(child)
+                })
+                .collect::<Result<_, IrError>>()?;
+            ToolDefinitionKind::Namespace { tools }
+        }
         _ => return Err(IrError::UnsupportedFeature),
     };
     Ok(ToolDefinition {
@@ -527,6 +549,21 @@ fn encode_tool(tool: &ToolDefinition) -> Result<Value, IrError> {
         ToolDefinitionKind::Custom { format } => {
             put(&mut data, "type", "custom")?;
             optional(&mut data, "format", format.clone())?;
+        }
+        ToolDefinitionKind::Namespace { tools } => {
+            put(&mut data, "type", "namespace")?;
+            let children = tools
+                .iter()
+                .map(|tool| {
+                    let mut child = encode_tool(tool)?;
+                    child
+                        .as_object_mut()
+                        .expect("encoded tool object")
+                        .remove("namespace");
+                    Ok(child)
+                })
+                .collect::<Result<Vec<_>, IrError>>()?;
+            put(&mut data, "tools", children)?;
         }
     }
     Ok(data.into())
