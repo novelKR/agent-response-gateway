@@ -9,8 +9,10 @@ pub mod responses;
 
 pub const VERSION: u16 = 1;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum ApiProtocol {
+    #[default]
     Responses,
     Messages,
     ChatCompletions,

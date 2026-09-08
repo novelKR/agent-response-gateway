@@ -183,3 +183,12 @@ binding 변경, wrapper 복원, 교차 이벤트와 모든 문자열 분할 위�
 
 참고: [OpenAI custom tools](https://developers.openai.com/api/docs/guides/function-calling#custom-tools),
 [Anthropic streaming](https://platform.claude.com/docs/en/build-with-claude/streaming).
+
+## HTTP 경로 선언 연결
+
+`Config::resolve_route`는 선언된 API·모델 프로필을 기존 RouteSnapshot으로
+고정한다. `ResolvedRoute::admit`는 HTTP의 공통 stateless 검사 이후 호출한다.
+Native Responses는 JSON과 SSE의 기존 passthrough를 유지하며 변환 경로는
+검증된 RequestIR에서 기능 요구와 TranslationPlan을 도출한다. 선언 프로필은
+실제 모델 qualification이나 자격 증명 세대의 증명이 아니다. Namespace와
+grammar bridge 확장은 G08에서 구현하며 미완성 API는 서버 시작 시 거부한다.
