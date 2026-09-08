@@ -30,6 +30,12 @@ configuration, tests, and documentation before editing. Preserve unrelated work.
   changes. Unsupported protocol features must remain explicit errors.
 - Run `python3 -B -m unittest discover -s scripts/tests -v` and the publication
   boundary checks described in `docs/documentation.md` before committing.
+- Use Python 3.11+ for script checks. Follow `licensing/README.md` to prepare
+  the pinned development-only cargo-deny and exact crate sources, then run
+  `python3 -B scripts/license_audit.py check`. Keep license records and original
+  notices consistent with Cargo.lock; refresh creates a reviewable diff, not
+  approval of commercial rights. Never globally allow third-party AGPL merely
+  because the root package uses it.
 
 ## Public documentation and local repositories
 

@@ -15,8 +15,12 @@ cargo fmt --check
 cargo clippy --all-targets --locked -- -D warnings
 cargo test --locked
 python3 -B -m unittest discover -s scripts/tests -v
+python3 -B scripts/license_audit.py check
 cargo build --release --locked
 ```
+
+Python은 3.11 이상을 사용하며, 라이선스 검사의 고정 도구와 원본 캐시는
+[라이선스 관리 안내](../licensing/README.md)에 따라 먼저 준비한다.
 
 Linux·macOS CI workflow는 공개 가능한 fixture만 사용하며 공급자 secret을
 요구하지 않는다. 호스팅된 CI가 실제 실행되기 전에는 성공으로 표시하지 않는다.
@@ -35,20 +39,34 @@ URL만 표시해 충분하다고 가정하지 않는다.
 필요한 소스 접근 기회를 실제 제공하는지 확인한다. 링크의 표시나
 `source_status`는 라이선스 이행 여부를 판정하는 기능이 아니다.
 
-의존성 고지는 실제 배포 대상과 잠금 파일에 맞춰 준비한다. 프로젝트 내부의
-무시된 디렉터리에 메타데이터를 내보낼 수 있다.
+의존성 고지는 Git에 보존한 [패키지별 기록과 원문](../licensing/README.md)을
+기준으로 생성한다. 공개판과 별도 계약 배포 모두에 제3자 고지를 유지한다.
 
 ```sh
 mkdir -p .local/release
-cargo metadata --locked --format-version 1 > .local/release/cargo-metadata.json
+python3 -B scripts/license_audit.py check
+python3 -B scripts/license_audit.py bundle --output .local/release/licenses
+python3 -B scripts/archive_notices.py .local/release/licenses .local/release/license-notices.tar
+python3 -B scripts/check_public_boundary.py --archive .local/release/license-notices.tar
 ```
 
-이 메타데이터의 의존성·license·license_file과 패키지의 원문 고지를 조사한다.
-배포물에 포함하는 제3자 코드에 필요한 저작권·허가 전문을 수집하고 누락을
-검토한다. 메타데이터 생성은 완성된 SBOM, 고지 묶음 또는 법률 검토가 아니다.
+출력 디렉터리는 새 경로 또는 빈 경로여야 한다. 묶음의 manifest는 잠금 파일·
+정책·패키지 기록·고지 파일의 해시를 포함한다. 동일한 입력으로 다른 빈 경로에
+생성한 묶음이 일치하는지 확인한다. 공개 소스 archive와 함께 배포 자료에 포함한다.
+고지 archive는 위 전용 도구로 호스트 소유자·시간·확장 메타데이터를 제거하며,
+기존 파일을 덮어쓰지 않는다. 고지 원문의 바이트는 변경하지 않는다.
+
+이 목록은 Cargo.lock 전체를 보수적으로 포함한다. 실제 바이너리에 포함된
+항목만을 증명하는 SBOM으로 표시하지 않는다. 시스템 라이브러리의 정적·동적
+링크, 컨테이너 패키지, 번들 실행 파일과 그 의존성은 실제 배포 산출물별로
+추가 조사한다. 이 단계와 전체 법률 검토가 끝났다고 자동으로 표시하지 않는다.
 
 권리자·기여 조건·별도 계약 권한을 확정한 뒤 외부 코드 기여 정책을 연다.
 상용 계약에서도 제3자 구성요소의 기존 조건을 보존한다.
+
+현재 `0.1.0`은 미출시 개발 버전이다. 공개·대체 조건 및 미확정 상태는
+[버전별 라이선스 정책](../COMMERCIAL-LICENSING.md)에 기록한다. 검사 통과와
+별도 계약 체결·권리 확보·상용 배포 가능 판정은 구분한다.
 
 ## 소비자의 채택과 복구
 

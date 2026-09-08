@@ -25,13 +25,14 @@ a PR using the author's identity.
 
 ## Required checks
 
-The foundation runs `format`, `rust-linux`, `rust-macos` and `publication`.
+The foundation runs `format`, `rust-linux`, `rust-macos`, `publication` and `licenses`.
 `ci-required` succeeds only when every required prerequisite succeeds, including
 after cancellation or failure. No path filter silently omits a required check.
 Register a required check in branch protection after its first successful run.
 
-License, Codex conformance and release-package checks are added with the work
-items implementing them. Their absence at the foundation stage is not a pass.
+The license job verifies locked evidence, runs all script tests and reproduces
+notice bundles with the pinned development tool. Codex conformance and release-package
+checks are added with the work items implementing them; their absence is not a pass.
 The default workflow uses Rust 1.98.0, Python 3.14, Ubuntu 24.04 x64 and macOS 15
 ARM64. Full history is fetched for publication checks. Actions are pinned by SHA.
 Caches are partitioned by OS, architecture, toolchain and relevant lock files.
