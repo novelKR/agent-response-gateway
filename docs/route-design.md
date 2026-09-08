@@ -1,6 +1,6 @@
 # G05 — Model routes and capability admission
 
-Status: **proposal awaiting explicit approval; no runtime/configuration change applied**.
+Status: **explicitly approved on 2026-09-08; implementation tracked by G06**.
 This document is the implementation contract for G06 and adapter activation in
 G09/G12. It preserves the existing loopback and stateless transport boundary.
 
@@ -129,5 +129,6 @@ restoring the prior Responses-only configuration; no data migration is required.
 
 Approval authorizes the additions and declared hint/context policies above. It
 does not authorize state storage, service-mode exposure, live provider calls,
-consumer activation or release. G04's pinned-runtime cancellation issue remains
-a separate runtime-version approval and acceptance gate.
+consumer activation or release. G04 separately qualified the explicitly approved
+temporary 0.154.0-alpha.6 test baseline; stable replacement remains a separate
+artifact and conformance verification step.
