@@ -1,0 +1,22 @@
+# Set these variables in the process environment; do not place keys in this file.
+listen = "127.0.0.1:0"
+local_token_env = "ARG_LOCAL_TOKEN"
+# source_url = "https://your-published-repository.example/exact-source-version"
+
+[limits]
+max_request_bytes = 8388608
+max_response_bytes = 16777216
+max_in_flight = 32
+request_body_timeout_ms = 30000
+connect_timeout_ms = 10000
+response_header_timeout_ms = 60000
+stream_idle_timeout_ms = 60000
+shutdown_grace_ms = 5000
+
+[providers.example]
+base_url = "https://api.openai.com/v1"
+api_key_env = "ARG_EXAMPLE_API_KEY"
+
+[models."example/writer"]
+provider = "example"
+upstream_model = "replace-with-your-verified-model"
