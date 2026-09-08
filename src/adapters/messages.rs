@@ -3,10 +3,14 @@ mod stream;
 use std::collections::BTreeMap;
 pub use stream::MessagesStream;
 
+use super::{
+    json::{known_fields, object, string},
+    toolset::{PreparedTools, tool_output},
+};
 use serde_json::{Map, Value, json};
 
 use crate::ir::{
-    ApiProtocol, CallId, IrError, ItemId, ResponseId, ToolIdentity, ToolKind,
+    ApiProtocol, CallId, IrError, ItemId, ResponseId, ToolKind,
     bridge::CustomToolBridge,
     capability::{BridgeRule, Feature, TranslationPlan, plan_translation},
     continuity::ContinuityBinding,
@@ -24,9 +28,7 @@ use crate::ir::{
 pub struct PreparedMessages {
     pub payload: Value,
     model: String,
-    registry: CustomToolBridge,
-    parallel: Option<bool>,
-    choice: Option<ToolChoice>,
+    tools: PreparedTools,
 }
 
 fn unsupported() -> IrError {
@@ -249,9 +251,9 @@ pub(crate) fn encode_admitted(
         if strict == &Some(true) {
             return Err(unsupported());
         }
-        let schema = parameters
-            .clone()
-            .unwrap_or_else(|| json!({"type":"object","properties":{}}));
+        let schema = parameters.clone().unwrap_or_else(
+            || json!({"type":"object","properties":{},"additionalProperties":false}),
+        );
         if !schema.is_object() || schema.get("type").and_then(Value::as_str) != Some("object") {
             return Err(unsupported());
         }
@@ -309,28 +311,8 @@ pub(crate) fn encode_admitted(
     Ok(PreparedMessages {
         payload: Value::Object(payload),
         model: plan.route.model.clone(),
-        registry,
-        parallel: request.generation.parallel_tool_calls,
-        choice: request.generation.tool_choice.clone(),
+        tools: PreparedTools::new(registry, request),
     })
-}
-
-fn object(value: &Value) -> Result<&Map<String, Value>, IrError> {
-    value
-        .as_object()
-        .ok_or(IrError::InvalidField("messages_response"))
-}
-fn string<'a>(value: &'a Value, field: &'static str) -> Result<&'a str, IrError> {
-    value
-        .get(field)
-        .and_then(Value::as_str)
-        .ok_or(IrError::InvalidField(field))
-}
-fn known_fields(value: &Value, fields: &[&str]) -> Result<(), IrError> {
-    if object(value)?.keys().any(|k| !fields.contains(&k.as_str())) {
-        return Err(IrError::UnsupportedExtension);
-    }
-    Ok(())
 }
 
 impl PreparedMessages {
@@ -406,7 +388,8 @@ impl PreparedMessages {
                     let arguments =
                         serde_json::to_string(input).map_err(|_| IrError::InvalidJsonArguments)?;
                     let call =
-                        self.restore_tool(name, call_id.clone(), item_id.clone(), arguments)?;
+                        self.tools
+                            .restore(name, call_id.clone(), item_id.clone(), arguments)?;
                     let (tool, kind, arguments) = (
                         &call.tool,
                         if matches!(call.input, ToolInput::Freeform(_)) {
@@ -468,70 +451,20 @@ impl PreparedMessages {
     }
 }
 
-fn tool_output(call: &ToolCall, status: &str) -> Value {
-    let mut item = json!({"id":call.item_id.as_ref().expect("output item id").as_str(), "status":status,
-        "call_id":call.call_id.as_str(),"name":call.tool.name});
-    if let Some(namespace) = &call.tool.namespace {
-        item["namespace"] = json!(namespace);
-    }
-    match &call.input {
-        ToolInput::Json(raw) => {
-            item["type"] = json!("function_call");
-            item["arguments"] = json!(raw);
-        }
-        ToolInput::Freeform(raw) => {
-            item["type"] = json!("custom_tool_call");
-            item["input"] = json!(raw);
-        }
-    }
-    item
-}
 impl PreparedMessages {
-    fn restore_tool(
-        &self,
-        name: &str,
-        call_id: CallId,
-        item: ItemId,
-        raw: String,
-    ) -> Result<ToolCall, IrError> {
-        let call = self.registry.restore_call(&ToolCall {
-            status: Some(ToolCallStatus::Completed),
-            item_id: Some(item),
-            call_id,
-            tool: ToolIdentity::new(None, name)?,
-            input: ToolInput::Json(raw),
-            extensions: Extensions::responses(),
-        })?;
-        if matches!(&self.choice, Some(ToolChoice::None))
-            || matches!(&self.choice, Some(ToolChoice::Named { tool: chosen, .. }) if chosen != &call.tool)
-        {
-            return Err(IrError::InvalidToolMapping);
-        }
-        Ok(call)
-    }
     fn terminal(
         &self,
         stop: &str,
         tool_count: usize,
     ) -> Result<(Terminal, Option<&'static str>), IrError> {
-        if self.parallel == Some(false) && tool_count > 1 {
-            return Err(IrError::InvalidToolMapping);
-        }
         let (terminal, reason) = match stop {
             "end_turn" | "stop_sequence" if tool_count == 0 => (Terminal::Completed, None),
             "tool_use" if tool_count > 0 => (Terminal::Completed, None),
             "max_tokens" => (Terminal::Incomplete, Some("max_output_tokens")),
             _ => return Err(unsupported()),
         };
-        if terminal == Terminal::Completed
-            && tool_count == 0
-            && matches!(
-                self.choice,
-                Some(ToolChoice::Required | ToolChoice::Named { .. })
-            )
-        {
-            return Err(IrError::InvalidToolMapping);
-        }
+        self.tools
+            .validate_count(tool_count, terminal == Terminal::Completed)?;
         Ok((terminal, reason))
     }
 }

@@ -13,7 +13,7 @@ only; no actual provider model has been qualified.
 | Ordered user/assistant text | Preserve ordered content blocks; adjacent equal roles combine as Messages specifies |
 | HTTPS image references without detail | Map to URL source; no downloads; other image inputs reject |
 | Flat function definitions/calls/results | Schema, parsed JSON values, call IDs and result association retained |
-| Function argument schema absent | Empty object schema for a parameterless function |
+| Function argument schema absent | Empty object schema with additionalProperties false for a parameterless function |
 | Tool choices and parallel restrictions | Map to Messages tool_choice/disable_parallel_tool_use and validate returned calls |
 | Custom text tools | Explicit `bridged_custom_tool_json`, one-string JSON wrapper and exact restoration |
 | Ordered namespace groups | Explicit `bridged_tool_namespace`, flat aliases shared by definitions, choices, history, results and output; group/member descriptions retained |
@@ -143,3 +143,6 @@ Provider-specific context counting, real-model behavior, consumer integration,
 long-term continuity and release acceptance remain separate stages. A profile
 configuration or this synthetic success does not certify an operator's model.
 See [the Messages configuration example](../config.messages.example.toml).
+
+Messages와 Chat Completions는 반환된 도구 선택·호출 수·원래 정체성의 검증을
+공유한다. API별 finish 처리와 지시 계층 변환 범위는 각각의 계약을 유지한다.

@@ -198,20 +198,10 @@ impl MessagesStream<'_> {
                             return Err(IrError::InvalidJsonArguments);
                         }
                         let alias = string(block, "name")?;
-                        let (tool, kind) = self
-                            .prepared
-                            .registry
-                            .original(&ToolIdentity::new(None, alias)?)?;
-                        if matches!(&self.prepared.choice, Some(ToolChoice::None))
-                            || matches!(&self.prepared.choice, Some(ToolChoice::Named { tool: chosen, .. }) if chosen != tool)
-                            || (self.prepared.parallel == Some(false)
-                                && self
-                                    .blocks
-                                    .iter()
-                                    .any(|b| matches!(b.kind, BlockKind::Tool { .. })))
-                        {
-                            return Err(IrError::InvalidToolMapping);
-                        }
+                        let (tool, kind) = self.prepared.tools.resolve(alias)?;
+                        self.prepared
+                            .tools
+                            .validate_count(self.tool_count() + 1, false)?;
                         let call = CallId::new(string(block, "id")?)?;
                         let item = tool_output(
                             &ToolCall {
@@ -355,7 +345,7 @@ impl MessagesStream<'_> {
                         if empty {
                             raw.push_str("{}");
                         }
-                        let restored = self.prepared.restore_tool(
+                        let restored = self.prepared.tools.restore(
                             alias,
                             call.clone(),
                             id.clone(),

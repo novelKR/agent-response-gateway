@@ -4,7 +4,7 @@ use std::collections::BTreeSet;
 use std::fmt;
 
 use serde::de::{Deserialize, Deserializer, MapAccess, SeqAccess, Visitor};
-use serde_json::Value;
+use serde_json::{Map, Value};
 
 use crate::ir::IrError;
 
@@ -57,6 +57,24 @@ pub(crate) fn decode(bytes: &[u8]) -> Result<Value, IrError> {
     serde_json::from_slice::<Unique>(bytes).map_err(|_| IrError::InvalidField("upstream_json"))?;
     serde_json::from_slice(bytes).map_err(|_| IrError::InvalidField("upstream_json"))
 }
+pub(crate) fn object(value: &Value) -> Result<&Map<String, Value>, IrError> {
+    value
+        .as_object()
+        .ok_or(IrError::InvalidField("upstream_json"))
+}
+pub(crate) fn string<'a>(value: &'a Value, field: &'static str) -> Result<&'a str, IrError> {
+    value
+        .get(field)
+        .and_then(Value::as_str)
+        .ok_or(IrError::InvalidField(field))
+}
+pub(crate) fn known_fields(value: &Value, fields: &[&str]) -> Result<(), IrError> {
+    if object(value)?.keys().any(|k| !fields.contains(&k.as_str())) {
+        return Err(IrError::UnsupportedExtension);
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
