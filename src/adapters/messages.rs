@@ -1,10 +1,13 @@
-//! Messages v1 request and non-streaming response codec for the declared subset.
-use std::collections::{BTreeMap, BTreeSet};
+//! Messages v1 request and response codec for the declared subset.
+mod stream;
+use std::collections::BTreeMap;
+pub use stream::MessagesStream;
 
 use serde_json::{Map, Value, json};
 
 use crate::ir::{
-    ApiProtocol, CallId, IrError, ItemId, ResponseId, ToolIdentity,
+    ApiProtocol, CallId, IrError, ItemId, ResponseId, ToolIdentity, ToolKind,
+    bridge::CustomToolBridge,
     capability::{BridgeRule, Feature, plan_translation},
     continuity::ContinuityBinding,
     event::{
@@ -12,8 +15,8 @@ use crate::ir::{
         PartKind as EventPartKind, Terminal, Usage,
     },
     request::{
-        Content, Input, Item, OutputFormat, PartKind, RequestIR, Role, ToolChoice,
-        ToolDefinitionKind, ToolInput,
+        Content, Extensions, Input, Item, OutputFormat, PartKind, RequestIR, Role, ToolCall,
+        ToolChoice, ToolDefinitionKind, ToolInput,
     },
 };
 
@@ -21,7 +24,7 @@ use crate::ir::{
 pub struct PreparedMessages {
     pub payload: Value,
     model: String,
-    tools: BTreeMap<String, ToolIdentity>,
+    registry: CustomToolBridge,
     parallel: Option<bool>,
     choice: Option<ToolChoice>,
 }
@@ -79,6 +82,9 @@ pub fn encode(
                 | Feature::InstructionHierarchy
                 | Feature::Images
                 | Feature::FunctionTools
+                | Feature::CustomTools
+                | Feature::CustomGrammar
+                | Feature::NamespacedTools
                 | Feature::MaxOutputTokens
                 | Feature::Temperature
                 | Feature::TopP
@@ -94,6 +100,16 @@ pub fn encode(
     if plan.required.contains(Feature::InstructionHierarchy) && !instruction_bridge {
         return Err(unsupported());
     }
+    for (feature, rule) in [
+        (Feature::CustomTools, BridgeRule::CustomToolJson),
+        (Feature::NamespacedTools, BridgeRule::ToolNamespace),
+        (Feature::CustomGrammar, BridgeRule::CodexPatchGrammar),
+    ] {
+        if plan.required.contains(feature) && !plan.bridges.contains(&rule) {
+            return Err(unsupported());
+        }
+    }
+    let registry = CustomToolBridge::new(request.tools.as_deref().unwrap_or(&[]))?;
     let mut envelope = Vec::new();
     if instruction_bridge && let Some(text) = &request.instructions {
         envelope.push(json!({"role":"protocol_default", "position":"request", "text":text}));
@@ -114,7 +130,7 @@ pub fn encode(
         payload.insert("system".into(), json!([text_block(instructions)]));
     }
     let mut messages = Vec::new();
-    let mut pending = BTreeSet::new();
+    let mut pending = BTreeMap::new();
     match &request.input {
         Some(Input::Text(text)) => push_message(&mut messages, "user", vec![text_block(text)]),
         Some(Input::Items(items)) => {
@@ -150,10 +166,8 @@ pub fn encode(
                         );
                     }
                     Item::ToolCall(call) => {
-                        if call.tool.namespace.is_some() {
-                            return Err(unsupported());
-                        }
-                        let ToolInput::Json(arguments) = &call.input else {
+                        let lowered = registry.lower_call(call)?;
+                        let ToolInput::Json(arguments) = &lowered.input else {
                             return Err(unsupported());
                         };
                         let input: Value = serde_json::from_str(arguments)
@@ -167,19 +181,20 @@ pub fn encode(
                         {
                             return Err(IrError::InvalidToolMapping);
                         }
-                        pending.insert(call.call_id.clone());
+                        pending.insert(call.call_id.clone(), call);
                         push_message(
                             &mut messages,
                             "assistant",
                             vec![
-                                json!({"type":"tool_use", "id":call.call_id.as_str(), "name":call.tool.name, "input":input}),
+                                json!({"type":"tool_use", "id":call.call_id.as_str(), "name":lowered.tool.name, "input":input}),
                             ],
                         );
                     }
                     Item::ToolResult(result) => {
-                        if !pending.remove(&result.call_id) {
-                            return Err(IrError::InvalidToolMapping);
-                        }
+                        let call = pending
+                            .remove(&result.call_id)
+                            .ok_or(IrError::InvalidToolMapping)?;
+                        registry.lower_result(result, call)?;
                         let output = result.output.as_str().ok_or(unsupported())?;
                         push_message(
                             &mut messages,
@@ -205,9 +220,8 @@ pub fn encode(
         ]));
     }
     payload.insert("messages".into(), json!(messages));
-    let mut bindings = BTreeMap::new();
     let mut tools = Vec::new();
-    for tool in request.tools.iter().flatten() {
+    for tool in registry.definitions() {
         if tool.identity.namespace.is_some()
             || tool.identity.name.len() > 64
             || !tool
@@ -235,9 +249,8 @@ pub fn encode(
             definition["description"] = json!(description);
         }
         tools.push(definition);
-        bindings.insert(tool.identity.name.clone(), tool.identity.clone());
     }
-    if bindings.is_empty()
+    if tools.is_empty()
         && matches!(
             request.generation.tool_choice,
             Some(ToolChoice::Required | ToolChoice::Named { .. })
@@ -249,7 +262,7 @@ pub fn encode(
         payload.insert("tools".into(), json!(tools));
     }
     if let Some(choice) = &request.generation.tool_choice {
-        let choice = match choice {
+        let choice = match &registry.lower_choice(choice)? {
             ToolChoice::Auto => json!({"type":"auto"}),
             ToolChoice::None => json!({"type":"none"}),
             ToolChoice::Required => json!({"type":"any"}),
@@ -285,7 +298,7 @@ pub fn encode(
     Ok(PreparedMessages {
         payload: Value::Object(payload),
         model: target.route.model.clone(),
-        tools: bindings,
+        registry,
         parallel: request.generation.parallel_tool_calls,
         choice: request.generation.tool_choice.clone(),
     })
@@ -310,7 +323,11 @@ fn known_fields(value: &Value, fields: &[&str]) -> Result<(), IrError> {
 }
 
 impl PreparedMessages {
-    /// Decode a complete provider JSON body. Unknown content never becomes success.
+    /// Parse an untrusted provider body, rejecting duplicate JSON keys before conversion.
+    pub fn decode_bytes(&self, bytes: &[u8]) -> Result<Value, IrError> {
+        self.decode(crate::adapters::json::decode(bytes)?)
+    }
+    /// Decode an already parsed provider JSON value. Unknown content never becomes success.
     pub fn decode(&self, value: Value) -> Result<Value, IrError> {
         if string(&value, "type")? != "message"
             || string(&value, "role")? != "assistant"
@@ -370,12 +387,6 @@ impl PreparedMessages {
                 "tool_use" => {
                     known_fields(block, &["type", "id", "name", "input"])?;
                     let name = string(block, "name")?;
-                    let tool = self.tools.get(name).ok_or(IrError::InvalidToolMapping)?;
-                    if matches!(&self.choice, Some(ToolChoice::None))
-                        || matches!(&self.choice, Some(ToolChoice::Named { tool: chosen, .. }) if chosen != tool)
-                    {
-                        return Err(IrError::InvalidToolMapping);
-                    }
                     let call_id = CallId::new(string(block, "id")?)?;
                     let input = block
                         .get("input")
@@ -383,67 +394,42 @@ impl PreparedMessages {
                         .ok_or(IrError::InvalidJsonArguments)?;
                     let arguments =
                         serde_json::to_string(input).map_err(|_| IrError::InvalidJsonArguments)?;
+                    let call =
+                        self.restore_tool(name, call_id.clone(), item_id.clone(), arguments)?;
+                    let (tool, kind, arguments) = (
+                        &call.tool,
+                        if matches!(call.input, ToolInput::Freeform(_)) {
+                            ToolKind::Custom
+                        } else {
+                            ToolKind::Function
+                        },
+                        match &call.input {
+                            ToolInput::Json(v) | ToolInput::Freeform(v) => v.clone(),
+                        },
+                    );
                     validator.apply(EventIR::ItemStarted {
                         id: item_id.clone(),
                         index,
                         kind: OutputKind::Tool {
                             tool: tool.clone(),
                             call_id: call_id.clone(),
-                            kind: crate::ir::ToolKind::Function,
+                            kind,
                         },
                     })?;
                     validator.apply(EventIR::ArgumentsDelta {
                         item: item_id.clone(),
                         text: arguments.clone(),
                     })?;
-                    output.push(
-                        json!({"id":item_id.as_str(),"type":"function_call","status":"completed",
-                        "call_id":call_id.as_str(),"name":tool.name,"arguments":arguments}),
-                    );
+                    output.push(tool_output(&call, "completed"));
                     tool_count += 1;
                 }
                 _ => return Err(unsupported()),
             }
             validator.apply(EventIR::ItemFinished { item: item_id })?;
         }
-        if self.parallel == Some(false) && tool_count > 1 {
-            return Err(IrError::InvalidToolMapping);
-        }
-        let (terminal, reason) = match string(&value, "stop_reason")? {
-            "end_turn" | "stop_sequence" if tool_count == 0 => (Terminal::Completed, None),
-            "tool_use" if tool_count > 0 => (Terminal::Completed, None),
-            "max_tokens" => (Terminal::Incomplete, Some("max_output_tokens")),
-            _ => return Err(unsupported()),
-        };
-        if terminal == Terminal::Completed
-            && tool_count == 0
-            && matches!(
-                self.choice,
-                Some(ToolChoice::Required | ToolChoice::Named { .. })
-            )
-        {
-            return Err(IrError::InvalidToolMapping);
-        }
-        let usage = value.get("usage").ok_or(IrError::InvalidField("usage"))?;
-        let number = |field| {
-            usage
-                .get(field)
-                .and_then(Value::as_u64)
-                .ok_or(IrError::InvalidField("usage"))
-        };
-        let input = number("input_tokens")?;
-        let generated = number("output_tokens")?;
-        let mut input_total = input;
-        for field in ["cache_read_input_tokens", "cache_creation_input_tokens"] {
-            if usage.get(field).is_some() {
-                input_total = input_total
-                    .checked_add(number(field)?)
-                    .ok_or(IrError::InvalidField("usage"))?;
-            }
-        }
-        let total = input_total
-            .checked_add(generated)
-            .ok_or(IrError::InvalidField("usage"))?;
+        let (terminal, reason) = self.terminal(string(&value, "stop_reason")?, tool_count)?;
+        let (input_total, generated, total) =
+            usage(value.get("usage").ok_or(IrError::InvalidField("usage"))?)?;
         validator.apply(EventIR::UsageUpdated(Usage {
             input_tokens: Some(input_total),
             output_tokens: Some(generated),
@@ -469,4 +455,93 @@ impl PreparedMessages {
             "usage":{"input_tokens":input_total,"output_tokens":generated,"total_tokens":total}}),
         )
     }
+}
+
+fn tool_output(call: &ToolCall, status: &str) -> Value {
+    let mut item = json!({"id":call.item_id.as_ref().expect("output item id").as_str(), "status":status,
+        "call_id":call.call_id.as_str(),"name":call.tool.name});
+    if let Some(namespace) = &call.tool.namespace {
+        item["namespace"] = json!(namespace);
+    }
+    match &call.input {
+        ToolInput::Json(raw) => {
+            item["type"] = json!("function_call");
+            item["arguments"] = json!(raw);
+        }
+        ToolInput::Freeform(raw) => {
+            item["type"] = json!("custom_tool_call");
+            item["input"] = json!(raw);
+        }
+    }
+    item
+}
+impl PreparedMessages {
+    fn restore_tool(
+        &self,
+        name: &str,
+        call_id: CallId,
+        item: ItemId,
+        raw: String,
+    ) -> Result<ToolCall, IrError> {
+        let call = self.registry.restore_call(&ToolCall {
+            item_id: Some(item),
+            call_id,
+            tool: ToolIdentity::new(None, name)?,
+            input: ToolInput::Json(raw),
+            extensions: Extensions::responses(),
+        })?;
+        if matches!(&self.choice, Some(ToolChoice::None))
+            || matches!(&self.choice, Some(ToolChoice::Named { tool: chosen, .. }) if chosen != &call.tool)
+        {
+            return Err(IrError::InvalidToolMapping);
+        }
+        Ok(call)
+    }
+    fn terminal(
+        &self,
+        stop: &str,
+        tool_count: usize,
+    ) -> Result<(Terminal, Option<&'static str>), IrError> {
+        if self.parallel == Some(false) && tool_count > 1 {
+            return Err(IrError::InvalidToolMapping);
+        }
+        let (terminal, reason) = match stop {
+            "end_turn" | "stop_sequence" if tool_count == 0 => (Terminal::Completed, None),
+            "tool_use" if tool_count > 0 => (Terminal::Completed, None),
+            "max_tokens" => (Terminal::Incomplete, Some("max_output_tokens")),
+            _ => return Err(unsupported()),
+        };
+        if terminal == Terminal::Completed
+            && tool_count == 0
+            && matches!(
+                self.choice,
+                Some(ToolChoice::Required | ToolChoice::Named { .. })
+            )
+        {
+            return Err(IrError::InvalidToolMapping);
+        }
+        Ok((terminal, reason))
+    }
+}
+fn usage(usage: &Value) -> Result<(u64, u64, u64), IrError> {
+    let number = |field| {
+        usage
+            .get(field)
+            .and_then(Value::as_u64)
+            .ok_or(IrError::InvalidField("usage"))
+    };
+    let input = number("input_tokens")?;
+    let generated = number("output_tokens")?;
+    let mut input_total = input;
+    for field in ["cache_read_input_tokens", "cache_creation_input_tokens"] {
+        if usage.get(field).is_some() {
+            input_total = input_total
+                .checked_add(number(field)?)
+                .ok_or(IrError::InvalidField("usage"))?;
+        }
+    }
+    let total = input_total
+        .checked_add(generated)
+        .ok_or(IrError::InvalidField("usage"))?;
+    Ok((input_total, generated, total))
 }

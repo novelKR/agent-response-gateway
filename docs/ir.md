@@ -65,8 +65,9 @@ namespace와 이름으로 구성하며 함수와 custom 입력도 별도 종류�
 입력 항목 ID와 호출 ID의 중복, 앞선 호출 없는 결과, 호출 종류 불일치와
 중복 결과를 거부한다. 이는 독립 요청에 완전한 호출 문맥을 제공하는 v1 범위다.
 
-도구 정의는 평면 function/custom 선언을 지원한다. 호스팅 도구, namespace
-컨테이너 같은 다른 도구 선언은 아직 해석하지 않는다. JSON Schema는 값으로
+도구 정의는 평면 function/custom 선언과 순서·설명을 가진 namespace 그룹을
+지원한다. 그룹의 자식은 namespace/name 정체성을 사용하며 중첩 그룹과 중복
+정체성을 거부한다. 호스팅 도구 선언은 아직 해석하지 않는다. JSON Schema는 값으로
 보존하며 스키마 전체의 타당성이나 실제 모델의 준수 여부를 검증하지 않는다.
 
 ### 확장 필드
@@ -98,10 +99,11 @@ top_p, 추론 옵션·항목과 불투명 연속성이 포함된다. `parallel_t
 처럼 동작을 제한하는 명시적 옵션도 지원 요구로 취급한다.
 
 판정은 `Native`, `Bridged`, `Unsupported`다. 선언이 없으면 Unsupported다.
-현재 유효한 bridge는 custom 도구에 대한 `CustomToolJson` 하나다. 다른 기능의
-미지 bridge나 strict 출력을 프롬프트로 대체하는 묵시적 완화는 허용하지 않는다.
-이 bridge의 계획에는 함수 도구의 Native 지원이 필요하며, 문법 또는 namespace
-요구가 있는 전체 요청은 아직 bridge 계획 대상으로 승인하지 않는다.
+유효한 bridge는 `CustomToolJson`, `ToolNamespace`, `CodexPatchGrammar`와
+Messages 전용 `MessagesInstructionEnvelope`다. 각 bridge는 대응 기능에만
+선언할 수 있다. 도구 bridge에는 함수 도구의 Native 지원이 필요하고 문법
+bridge에는 custom JSON bridge도 필요하다. 미지 bridge나 strict 출력을
+프롬프트로 대체하는 묵시적 완화는 허용하지 않는다.
 
 경로에는 공급자 ID, 실제 모델, API 종류, 자격 증명 바인딩 참조, 어댑터 버전,
 기능 프로필의 ID·버전·전체 선언과 모델 한도를 담는다. 선언된 출력 한도는
@@ -119,15 +121,16 @@ top_p, 추론 옵션·항목과 불투명 연속성이 포함된다. `parallel_t
 ```
 
 `lower_call`과 `restore_call`은 원래 이름·namespace, 항목 ID·호출 ID와 문자열을
-복원한다. `lower_choice`는 명시적으로 선택한 custom 도구도 같은 매핑으로 바꾼다.
+복원한다. `lower_choice`는 명시적으로 선택한 custom·namespace 함수도 같은 매핑으로 바꾼다.
 결과 변환은 원래 호출을 함께 받아 ID와 종류의 연결을 검사한다. 이름 충돌,
 알 수 없는 wrapper 이름, 중복·추가 필드나 잘못된 입력, 잘못된 호출 매핑을 거부한다.
 
-직접 bridge의 이름 매핑은 namespace를 보존할 수 있지만, 이것만으로 대상 API의
-전체 namespace 의미가 검증된 것은 아니다. 위 기능 planner의 제한을 따른다.
-custom format은 생략 또는 정확한 text format만 허용하며 문법과 미지 확장은
-거부한다. 원래 문법의 실행 검증, 도구 실행, provider 도구 wire 형식 생성과
-부분 wrapper JSON을 자유 형식 증분으로 풀어내는 기능은 제공하지 않는다.
+단일 요청 registry가 namespace 그룹을 평면 이름으로 변환하며 그룹·자식 설명을
+유지한다. 이름 복원은 실제 모델의 namespace 의미 준수를 증명하지 않는다.
+custom format은 생략, 정확한 text format, 등록된 Codex patch 문법만 허용한다.
+문법은 SHA-256와 버전으로 선택하여 이력과 출력의 구문을 검사하며, 미지 문법과
+확장은 거부한다. 도구 실행이나 파일 적용 가능성은 검사하지 않는다. Messages
+스트림은 부분 wrapper를 모은 뒤 검사하고 원래 자유 형식 입력을 전달한다.
 
 ## 불투명 상태와 연속성
 
@@ -176,9 +179,9 @@ Serialize도 제공하지 않는다. 현재 source-bound 자료를 같은 경로
 binding 변경, wrapper 복원, 교차 이벤트와 모든 문자열 분할 위치를 시험한다.
 기존 HTTP 전달 테스트와 함께 수행하며 private 기록이 없는 소스에서도 확인한다.
 
-이 단계에서 추가되지 않는 것은 Messages·Chat Completions wire 어댑터,
-공급자 SSE 변환, 실제 Codex 도구 왕복, 상태 저장·압축·복구, tenant 인증과
-실제 모델 qualification이다. 라이브러리 계약을 통과한 선언을 운영 수락으로
+현재 Messages 순수 codec·SSE 변환은 추가되었으며 서버 경로 활성화는 G09
+검증 전까지 거부한다. Chat Completions 어댑터, 변환 경로의 실제 Codex 도구 왕복,
+상태 저장·압축·복구, tenant 인증과 실제 모델 qualification은 후속 단계다. 라이브러리 계약을 통과한 선언을 운영 수락으로
 간주하지 않는다.
 
 참고: [OpenAI custom tools](https://developers.openai.com/api/docs/guides/function-calling#custom-tools),
@@ -191,10 +194,10 @@ binding 변경, wrapper 복원, 교차 이벤트와 모든 문자열 분할 위�
 Native Responses는 JSON과 SSE의 기존 passthrough를 유지하며 변환 경로는
 검증된 RequestIR에서 기능 요구와 TranslationPlan을 도출한다. 선언 프로필은
 실제 모델 qualification이나 자격 증명 세대의 증명이 아니다. Namespace와
-grammar bridge 확장은 G08에서 구현하며 미완성 API는 서버 시작 시 거부한다.
+grammar bridge는 G08의 순수 코드로 제공하며 미검증 API는 서버 시작 시 거부한다.
 
 Messages adapter는 별도 순수 codec으로 제공한다. 승인된
 `MessagesInstructionEnvelope` bridge는 선행 지시의 원문·역할·위치를 유지해
 system 영역에 표시하되 native 역할 우선순위와 동일하다고 주장하지 않는다.
 이 bridge는 Messages 프로필에서 instruction_hierarchy에만 선언할 수 있다.
-현재 요청·일반 응답 지원 범위는 [Messages 지원표](messages.md)를 따른다.
+현재 요청·일반 응답·스트림 지원 범위는 [Messages 지원표](messages.md)를 따른다.

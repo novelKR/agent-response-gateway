@@ -69,3 +69,8 @@ Messages·Chat Completions의 현재 서버 활성화는 명시적으로 거부�
 Messages 지시 bridge는 프로필의 명시적 선택 기능이다. 호스트는 native 역할
 구분과 다른 한계를 알고 qualification해야 하며, 실제 도구 권한이나 사용자
 승인 판단을 모델의 지시 해석으로 대체해서는 안 된다.
+
+Messages 순수 codec은 namespace·custom tool의 요청별 매핑과 제한된 스트림
+변환을 제공한다. 호스트는 문법 bridge를 native constrained decoding으로
+간주하지 않아야 한다. 구문 검사와 승인·파일 실행은 별도 책임이며, 현재 HTTP
+활성화 전 조건과 byte 한도는 [Messages 지원표](messages.md)를 따른다.

@@ -4,6 +4,7 @@ pub mod bridge;
 pub mod capability;
 pub mod continuity;
 pub mod event;
+pub mod grammar;
 pub mod request;
 pub mod responses;
 

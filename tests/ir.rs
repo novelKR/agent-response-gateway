@@ -496,3 +496,88 @@ fn typed_ids_and_ir_versions_are_checked() {
         Some(IrError::UnsupportedVersion)
     );
 }
+
+#[test]
+fn namespace_groups_roundtrip_order_description_and_effective_identity() {
+    let wire = json!({"model":"m","store":false,"tools":[{"type":"namespace","name":"group","description":"group description","tools":[
+        {"type":"function","name":"echo","parameters":{"type":"object"}},
+        {"type":"custom","name":"patch","format":{"type":"text"}}]},
+        {"type":"function","name":"echo"}],"tool_choice":{"type":"function","namespace":"group","name":"echo"}});
+    let ir = responses::decode(wire.clone(), None).unwrap();
+    assert_eq!(responses::encode(&ir, None).unwrap(), wire);
+    let leaves = ir
+        .tool_definitions()
+        .map(|tool| tool.identity.clone())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        leaves[0],
+        ToolIdentity::new(Some("group".into()), "echo").unwrap()
+    );
+    assert_eq!(
+        leaves[1],
+        ToolIdentity::new(Some("group".into()), "patch").unwrap()
+    );
+    assert_eq!(leaves[2], ToolIdentity::new(None, "echo").unwrap());
+    for tools in [
+        json!([{"type":"namespace","name":"group","tools":[]}]),
+        json!([{"type":"namespace","name":"group","tools":[{"type":"namespace","name":"nested","tools":[]}]}]),
+        json!([{"type":"namespace","name":"group","tools":[{"type":"function","name":"echo","namespace":"other"}]}]),
+        json!([{"type":"namespace","name":"group","tools":[{"type":"function","name":"echo"}]},{"type":"function","name":"echo","namespace":"group"}]),
+    ] {
+        assert!(responses::decode(json!({"model":"m","tools":tools}), None).is_err());
+    }
+}
+
+#[test]
+fn namespace_bridge_uses_one_bijective_registry_for_functions_and_custom_tools() {
+    let request = responses::decode(json!({"model":"m", "tools":[
+        {"type":"function","name":"arg_namespaced_0"},
+        {"type":"namespace","name":"one","tools":[{"type":"function","name":"same"},{"type":"custom","name":"text"}]},
+        {"type":"namespace","name":"two","tools":[{"type":"function","name":"same"}]}
+    ]}), None).unwrap();
+    let registry = CustomToolBridge::new(request.tools.as_ref().unwrap()).unwrap();
+    let mut aliases = std::collections::BTreeSet::new();
+    for definition in request.tool_definitions() {
+        let original = ToolCall {
+            item_id: Some(ItemId::new("item").unwrap()),
+            call_id: CallId::new("call").unwrap(),
+            tool: definition.identity.clone(),
+            input: if definition.kind() == Some(ToolKind::Custom) {
+                ToolInput::Freeform("exact\n한글".into())
+            } else {
+                ToolInput::Json("{\"n\":9007199254740993123}".into())
+            },
+            extensions: Extensions::responses(),
+        };
+        let alias = registry.alias(&original.tool).unwrap();
+        assert!(aliases.insert(alias.clone()));
+        assert!(alias.namespace.is_none());
+        let lower = registry.lower_call(&original).unwrap();
+        assert!(registry.restore_call(&lower).unwrap() == original);
+        let choice = ToolChoice::Named {
+            tool: original.tool.clone(),
+            kind: original.input.kind(),
+            extensions: Extensions::responses(),
+        };
+        assert!(
+            matches!(registry.lower_choice(&choice).unwrap(), ToolChoice::Named { tool, kind: ToolKind::Function, .. } if tool == *alias)
+        );
+        let result = ToolResult {
+            item_id: None,
+            call_id: original.call_id.clone(),
+            kind: original.input.kind(),
+            output: json!("result"),
+            extensions: Extensions::responses(),
+        };
+        assert!(
+            registry
+                .restore_result(
+                    &registry.lower_result(&result, &original).unwrap(),
+                    &original
+                )
+                .unwrap()
+                == result
+        );
+    }
+    assert_ne!(registry.definitions()[1].identity.name, "arg_namespaced_0");
+}

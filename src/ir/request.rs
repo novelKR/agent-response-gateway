@@ -136,6 +136,9 @@ pub enum ToolDefinitionKind {
     Custom {
         format: Option<Value>,
     },
+    Namespace {
+        tools: Vec<ToolDefinition>,
+    },
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -147,10 +150,11 @@ pub struct ToolDefinition {
 }
 
 impl ToolDefinition {
-    pub fn kind(&self) -> ToolKind {
+    pub fn kind(&self) -> Option<ToolKind> {
         match self.kind {
-            ToolDefinitionKind::Function { .. } => ToolKind::Function,
-            ToolDefinitionKind::Custom { .. } => ToolKind::Custom,
+            ToolDefinitionKind::Function { .. } => Some(ToolKind::Function),
+            ToolDefinitionKind::Custom { .. } => Some(ToolKind::Custom),
+            ToolDefinitionKind::Namespace { .. } => None,
         }
     }
     pub fn needs_grammar(&self) -> bool {
@@ -287,6 +291,16 @@ fn validate_parts(parts: &[Part], source: ApiProtocol) -> Result<(), IrError> {
 }
 
 impl RequestIR {
+    /// Ordered leaf definitions with their effective namespace/name identity.
+    pub fn tool_definitions(&self) -> impl Iterator<Item = &ToolDefinition> {
+        self.tools
+            .iter()
+            .flatten()
+            .flat_map(|tool| match &tool.kind {
+                ToolDefinitionKind::Namespace { tools } => tools.as_slice(),
+                _ => std::slice::from_ref(tool),
+            })
+    }
     /// A derived view, never a second mutable source of instruction ordering.
     pub fn instructions(&self) -> Vec<InstructionRef<'_>> {
         let mut result = Vec::new();
@@ -390,8 +404,31 @@ impl RequestIR {
                 return Err(IrError::ExtensionConflict);
             }
         }
+        let mut groups = BTreeSet::new();
+        for group in self.tools.iter().flatten() {
+            if let ToolDefinitionKind::Namespace { tools } = &group.kind {
+                group.identity.validate()?;
+                if group.identity.namespace.is_some()
+                    || tools.is_empty()
+                    || !groups.insert(group.identity.name.clone())
+                {
+                    return Err(IrError::InvalidToolMapping);
+                }
+                validate_extensions(
+                    &group.extensions,
+                    self.source,
+                    &["type", "name", "description", "tools"],
+                )?;
+                if tools.iter().any(|tool| {
+                    matches!(tool.kind, ToolDefinitionKind::Namespace { .. })
+                        || tool.identity.namespace.as_ref() != Some(&group.identity.name)
+                }) {
+                    return Err(IrError::InvalidToolMapping);
+                }
+            }
+        }
         let mut definitions = BTreeSet::new();
-        for tool in self.tools.iter().flatten() {
+        for tool in self.tool_definitions() {
             tool.identity.validate()?;
             let reserved: &[&str] = match tool.kind {
                 ToolDefinitionKind::Function { .. } => &[
@@ -405,6 +442,7 @@ impl RequestIR {
                 ToolDefinitionKind::Custom { .. } => {
                     &["type", "name", "namespace", "description", "format"]
                 }
+                ToolDefinitionKind::Namespace { .. } => return Err(IrError::InvalidToolMapping),
             };
             validate_extensions(&tool.extensions, self.source, reserved)?;
             if !definitions.insert(tool.identity.clone()) {
@@ -509,10 +547,8 @@ impl RequestIR {
         }
         if let Some(ToolChoice::Named { tool, kind, .. }) = &self.generation.tool_choice
             && !self
-                .tools
-                .iter()
-                .flatten()
-                .any(|d| &d.identity == tool && d.kind() == *kind)
+                .tool_definitions()
+                .any(|d| &d.identity == tool && d.kind() == Some(*kind))
         {
             return Err(IrError::InvalidToolMapping);
         }
