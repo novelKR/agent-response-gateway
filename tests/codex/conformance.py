@@ -15,6 +15,7 @@ import tempfile
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import embedded_contract
 
 ROOT = Path(__file__).resolve().parents[2]
 spec = importlib.util.spec_from_file_location("codex_runtime", ROOT / "scripts/codex_runtime.py")
@@ -346,14 +347,13 @@ def run_scenario(name, binary, gateway_binary, api="responses"):
         config.write_text(f'listen="127.0.0.1:0"\n[providers.mock]\nbase_url="http://127.0.0.1:{server.server_port}/v1"\napi_key_env="ARG_MOCK_KEY"\n[models."gpt-5.4"]\nprovider="mock"\nupstream_model="synthetic-model"\n')
         if api == "messages":
             config.write_text(config.read_text() + messages_route())
+        manifest = embedded_contract.inspect_manifest(gateway_binary, config, env)
         gateway = subprocess.Popen([str(gateway_binary), "serve", "--config", str(config)], env=gateway_env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
         cleanup.callback(stop_process, gateway)
-        ready_queue = queue.Queue()
-        threading.Thread(target=lambda: ready_queue.put(gateway.stdout.readline()), daemon=True).start()
-        ready = json.loads(ready_queue.get(timeout=10))
-        require(ready.get("event") == "ready", "gateway did not announce readiness")
+        ready = embedded_contract.read_ready(gateway, manifest)
         (home / "config.toml").write_text(f'model="gpt-5.4"\nmodel_provider="gateway"\nweb_search="disabled"\nmodel_context_window=32768\nmodel_auto_compact_token_limit=24576\n[model_providers.gateway]\nname="Synthetic gateway"\nbase_url="{ready["base_url"]}"\nwire_api="responses"\nenv_key="ARG_CODEX_TEST_TOKEN"\nrequires_openai_auth=false\nsupports_websockets=false\nrequest_max_retries=0\nstream_max_retries=0\n')
-        codex_env = {**env, "CODEX_HOME": str(home), "ARG_CODEX_TEST_TOKEN": token}
+        codex_env = {**env, "HOME": str(home), "CODEX_HOME": str(home), "ARG_CODEX_TEST_TOKEN": token}
+        embedded_contract.validate_credential_split(manifest, gateway_env, codex_env, "ARG_CODEX_TEST_TOKEN", home)
         profile_digest = None
         if api == "messages":
             profile_digest = prepare_messages_profile(binary, home, codex_env)

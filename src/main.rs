@@ -4,7 +4,10 @@ use std::{
     time::Duration,
 };
 
-use agent_response_gateway::{Config, ConfigError, Secrets};
+use agent_response_gateway::{
+    Config, ConfigError, Secrets,
+    manifest::{MANIFEST_SCHEMA, READY_SCHEMA},
+};
 use clap::{Parser, Subcommand};
 use serde_json::json;
 
@@ -19,6 +22,11 @@ struct Cli {
 enum Command {
     /// Start the local HTTP service. The first stdout line announces readiness.
     Serve {
+        #[arg(long)]
+        config: PathBuf,
+    },
+    /// Report the normalized embedded configuration and digest without reading credentials.
+    Manifest {
         #[arg(long)]
         config: PathBuf,
     },
@@ -47,20 +55,32 @@ async fn main() -> std::process::ExitCode {
 }
 
 async fn run(cli: Cli) -> Result<(), ConfigError> {
-    let (path, serve) = match cli.command {
-        Command::Serve { config } => (config, true),
-        Command::CheckConfig { config } => (config, false),
+    let path = match &cli.command {
+        Command::Serve { config }
+        | Command::CheckConfig { config }
+        | Command::Manifest { config } => config,
     };
     let raw = std::fs::read_to_string(path)
         .map_err(|_| ConfigError("Cannot read configuration file".into()))?;
     let config = Config::parse(&raw)?;
-    if !serve {
-        println!(
-            "{}",
-            json!({"status": "valid", "credentials_checked": false, "provider_probe": false})
-        );
-        return Ok(());
+    match cli.command {
+        Command::CheckConfig { .. } => {
+            println!(
+                "{}",
+                json!({"status": "valid", "credentials_checked": false, "provider_probe": false})
+            );
+            return Ok(());
+        }
+        Command::Manifest { .. } => {
+            println!(
+                "{}",
+                serde_json::to_string(&config.manifest()?).expect("manifest JSON")
+            );
+            return Ok(());
+        }
+        Command::Serve { .. } => {}
     }
+    let manifest = config.manifest()?;
     let secrets = Secrets::from_env(&config)?;
     let address = config.listen;
     let grace = Duration::from_millis(config.limits.shutdown_grace_ms);
@@ -75,7 +95,8 @@ async fn run(cli: Cli) -> Result<(), ConfigError> {
     let shutdown = shutdown_signal()?;
     println!(
         "{}",
-        json!({"event":"ready", "address":bound.to_string(), "base_url":format!("http://{bound}/v1"), "version":env!("CARGO_PKG_VERSION")})
+        json!({"event":"ready", "address":bound.to_string(), "base_url":format!("http://{bound}/v1"), "version":env!("CARGO_PKG_VERSION"),
+            "schema":READY_SCHEMA,"manifest_schema":MANIFEST_SCHEMA,"configuration_sha256":manifest.configuration_sha256()})
     );
     io::stdout()
         .flush()

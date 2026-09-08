@@ -8,12 +8,7 @@ pub const PATCH_GRAMMAR_SHA256: [u8; 32] = [
     0x52, 0x7d, 0xf6, 0x3c, 0x22, 0x51, 0x3d, 0x08, 0x9b, 0x91, 0x86, 0x35, 0x52, 0xf8, 0xbf, 0xeb,
 ];
 
-pub fn sha256(bytes: &[u8]) -> [u8; 32] {
-    ring::digest::digest(&ring::digest::SHA256, bytes)
-        .as_ref()
-        .try_into()
-        .expect("SHA-256 length")
-}
+pub use crate::digest::sha256;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Grammar {

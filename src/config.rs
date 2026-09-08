@@ -46,7 +46,7 @@ pub struct Model {
     pub messages_version: Option<String>,
 }
 
-#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, Deserialize, serde::Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum UpstreamAuth {
     #[default]
@@ -114,7 +114,7 @@ impl ModelProfile {
     }
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, serde::Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Limits {
     pub max_request_bytes: usize,

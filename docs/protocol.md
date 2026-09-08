@@ -120,3 +120,11 @@ SSE를 보존하며, 기능별 semantic admission은 변환 경로에서 적용�
 reasoning 출력 요청만 전송 힌트로 제외한다. 알 수 없는 확장과 opaque 입력은
 거부한다. Messages의 namespace·grammar bridge와 실제 Codex 합성 시험 범위는
 [Messages 지원표](messages.md)에 기록한다. 실제 공급자 모델 검증은 별도다.
+
+## 오프라인 내장 계약
+
+`manifest --config`는 서버와 같은 설정 검증 및 경로 해석으로 정규화된 JSON과
+설정 digest를 만든다. listener·환경 변수의 키 값·공급자에 접근하지 않는다.
+`serve`의 첫 준비 JSON에는 기존 필드와 함께 `schema`, `manifest_schema`,
+`configuration_sha256`가 포함된다. 새 HTTP 관리 엔드포인트는 없다.
+상세 schema와 호스트 책임은 [내장 계약](embedded-design.md)에 명시한다.

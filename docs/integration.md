@@ -74,3 +74,18 @@ Messages 경로는 namespace·custom tool의 요청별 매핑과 제한된 스�
 변환을 제공한다. 호스트는 문법 bridge를 native constrained decoding으로
 간주하지 않아야 한다. 구문 검사와 승인·파일 실행은 별도 책임이며, 현재 검증된
 호스트 프로필과 byte 한도는 [Messages 지원표](messages.md)를 따른다.
+
+## 내장 프로세스 manifest
+
+`manifest --config <path>`는 자격 증명과 네트워크에 접근하지 않고
+`gateway-embedded-manifest/v1` JSON을 출력한다. 해석된 경로·프로필·한도와
+환경 변수 참조를 정규화하고 configuration_sha256를 함께 제공한다. 키 값과
+이력은 포함하지 않으며 실제 설정의 주소·식별자는 호스트의 비공개 기록으로
+관리한다. digest는 서명이나 공급자 qualification이 아니다.
+
+준비 JSON은 기존 event/address/base_url/version에 schema, manifest_schema,
+configuration_sha256를 추가한다. 호스트는 자신이 시작한 검증된 바이너리의
+stdout에서 이를 읽고 사전 manifest와 대조한 뒤 Codex를 시작한다. 원문 TOML이
+검사 후 변경됐다면 준비 digest가 달라져야 한다. 자격 증명 값이 바뀌어도 설정
+참조 digest만으로는 이를 알 수 없으므로 재개에는 별도 credential generation이
+필요하다. 수명·접근 범위·실패·복구는 [승인된 내장 계약](embedded-design.md)을 따른다.
