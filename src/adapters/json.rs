@@ -75,6 +75,24 @@ pub(crate) fn known_fields(value: &Value, fields: &[&str]) -> Result<(), IrError
     Ok(())
 }
 
+/// Split decoded text into bounded IR deltas without splitting UTF-8 code points.
+pub(crate) fn event_text_chunks(mut text: &str) -> impl Iterator<Item = &str> {
+    std::iter::from_fn(move || {
+        if text.is_empty() {
+            return None;
+        }
+        let mut end = text
+            .len()
+            .min(crate::ir::event::EventLimits::default().max_delta_bytes);
+        while !text.is_char_boundary(end) {
+            end -= 1;
+        }
+        let (chunk, rest) = text.split_at(end);
+        text = rest;
+        Some(chunk)
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

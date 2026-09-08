@@ -19,7 +19,9 @@ use crate::ir::{
     },
 };
 use serde_json::{Value, json};
+mod stream;
 use std::collections::BTreeMap;
+pub use stream::ChatStream;
 
 pub struct PreparedChat {
     pub payload: Value,
@@ -365,11 +367,13 @@ impl PreparedChat {
                 index: ContentIndex(0),
                 kind: EventPartKind::Text,
             })?;
-            validator.apply(EventIR::TextDelta {
-                item: item.clone(),
-                index: ContentIndex(0),
-                text: text.into(),
-            })?;
+            for chunk in super::json::event_text_chunks(text) {
+                validator.apply(EventIR::TextDelta {
+                    item: item.clone(),
+                    index: ContentIndex(0),
+                    text: chunk.into(),
+                })?;
+            }
             validator.apply(EventIR::PartFinished {
                 item: item.clone(),
                 index: ContentIndex(0),
@@ -411,10 +415,12 @@ impl PreparedChat {
                 let text = match &call.input {
                     ToolInput::Json(text) | ToolInput::Freeform(text) => text,
                 };
-                validator.apply(EventIR::ArgumentsDelta {
-                    item: item.clone(),
-                    text: text.clone(),
-                })?;
+                for chunk in super::json::event_text_chunks(text) {
+                    validator.apply(EventIR::ArgumentsDelta {
+                        item: item.clone(),
+                        text: chunk.into(),
+                    })?;
+                }
                 validator.apply(EventIR::ItemFinished { item })?;
                 output.push(tool_output(&call, "completed"));
                 tool_count += 1;

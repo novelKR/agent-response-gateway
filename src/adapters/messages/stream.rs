@@ -1,6 +1,6 @@
 //! Incremental Messages events projected into Responses events with bounded accumulation.
 use super::*;
-use crate::adapters::sse::SseEvent;
+use crate::adapters::{json::event_text_chunks, sse::SseEvent};
 
 struct Block {
     id: ItemId,
@@ -358,7 +358,7 @@ impl MessagesStream<'_> {
                         let emit_delta = *kind == ToolKind::Custom || empty;
                         if emit_delta {
                             // Bound emitted chunks even when a completed custom envelope is large.
-                            for chunk in utf8_chunks(text, EventLimits::default().max_delta_bytes) {
+                            for chunk in event_text_chunks(text) {
                                 self.validator.apply(EventIR::ArgumentsDelta {
                                     item: id.clone(),
                                     text: chunk.into(),
@@ -367,7 +367,7 @@ impl MessagesStream<'_> {
                         }
                         block.output = tool_output(&restored, "completed");
                         if emit_delta {
-                            for chunk in utf8_chunks(text, EventLimits::default().max_delta_bytes) {
+                            for chunk in event_text_chunks(text) {
                                 self.emit(&format!("{event_prefix}.delta"), json!({"item_id":id.as_str(),"output_index":index,"delta":chunk}), &mut output);
                             }
                         }
@@ -496,18 +496,4 @@ fn index(value: &Value) -> Result<usize, IrError> {
         .and_then(Value::as_u64)
         .and_then(|v| usize::try_from(v).ok())
         .ok_or(IrError::InvalidField("index"))
-}
-fn utf8_chunks(mut text: &str, limit: usize) -> impl Iterator<Item = &str> {
-    std::iter::from_fn(move || {
-        if text.is_empty() {
-            return None;
-        }
-        let mut end = text.len().min(limit);
-        while !text.is_char_boundary(end) {
-            end -= 1;
-        }
-        let (chunk, rest) = text.split_at(end);
-        text = rest;
-        Some(chunk)
-    })
 }
