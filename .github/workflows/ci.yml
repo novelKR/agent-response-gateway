@@ -294,7 +294,7 @@ jobs:
     permissions:
       pages: write
       id-token: write
-    uses: ./.github/workflows/reusable-pages-deploy.yml
+    uses: novelKR/docs-actions/.github/workflows/reusable-pages-deploy.yml@1191cea41d88f07497be04407b3c949ca8361733
     with:
       artifact-name: github-pages
       publication-branch: main

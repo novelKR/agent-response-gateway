@@ -1,21 +1,13 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Extracted from agent-response-gateway on 2026-09-10; see PROVENANCE.json.
 name: Reusable Pages deployment
 
-# Deployment-only contract: the caller builds, validates and uploads a Pages
-# artifact in the SAME run, then calls this workflow after its required CI gate.
-# No checkout, dependency installation, build command, PAT or inherited secrets.
-# The Pages site and github-pages environment always belong to the caller repo.
-#
-# Repository bootstrap (maintainer action, not performed by this workflow):
-# - Settings > Pages > Build and deployment > Source: GitHub Actions.
-# - Protect the publication branch and restrict github-pages deployments to it.
-# - Add an environment reviewer when a separate publication approval is needed.
-# - Keep the site's configured base path aligned with the Pages URL.
-#
-# This first consumer keeps the reusable implementation in its own repository.
-# Other repositories can later reference this file at a reviewed full commit SHA,
-# or it can move unchanged to a dedicated public workflows repository. Callers
-# retain ownership of their source, build tools, checks, artifacts and permissions.
-# Do not add a target-repository or cross-run artifact input to this contract.
+# Contract v1: deploy the caller's verified Pages artifact from the SAME run.
+# The caller owns its site, protected github-pages environment and permissions.
+# No source checkout, build, arbitrary commands, inherited secrets or PAT.
+# No target repository, cross-run artifact, preview or environment override.
+# Restrict github-pages to the publication branch in EACH caller repository.
+# Central changes are adopted only through reviewed full-SHA caller updates.
 
 on:
   workflow_call:

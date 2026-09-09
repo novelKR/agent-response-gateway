@@ -55,6 +55,20 @@ Rust 1.98.0과 Python 3.14를 사용한다. 각 네이티브 CLI 시험은 설�
 로컬 미리보기 경계와 웹 의존성 고지를 검사한다. 검증한 사이트를 검토용으로
 14일간 보관한다. Pages 배포 권한은 없으며 산출물 보관은 공개 승인이 아니다.
 
+main push 또는 main CI 수동 실행에서는 검사한 같은 사이트를 Pages용으로
+포장한다. ci-required 성공 후 배포 작업이 공개
+[docs-actions workflow](https://github.com/novelKR/docs-actions)를
+[소비자 lock](../../.github/docs-pages-deploy.lock.json)에 기록한 전체 commit으로
+호출한다. 이 작업에만 pages: write와 id-token: write를 부여하며, Pages 사이트와
+github-pages 환경은 호출자 저장소가 소유한다. 공개 전에 Pages를 GitHub Actions로
+설정하고 해당 환경을 main으로 제한한다. 별도 공개 승인이 필요하면 환경에 필수
+검토자를 지정한다. PR에서는 배포하지 않는다.
+
+중앙 변경은 중앙 contracts CI 성공 후 workflow SHA, lock, 실행되지 않는 시험
+사본을 함께 바꾸는 검토된 PR로 채택한다. 빌드 도구와 문서 검증은 이 저장소에
+유지한다. 배포 후 실제 사이트 URL과 제공되는 build-manifest.json을 확인한다.
+중앙 CI 성공만으로 실제 사이트가 공개됐다고 판단하지 않는다.
+
 PR은 공급자 secret 없이 저장소 읽기 권한으로 실행한다. 신뢰하지 않는 PR
 코드를 쓰기 자격 증명이나 소비자 호스트에서 실행하지 않는다. 런타임 운영 로그,
 비공개 내용과 공급자 payload는 공개 산출물에 넣지 않는다. 실제 Codex를

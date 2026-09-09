@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import hashlib
 from pathlib import Path
 import re
 import subprocess
@@ -88,7 +89,13 @@ class DocsPagesWorkflowTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.ci = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
-        cls.reusable = (ROOT / ".github/workflows/reusable-pages-deploy.yml").read_text(encoding="utf-8")
+        cls.lock = json.loads((ROOT / ".github/docs-pages-deploy.lock.json").read_text(encoding="utf-8"))
+        cls.reusable = (ROOT / "scripts/tests/fixtures/docs-actions-reusable.yml").read_text(encoding="utf-8")
+        if (cls.lock.get("repository") != "novelKR/docs-actions" or
+                cls.lock.get("workflow") != ".github/workflows/reusable-pages-deploy.yml" or
+                not re.fullmatch(r"[0-9a-f]{40}", cls.lock.get("commit", "")) or
+                hashlib.sha256(cls.reusable.encode()).hexdigest() != cls.lock.get("workflow_sha256")):
+            raise ValueError("Central workflow lock or verified snapshot has drifted")
 
     def job(self, name):
         # This is a source-contract regression for the repository's YAML layout,
@@ -116,7 +123,7 @@ class DocsPagesWorkflowTests(unittest.TestCase):
         self.assertIn("github.ref == 'refs/heads/main'", deploy)
         self.assertIn("github.event_name == 'push' || github.event_name == 'workflow_dispatch'", deploy)
         self.assertNotIn("always()", deploy)
-        self.assertIn("uses: ./.github/workflows/reusable-pages-deploy.yml", deploy)
+        self.assertIn("uses: " + self.lock["repository"] + "/" + self.lock["workflow"] + "@" + self.lock["commit"], deploy)
         self.assertIn("artifact-name: github-pages", deploy)
         self.assertIn("publication-branch: main", deploy)
         self.assertIn("pages: write", deploy)
