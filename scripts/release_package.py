@@ -74,6 +74,19 @@ def run(args, cwd, env=None, log=None, timeout=1800):
     result = subprocess.run([str(v) for v in args], cwd=cwd, env=env, capture_output=True, timeout=timeout)
     if log is not None:
         write_new(log, result.stdout + b"\n" + result.stderr)
+    if result.returncode and log is not None and log.name == "cargo.log":
+        # Only compiler error summaries from the credential-free source build.
+        # Omit rendered source, quoted command arguments and host paths.
+        diagnostics = result.stderr.decode("utf-8", errors="replace").splitlines()
+        for line in result.stdout.splitlines():
+            item = json_value(line)
+            if item.get("reason") == "compiler-message" and item["message"].get("level") == "error":
+                diagnostics.append("error: " + item["message"]["message"].splitlines()[0])
+        for line in diagnostics:
+            if line.strip().startswith(("error:", "error[", "Caused by:")) or "(os error " in line:
+                summary = re.sub(r"`[^`]*`|\"[^\"]*\"|'[^']*'", "<detail>", line.strip())
+                summary = re.sub(r"\S*[\\/]\S*", "<path>", summary)
+                print("release-package: compiler: " + summary[:500], file=sys.stderr)
     require(result.returncode == 0, "build or verification command failed; inspect ignored local log")
     return result.stdout
 
