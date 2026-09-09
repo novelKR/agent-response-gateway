@@ -4,11 +4,12 @@
 
 [English](../ir.md) | [한국어](ir.md)
 
-이 문서는 `ir::VERSION = 1`인 내부 Rust 라이브러리 계약을 정의한다.
-현재 HTTP 서비스의 Responses 전달 경로는 그대로 유지한다. IR은 요청 codec,
-기능 판정, 도구 bridge와 이벤트 상태 검증을 제공하고 Messages·Chat Completions
-변환 어댑터가 이를 사용한다. IR 라이브러리 자체는 네트워크 요청을 실행하거나
-새 HTTP 엔드포인트와 영속 저장 형식을 정의하지 않는다.
+중간 표현(IR)은 Messages와 Chat Completions 어댑터의 요청·응답 이벤트를
+표현하며 버전은 `ir::VERSION = 1`이다. 변환, 지원 기능 검사, 도구 매핑과
+이벤트 검증을 제공한다. Rust 라이브러리는 네트워크 입출력이나 영속 저장을
+수행하지 않는다. Responses HTTP 전달은 원래 JSON/SSE 계약을 유지한다.
+
+
 
 <a id="design-goals-and-boundaries"></a>
 
@@ -30,13 +31,16 @@
 | OpaqueProviderState | `continuity::OpaqueState`와 `ContinuityBinding` |
 | 출력 상태 | `event::EventIR`, `EventValidator` |
 
-기존 HTTP admission과 새 codec은 동일한 stateless 검사 함수를 사용한다.
-HTTP 전달은 IR의 지원 부분집합이나 추가 구조 검사를 강제로 적용받지 않는다.
-따라서 HTTP에서 원형 전달 가능한 요청이 IR codec에서는 거부될 수 있다.
+HTTP 요청 검사와 변환기는 같은 상태 저장 제한 검사를 사용한다.
+Responses 원형 전달에는 IR의 지원 부분집합이나 추가 구조 검사를 강제하지
+않는다. 따라서 원형 전달 가능한 요청도 IR 변환기에서는 거부될 수 있다.
+
+
 
 <a id="request-representation-and-responses-codec"></a>
+<a id="요청-표현과-responses-codec"></a>
 
-## 요청 표현과 Responses codec
+## 요청 표현과 Responses 변환기
 
 `responses::decode(value, binding)`는 Responses 요청을 `RequestIR`로 해석한다.
 `responses::encode(request, binding)`는 같은 프로토콜의 JSON 값으로 복원한다.
@@ -70,22 +74,24 @@ top-level 지시는 `ProtocolDefault`, 메시지 지시는 원래 System/Develop
 대상 프로토콜이 이 계층을 보존할 수 있는지는 기능 판정과 후속 어댑터의 책임이다.
 
 `ItemId`, `CallId`, `ResponseId`, `ToolIdentity`를 구분한다. 도구 정체성은
-namespace와 이름으로 구성하며 함수와 custom 입력도 별도 종류로 보존한다.
+네임스페이스와 이름으로 구성하며 함수와 custom 입력도 별도 종류로 보존한다.
 입력 항목 ID와 호출 ID의 중복, 앞선 호출 없는 결과, 호출 종류 불일치와
 중복 결과를 거부한다. 이는 독립 요청에 완전한 호출 문맥을 제공하는 v1 범위다.
 
-도구 정의는 평면 function/custom 선언과 순서·설명을 가진 namespace 그룹을
+도구 정의는 평면 function/custom 선언과 순서·설명을 가진 네임스페이스 그룹을
 지원한다. 그룹의 자식은 namespace/name 정체성을 사용하며 중첩 그룹과 중복
 정체성을 거부한다. 호스팅 도구 선언은 아직 해석하지 않는다. JSON Schema는 값으로
 보존하며 스키마 전체의 타당성이나 실제 모델의 준수 여부를 검증하지 않는다.
+
+
 
 <a id="extension-fields"></a>
 
 ### 확장 필드
 
 알 수 없는 필드는 출처 프로토콜이 있는 `Extensions`에 보존한다. 알려진 타입의
-typed 필드를 확장 필드로 덮어쓰는 것은 거부한다. 선택 필드의 명시적 null도
-동일 프로토콜 왕복에서 유지한다. null이 남아 있는 필드에 typed 값을 새로
+타입이 지정된 필드를 확장 필드로 덮어쓰는 것은 거부한다. 선택 필드의 명시적 null도
+동일 프로토콜 왕복에서 유지한다. null이 남아 있는 필드에 타입이 지정된 값을 새로
 넣으면 기존 표현을 명시적으로 정리해야 하며 encoder는 충돌을 거부한다.
 
 알 수 없는 입력 항목·콘텐츠·출력 format·tool choice는 출처가 있는 확장으로
@@ -97,34 +103,40 @@ typed 필드를 확장 필드로 덮어쓰는 것은 거부한다. 선택 필드
 기존과 마찬가지로 store, background, response ID 이력·conversation·압축 요청은
 stateless 정책으로 제한한다. 실제 저장·압축·재개 기능은 추가되지 않는다.
 
+
+
 <a id="capability-admission-and-execution-routes"></a>
 
 ## 기능 판정과 실행 경로
 
 `requirements(request)`는 검증한 요청에서 필요한 기능을 한 번 도출한다.
 `plan_translation(request, target_binding)`는 대상 `CapabilityProfile`과 대조해
-고정된 `RouteSnapshot`, 요구 기능, 적용할 bridge 종류를 반환한다.
+고정된 `RouteSnapshot`, 요구 기능, 적용할 변환 규칙 종류를 반환한다.
 필수 기능을 caller가 임의로 빼서 계획에 넣는 인터페이스는 제공하지 않는다.
 
 기능에는 지시 계층, 이미지, 함수/custom 도구, strict 도구 인자, 문법,
-namespace, 도구 선택·병렬 제어, 구조화·strict 출력, 출력 한도, temperature·
+네임스페이스, 도구 선택·병렬 제어, 구조화·strict 출력, 출력 한도, temperature·
 top_p, 추론 옵션·항목과 불투명 연속성이 포함된다. `parallel_tool_calls:false`
 처럼 동작을 제한하는 명시적 옵션도 지원 요구로 취급한다.
 
-판정은 `Native`, `Bridged`, `Unsupported`다. 선언이 없으면 Unsupported다.
-유효한 bridge는 `CustomToolJson`, `ToolNamespace`, `CodexPatchGrammar`와
-Messages 전용 `MessagesInstructionEnvelope`다. 각 bridge는 대응 기능에만
-선언할 수 있다. 도구 bridge에는 함수 도구의 Native 지원이 필요하고 문법
-bridge에는 custom JSON bridge도 필요하다. 미지 bridge나 strict 출력을
-프롬프트로 대체하는 묵시적 완화는 허용하지 않는다.
+지원 판정은 `Native`(직접 지원), `Bridged`(변환 규칙을 통한 지원),
+`Unsupported`(미지원)이며 선언이 없으면 미지원이다. 변환 규칙은
+`CustomToolJson`, `ToolNamespace`, `CodexPatchGrammar`와 Messages 전용
+`MessagesInstructionEnvelope`다. 각 규칙은 대응 기능에만 선언할 수 있다.
+도구 변환에는 함수 도구의 Native 지원이, 문법 변환에는 사용자 정의 도구의
+JSON 변환도 필요하다. 알 수 없는 규칙이나 엄격한 출력을 프롬프트로 대체하는
+방식은 허용하지 않는다.
 
 경로에는 공급자 ID, 실제 모델, API 종류, 자격 증명 바인딩 참조, 어댑터 버전,
 기능 프로필의 ID·버전·전체 선언과 모델 한도를 담는다. 선언된 출력 한도는
 검사하지만 입력 토큰 계산이나 컨텍스트 적합성 측정은 수행하지 않는다.
-모델 별칭을 실제 경로로 해석하는 라우터, live qualification, 네트워크 요청과
+모델 별칭을 실제 경로로 해석하는 라우터, 실제 공급자 검증, 네트워크 요청과
 재시도는 이 순수 계획 함수의 범위 밖이다.
 
-## Custom tool JSON bridge
+
+<a id="custom-tool-json-bridge"></a>
+
+## 사용자 정의 도구의 JSON 변환
 
 `CustomToolBridge::new()`는 요청의 도구 선언에서 결정적인 이름 매핑을 만든다.
 기존 이름과 충돌하지 않는 함수 이름을 선택하고 입력을 다음 스키마로 감싼다.
@@ -133,17 +145,19 @@ bridge에는 custom JSON bridge도 필요하다. 미지 bridge나 strict 출력�
 {"type":"object","properties":{"input":{"type":"string"}},"required":["input"],"additionalProperties":false}
 ```
 
-`lower_call`과 `restore_call`은 원래 이름·namespace, 항목 ID·호출 ID와 문자열을
-복원한다. `lower_choice`는 명시적으로 선택한 custom·namespace 함수도 같은 매핑으로 바꾼다.
+`lower_call`과 `restore_call`은 원래 이름·네임스페이스, 항목 ID·호출 ID와 문자열을
+복원한다. `lower_choice`는 명시적으로 선택한 custom·네임스페이스 함수도 같은 매핑으로 바꾼다.
 결과 변환은 원래 호출을 함께 받아 ID와 종류의 연결을 검사한다. 이름 충돌,
-알 수 없는 wrapper 이름, 중복·추가 필드나 잘못된 입력, 잘못된 호출 매핑을 거부한다.
+알 수 없는 포장 구조 이름, 중복·추가 필드나 잘못된 입력, 잘못된 호출 매핑을 거부한다.
 
-단일 요청 registry가 namespace 그룹을 평면 이름으로 변환하며 그룹·자식 설명을
-유지한다. 이름 복원은 실제 모델의 namespace 의미 준수를 증명하지 않는다.
+단일 요청 registry가 네임스페이스 그룹을 평면 이름으로 변환하며 그룹·자식 설명을
+유지한다. 이름 복원은 실제 모델의 네임스페이스 의미 준수를 증명하지 않는다.
 custom format은 생략, 정확한 text format, 등록된 Codex patch 문법만 허용한다.
 문법은 SHA-256와 버전으로 선택하여 이력과 출력의 구문을 검사하며, 미지 문법과
 확장은 거부한다. 도구 실행이나 파일 적용 가능성은 검사하지 않는다. Messages
-스트림은 부분 wrapper를 모은 뒤 검사하고 원래 자유 형식 입력을 전달한다.
+스트림은 부분 포장 구조를 모은 뒤 검사하고 원래 자유 형식 입력을 전달한다.
+
+
 
 <a id="opaque-state-and-continuity"></a>
 
@@ -164,13 +178,15 @@ Serialize도 제공하지 않는다. 현재 source-bound 자료를 같은 경로
 내부 계약이며, 프록시 소유 암호화 envelope나 클라이언트에게 제공할 재개 토큰은
 후속 설계다. 타입 검사 통과는 공급자가 상태를 실제 수락한다는 증거가 아니다.
 
+
+
 <a id="event-ir-and-state-transitions"></a>
 
 ## Event IR과 상태 전이
 
 `EventValidator`는 응답 하나의 이벤트를 순서대로 검증한다. 이벤트는 시작,
 항목 시작, 콘텐츠 시작·증분·종료, 도구 인자 증분, 항목 종료, 사용량 갱신과
-최종 상태로 구성한다. 입력 문자열은 이미 wire UTF-8 처리가 끝났다고 가정한다.
+최종 상태로 구성한다. 입력 문자열은 이미 전송 형식 UTF-8 처리가 끝났다고 가정한다.
 SSE 프레이밍, 공급자별 이벤트 파서와 클라이언트 이벤트 encoder는 각 어댑터의
 책임이며 이 순수 검증기 안에 포함되지 않는다.
 
@@ -191,50 +207,54 @@ SSE 프레이밍, 공급자별 이벤트 파서와 클라이언트 이벤트 enc
 1 MiB, 전체 도구 인자 버퍼 8 MiB다. 사용량은 누적 수치로 받아 감소를 거부하고,
 생략된 항목은 기존 값을 유지한다. 토큰 단위의 공급자 간 동등성이나 비용은 계산하지 않는다.
 
+
+
 <a id="validation-and-further-scope"></a>
 
 ## 검증과 후속 범위
 
 합성 요청의 왕복, 지시·도구 연결, 숫자·문자열 보존, 기능 누락·확장 거부,
-binding 변경, wrapper 복원, 교차 이벤트와 모든 문자열 분할 위치를 시험한다.
+binding 변경, 포장 구조 복원, 교차 이벤트와 모든 문자열 분할 위치를 시험한다.
 기존 HTTP 전달 테스트와 함께 수행하며 private 기록이 없는 소스에서도 확인한다.
 
-현재 Messages와 Chat Completions codec·SSE 변환·HTTP 연결은 G12의 실제
-Codex 합성 시험을 통과했다. 호스트가 소유하는 이력·로컬 압축·복구는 별도의
-[연속성 계약](continuity.md)을 따른다. Gateway의 상태 저장과 tenant 인증은
-미지원이며 실제 공급자 모델 qualification과 소비자 생산 운영 수락은 별도 단계다.
-라이브러리 계약을 통과한 선언을 운영 수락으로 간주하지 않는다.
+[적합성 시험](conformance.md)은 실제 Codex와 모의 공급자로 Messages·
+Chat Completions 변환과 HTTP 전송을 검사한다. 이력·로컬 압축·복구는
+[호스트 연속성 계약](continuity.md)을 따른다. 게이트웨이의 상태 저장과
+테넌트 인증은 지원하지 않는다. 운영 전에는 실제 모델의 동작과 애플리케이션
+통합을 검증해야 한다.
 
-참고: [OpenAI custom tools](https://developers.openai.com/api/docs/guides/function-calling#custom-tools),
+참고: [OpenAI 사용자 정의 도구s](https://developers.openai.com/api/docs/guides/function-calling#custom-tools),
 [Anthropic streaming](https://platform.claude.com/docs/en/build-with-claude/streaming).
+
+
 
 <a id="http-route-integration"></a>
 
 ## HTTP 경로 선언 연결
 
 `Config::resolve_route`는 선언된 API·모델 프로필을 기존 RouteSnapshot으로
-고정한다. `ResolvedRoute::admit`는 HTTP의 공통 stateless 검사 이후 호출한다.
-Native Responses는 JSON과 SSE의 기존 passthrough를 유지하며 변환 경로는
+고정한다. `ResolvedRoute::admit`는 HTTP의 공통 상태 저장 제한 검사 이후 호출한다.
+Responses 원형 전달은 JSON과 SSE를 원형 전달하며 변환 경로는
 검증된 RequestIR에서 기능 요구와 TranslationPlan을 도출한다. 선언 프로필은
-실제 모델 qualification이나 자격 증명 세대의 증명이 아니다. Namespace와
-grammar bridge를 Messages·Chat Completions HTTP 경로에 연결한다.
+실제 모델의 호환성이나 자격 증명 세대를 보증하지는 않는다. Namespace와
+grammar 변환 규칙을 Messages·Chat Completions HTTP 경로에 연결한다.
 
-Messages adapter는 별도 순수 codec으로 제공한다. 승인된
-`MessagesInstructionEnvelope` bridge는 선행 지시의 원문·역할·위치를 유지해
+Messages 어댑터는 별도의 순수 변환기를 사용한다.
+`MessagesInstructionEnvelope` 변환 규칙은 선행 지시의 원문·역할·위치를 유지해
 system 영역에 표시하되 native 역할 우선순위와 동일하다고 주장하지 않는다.
-이 bridge는 Messages 프로필에서 instruction_hierarchy에만 선언할 수 있다.
+이 변환 규칙은 Messages 프로필에서 instruction_hierarchy에만 선언할 수 있다.
 현재 요청·일반 응답·스트림 지원 범위는 [Messages 지원표](messages.md)를 따른다.
 
 도구 호출의 선택적 status는 ToolCallStatus로 보존한다. Messages 이력은 생략
 또는 completed만 받으며 in_progress·incomplete를 완료된 호출로 바꾸지 않는다.
-HTTP 변환은 route admission에서 만든 TranslationPlan을 재사용해 요구 기능을
+HTTP 변환은 경로 지원 검사에서 만든 TranslationPlan을 재사용해 요구 기능을
 한 번 도출하고, 어댑터의 실제 구현 범위를 추가로 확인한다.
 
-Chat Completions의 요청·일반 응답·스트림은 별도 순수 codec으로 제공한다. 도구 정체성·
+Chat Completions의 요청·일반 응답·스트림은 별도 순수 변환기로 제공한다. 도구 정체성·
 선택·호출 수·출력 복원 검증은 Messages와 공유하고, API별 role·finish 의미는
 각 어댑터에 둔다. HTTP 지원 범위는 [Chat 지원표](chat-completions.md)를 따른다.
 
-완료 메시지 status와 output_text의 annotations도 typed 필드로 보존한다.
+완료 메시지 status와 output_text의 annotations도 타입이 지정된 필드로 보존한다.
 변환 이력은 완료/생략 status와 비어 있는/생략 annotations만 허용한다.
 의미 있는 주석, 미완료 메시지와 알 수 없는 확장은 명시적으로 거부한다.
 메시지 도구 호출 뒤 같은 assistant 구간의 텍스트는 Messages 블록 순서를

@@ -4,15 +4,11 @@
 
 [English](release.md) | [한국어](ko/release.md)
 
-Public source and PR CI are available. G18 builds and verifies unpublished
-candidates; G19 provides signed candidates and preview promotion of the same
-bytes after user approval. Check the selected commit, run, attempt and provenance
-in the public [candidate workflow](https://github.com/novelKR/agent-response-gateway/actions/workflows/release-candidate.yml).
-A signed candidate does not establish a release of current main or public binary
-distribution. Consumer production acceptance and commercial agreements are also
-separate stages. The [packaging contract](packaging.md) defines candidate contents
-and verification. The [signing/promotion contract](release-promotion.md) defines
-least privilege, environment approval, verification and recovery.
+A distribution binds a specific source version to its executable, configuration,
+notices and verified build provenance. Build a [candidate](packaging.md), inspect
+its [workflow result](https://github.com/novelKR/agent-response-gateway/actions/workflows/release-candidate.yml),
+then follow [signing and promotion](release-promotion.md) to publish the verified
+files after approval.
 
 <a id="검증할-단위"></a>
 
@@ -35,16 +31,15 @@ cargo build --release --locked
 Use Python 3.11 or later and prepare the pinned license tool and exact sources
 under the [license guide](../licensing/README.md).
 
-Linux/macOS workflows use publishable fixtures without provider secrets. Do not
-report hosted success before the actual run. The checkout action is pinned to
-`11d5960a326750d5838078e36cf38b85af677262`, the v4 tag commit verified on 2026-09-08.
+Linux/macOS workflows use public test data without provider secrets.
+Action versions are pinned in the [CI workflow](../.github/workflows/ci.yml).
 
 <a id="소스와-고지"></a>
 
 ## Source and notices
 
-Review and include the source and scripts needed to build, install and modify the
-actual distributed version as AGPL Corresponding Source, according to the
+For an AGPL distribution, include the source and scripts needed to build, install
+and modify the distributed version as Corresponding Source, according to the
 [official AGPLv3](https://www.gnu.org/licenses/agpl-3.0.html) and the distribution's
 actual form. Publishing only a binary or linking only the latest branch is not
 assumed sufficient.
@@ -78,15 +73,12 @@ libraries, containers, bundled executables and their dependencies for each actua
 distribution. Do not automatically mark that inspection or a full legal review
 as complete.
 
-Open external code contributions only after establishing the rights holder,
-contribution terms and alternative-contract permissions. Preserve existing
-third-party conditions in commercial agreements.
+Verify contribution permissions under the [contribution policy](../CONTRIBUTING.md).
+Public distributions use AGPL; covered commercial distributions follow their
+[separate agreement](../COMMERCIAL-LICENSING.md). Third-party conditions apply to both.
 
-The current `0.1.0` is an unreleased development version. Target package-smoke CI
-and candidates are not formal distribution approval or live-provider qualification.
-The [version-specific license policy](../COMMERCIAL-LICENSING.md) records public,
-alternative and unresolved terms. Passing checks, executed agreements, established
-rights and commercial distribution clearance are distinct.
+Version `0.1.0` is a development version. Publish preview releases through the
+approved promotion workflow.
 
 <a id="소비자의-채택과-복구"></a>
 

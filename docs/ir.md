@@ -4,11 +4,13 @@
 
 [English](ir.md) | [한국어](ko/ir.md)
 
-This document defines the internal Rust library contract at `ir::VERSION = 1`.
-Native Responses HTTP forwarding is preserved. The IR provides request codecs,
-capability admission, tool bridges and event-state validation used by the Messages
-and Chat Completions adapters. The library itself executes no network requests
-and defines no new HTTP endpoint or persistent storage format.
+The intermediate representation (IR), version `ir::VERSION = 1`, models requests
+and response events for the Messages and Chat Completions adapters. It provides
+conversion, capability checks, tool mappings and event validation. The Rust library
+performs no network I/O or persistent storage. Responses HTTP forwarding retains
+its original JSON/SSE contract.
+
+
 
 <a id="설계-목적과-경계"></a>
 
@@ -36,7 +38,10 @@ Native forwarding is not forced through the IR's narrower subset or additional
 structural checks. A request that can pass through native HTTP can therefore
 still be rejected by the IR codec.
 
+
+
 <a id="요청-표현과-responses-codec"></a>
+<a id="요청-표현과-responses-변환기"></a>
 
 ## Request representation and Responses codec
 
@@ -84,6 +89,8 @@ groups with descriptions. Children use namespace/name identity. Nested groups an
 duplicate identities reject. Hosted tools are not interpreted. JSON Schema is
 preserved as a value, without verifying the whole schema or a real model's adherence.
 
+
+
 <a id="확장-필드"></a>
 
 ### Extension fields
@@ -102,6 +109,8 @@ derived from client JSON are an authentication boundary.
 Store, background, response-ID history, conversation and compaction requests
 remain constrained by stateless policy. This codec adds no actual storage,
 compaction or resume service.
+
+
 
 <a id="기능-판정과-실행-경로"></a>
 
@@ -131,6 +140,9 @@ output limits are checked; input-token counting and context-fit measurement are
 not performed. Alias resolution, live qualification, network requests and retries
 are outside this pure planning function.
 
+
+<a id="사용자-정의-도구의-json-변환"></a>
+
 ## Custom tool JSON bridge
 
 `CustomToolBridge::new()` builds a deterministic mapping from request tool
@@ -155,6 +167,8 @@ grammars and extensions reject. No tool is executed and file applicability is no
 checked. Messages streams collect partial wrappers, validate them, then emit the
 restored freeform input.
 
+
+
 <a id="불투명-상태와-연속성"></a>
 
 ## Opaque state and continuity
@@ -174,6 +188,8 @@ provides no default Debug or Serialize implementation. It is an internal contrac
 for restoring source-bound data to the same origin. A proxy-owned encrypted
 envelope or client-facing resume token requires further design. Passing type
 checks does not prove that the provider will accept the state.
+
+
 
 <a id="event-ir과-상태-전이"></a>
 
@@ -203,6 +219,8 @@ Text is not accumulated. Default limits are 4096 items, 16384 content blocks,
 cannot decrease; missing counters retain prior values. Cross-provider token
 equivalence and cost are not calculated.
 
+
+
 <a id="검증과-후속-범위"></a>
 
 ## Validation and further scope
@@ -212,15 +230,16 @@ preservation, missing capabilities/extensions, binding changes, wrapper restorat
 interleaved events and every string split. They run alongside native HTTP tests
 and work without private records.
 
-Messages and Chat Completions codecs, SSE conversion and HTTP dispatch passed
-G12's actual-Codex synthetic suite. Host-owned history, local compaction and
-recovery follow the separate [continuity contract](continuity.md). Gateway storage
-and tenant authentication remain unsupported. Live-provider qualification and
-consumer production acceptance are separate; a valid library declaration is not
-operational acceptance.
+The [conformance suite](conformance.md) tests Messages and Chat Completions
+conversion and HTTP dispatch with actual Codex and mock providers. History, local
+compaction and recovery follow the [host continuity contract](continuity.md).
+Gateway storage and tenant authentication are unsupported. Validate real-model
+behavior and application integration before operational use.
 
 References: [OpenAI custom tools](https://developers.openai.com/api/docs/guides/function-calling#custom-tools),
 [Anthropic streaming](https://platform.claude.com/docs/en/build-with-claude/streaming).
+
+
 
 <a id="http-경로-선언-연결"></a>
 
@@ -233,7 +252,7 @@ requirements and a TranslationPlan from validated RequestIR. Profile declaration
 do not prove live-model qualification or credential generation. Namespace and
 grammar bridges connect to Messages and Chat Completions HTTP routes.
 
-Messages has a separate pure codec. The approved `MessagesInstructionEnvelope`
+Messages has a separate pure codec. The `MessagesInstructionEnvelope`
 retains the text, role and position of leading instructions in the system area,
 without claiming native role-priority equivalence. It can be declared only for
 instruction_hierarchy in a Messages profile. See [Messages support](messages.md)

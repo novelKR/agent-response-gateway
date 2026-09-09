@@ -4,56 +4,44 @@
 
 [English](CONTRIBUTING.md) | [한국어](CONTRIBUTING.ko.md)
 
-Use the public repository's [Issues](https://github.com/novelKR/agent-response-gateway/issues)
-for problem reports, API contract feedback and reproduction steps without secrets.
-This document does not provide a commercial contracting contact or execute an agreement.
+This project uses **AGPL-3.0-only and a separate commercial license**.
+Contributions must support both licensing options described in the
+[licensing policy](COMMERCIAL-LICENSING.md).
 
-**Merging external code contributions is on hold until the rights holder and
-contribution terms are established.** This policy requires sufficient permission
-to use the same implementation in the public edition and a separately contracted
-edition. Do not assume a CLA has been signed or copyright transferred. A DCO
-sign-off alone does not establish alternative-licensing rights.
+<a id="코드-기여에-필요한-권한"></a>
 
-Before opening external code contributions, define:
+## Rights required for code contributions
 
-- How to verify the contributor's rights and the provenance of third-party components.
-- The modification, distribution and relicensing permissions required for both editions.
-- The rights holder, contracting party, contribution terms and retention of consent records.
+Code is merged only after the following conditions are verified:
 
-Review external contributions, ports and copied code using the records below.
-Public records contain only publishable provenance and permission terms. Retain
-consents, contracts and internal identifiers in independent private history.
-Writing a policy does not create consent.
+1. The contributor owns the necessary rights or has permission from their rights
+   holder, including their employer where applicable.
+2. A written contribution agreement grants the project the rights to use, modify
+   and redistribute the contribution under both AGPL-3.0-only and commercial terms.
+3. Copied or adapted material identifies its original source, exact version,
+   license and required notices. Its terms must permit the proposed reuse.
+4. The maintainer has reviewed the provenance and recorded the required consent.
+   A pull request or DCO sign-off alone does not grant commercial relicensing rights.
 
-| Item | Required record |
-|---|---|
-| Original | Public source location, exact version or commit and imported scope |
-| Permission | Original license expression, selected permission and required license, copyright and change notices |
-| Provenance evidence | Source and notice hashes, plus evidence supporting any license exception |
-| Distribution rights | Evidence and unresolved questions about permission for public and separately contracted distribution |
+Keep private agreements and consent records out of public issues and source files.
 
-Do not treat license checks, passing tests, DCO sign-offs or general contribution
-consent as commercial relicensing authority. Keep the merge on hold while required
-rights remain unresolved.
+<a id="변경-제출"></a>
 
-For internal development, read existing files, make a focused change, and run
-`cargo fmt --check`, `cargo clippy --all-targets --locked -- -D warnings` and
-`cargo test --locked`. Do not add tests requiring real API keys to default CI.
-Use publishable synthetic data and mock providers.
+## Submitting a change
 
-When changing dependencies, review the lockfile, license selections and original
-notices in the same change under the [license-management procedure](licensing/README.md).
-`refresh` produces a reviewable diff; `check` verifies consistency. Do not expand
-the allowlist or supplemental notices to hide a failure. Python checks require
-version 3.11 or later.
+Use [Issues](https://github.com/novelKR/agent-response-gateway/issues) for bug reports,
+reproduction steps and API feedback. Discuss substantial changes before opening a
+pull request. Keep each change focused and include relevant tests and documentation.
 
-Do not import code or tests from another implementation or a private consumer
-without authorization. Permitted reuse must preserve original copyright, license
-notices and provenance. Do not put manuscripts, configuration material, internal
-business data or credentials into issues, PRs or fixtures. Describe generic
-integration requirements without exposing consumer names, repository URLs or
-internal topology. Follow [documentation management](docs/documentation.md) to
-separate public documentation and local records.
+Read the repository instructions and run `cargo fmt --check`,
+`cargo clippy --all-targets --locked -- -D warnings` and `cargo test --locked`.
+Default tests use synthetic inputs and mock providers, without real API keys.
 
-Review API changes with the [support contract](docs/protocol.md), and consumer
-responsibility changes with the [integration boundaries](docs/integration.md).
+Dependency changes must include the lockfile and required license records under
+[license management](licensing/README.md). Use Python 3.11 or later for script checks.
+
+Do not include credentials, private configuration, business data or consumer code
+without permission. Preserve the original notices for permitted reuse. Follow
+[documentation management](docs/documentation.md) for public content,
+[the support contract](docs/protocol.md) for API changes and
+[integration boundaries](docs/integration.md) for host responsibilities.

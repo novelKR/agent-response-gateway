@@ -2,17 +2,13 @@
 
 [English](README.md) | [한국어](README.ko.md)
 
-An independent Responses gateway written in Rust. It maps public model aliases to
-provider model names and forwards JSON or SSE using separate upstream credentials.
-Agent runtimes and backend services can use the same HTTP interface.
+An independent local Responses gateway for agent runtimes and backend services.
+It maps configured model aliases to provider models and uses separate upstream
+credentials for Responses, Messages and Chat Completions.
 
-The current implementation provides **loopback-only Responses → Responses
-forwarding and explicitly profiled Responses → Messages / Chat Completions
-conversion**. Tool, approval-denial and cancellation tests pass with a pinned
-Codex executable and synthetic upstreams. Embedding, continuity and signed-candidate
-adoption contracts and consumer-side synthetic integration are implemented.
-Real-provider qualification, consumer production activation and formal release
-remain separate acceptance stages.
+The gateway forwards JSON/SSE and checks declared conversion features. Your
+application executes tools, manages approval and keeps conversation history.
+Connections are restricted to loopback addresses.
 
 <a id="시작하기"></a>
 
@@ -52,9 +48,9 @@ cargo run --locked -- serve --config config.local.toml
 ```
 
 The default binding, `127.0.0.1:0`, selects an available port. Once ready, stdout
-contains one readiness JSON line; logs go to stderr. The embedded contract adds
-schema, manifest_schema and configuration_sha256 to the original fields. A host
-compares this digest with the offline manifest, which contains no key values.
+contains one readiness JSON line; logs go to stderr. The fields schema,
+manifest_schema and configuration_sha256 identify the protocol and effective
+configuration. Compare the digest with the offline manifest before starting the agent.
 
 ```json
 {"event":"ready","address":"127.0.0.1:43127","base_url":"http://127.0.0.1:43127/v1","version":"0.1.0","schema":"gateway-ready/v1","manifest_schema":"gateway-embedded-manifest/v1","configuration_sha256":"<64 lowercase hex characters>"}
@@ -109,10 +105,6 @@ codec, custom-tool JSON / namespace / patch-grammar bridges and event validation
 Converted HTTP routes use this contract; native routes retain original forwarding.
 The [IR contract](docs/ir.md) documents its supported subset and adapter boundaries.
 
-The [implementation milestones](docs/roadmap.md) record priorities, dependencies
-and remaining acceptance criteria. The [GitHub workflow](docs/github-workflow.md)
-defines PRs, commits and CI. Plans and current support remain distinct.
-
 <a id="검증"></a>
 
 ## Validation
@@ -134,12 +126,10 @@ the same Rust 1.98.0 checks on Linux and macOS. Verify the relevant commit in th
 [public CI runs](https://github.com/novelKR/agent-response-gateway/actions/workflows/ci.yml).
 CI success is not real-provider qualification or operational acceptance.
 
-The separate [Codex conformance suite](tests/codex/README.md) connects the actual
-Codex and gateway to synthetic upstreams. The temporary baseline is
-`0.154.0-alpha.6`; the `0.153.4` heartbeat cancellation failure and the conditions
-for replacing it with stable `0.154.0` or later are recorded in the
-[pinned contract](docs/codex-contract.md). It does not force a particular Codex
-version on product use or replace real-provider and consumer acceptance.
+The [Codex conformance suite](tests/codex/README.md) runs the actual
+`0.154.0-alpha.6` test runtime with mock providers. The [runtime guide](docs/codex-contract.md)
+explains preparation, and [conformance](docs/conformance.md) lists the scenarios.
+Test the selected real model and application integration before operational use.
 
 <a id="통합과-라이선스"></a>
 
@@ -152,20 +142,15 @@ the HTTP route. The [integration boundaries](docs/integration.md),
 [embedded contract](docs/embedded-design.md) and [release procedure](docs/release.md)
 describe consumer responsibilities and further validation.
 
-Public source is [AGPL-3.0-only](LICENSE). [COMMERCIAL-LICENSING.md](COMMERCIAL-LICENSING.md)
-describes a future separately negotiated license; it is not an alternative grant
-or an executed agreement. Also read the [contribution policy](CONTRIBUTING.md)
-and [third-party notice guide](THIRD-PARTY-NOTICES.md).
+Choose [AGPL-3.0-only](LICENSE) or a [commercial license](COMMERCIAL-LICENSING.md).
+A commercial agreement permits proprietary use without the AGPL source-disclosure
+obligations for the covered project code. Contributions follow the
+[rights requirements](CONTRIBUTING.md), and dependencies retain their
+[third-party licenses and notices](THIRD-PARTY-NOTICES.md).
 
 Without `source_url`, the root response reports `source_status:"not_configured"`.
-An actual distribution must provide its corresponding source and configure a
-verified HTTPS location for that version. Displaying a URL does not establish
-fulfillment of every license obligation.
+For an AGPL distribution, provide the corresponding source and configure its
+version-specific HTTPS location under the [release procedure](docs/release.md).
 
-Public documentation contains reusable product contracts only. If local notes
-use an independent repository, exclude it from the parent Git and distribution.
-[Documentation management](docs/documentation.md) covers publication checks and
-source delivery.
-
-See [conformance](docs/conformance.md) for the three-route comparison and
-the [configuration example](config.chat.example.toml) for Chat Completions.
+See [development direction](docs/roadmap.md) for scope and
+[the development workflow](docs/github-workflow.md) for contribution checks.

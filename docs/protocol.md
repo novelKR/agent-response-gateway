@@ -4,11 +4,10 @@
 
 [English](protocol.md) | [한국어](ko/protocol.md)
 
-This contract describes native Responses forwarding and declared Messages / Chat
-Completions conversion. It does not qualify model output semantics, Codex tool
-execution, compaction/resume or consumer approval. The separate [IR v1](ir.md) is
-an internal library contract, not an automatic extension of HTTP support. All
-three routes share stateless admission rules.
+The gateway accepts Responses requests and routes them to Responses, Messages
+or Chat Completions. This page defines authentication, request handling, limits
+and failures. All routes are stateless; tools, approval and history belong to the
+host application. The [IR reference](ir.md) describes the Rust library types.
 
 <a id="설정과-인증"></a>
 
@@ -112,11 +111,9 @@ duration. Never log bodies, prompts, credentials or headers.
 ## Declared routes and capability profiles
 
 Models can declare `api`, `auth`, `capability_profile` and `messages_version`.
-Legacy configuration remains `responses` with Bearer authentication. Messages
-can be enabled with explicit profiles following G09's pinned-Codex/synthetic-HTTP
-verification. Chat Completions can also be enabled following G12's common suite.
-The [three-route matrix](conformance.md) distinguishes the verified subset from
-unverified real-provider and consumer acceptance.
+The default API is `responses` with Bearer authentication. Messages and Chat
+Completions require explicit capability profiles. The [three-route matrix](conformance.md)
+lists their conversion features and mock-provider test coverage.
 
 A profile's provider, upstream model and API must match its model mapping. Its
 key is its ID; declare `version`, `tested_codex_version`, `context_window` and
@@ -151,10 +148,9 @@ bridges and actual-Codex synthetic coverage. Real-provider model qualification i
 `manifest --config` produces normalized JSON and a configuration digest using
 the same validation and route resolution as the server. It does not access a
 listener, environment key values or a provider. The first `serve` readiness JSON
-adds `schema`, `manifest_schema` and `configuration_sha256` to the existing fields.
-There is no new HTTP management endpoint. The [embedded contract](embedded-design.md)
+contains `schema`, `manifest_schema` and `configuration_sha256` alongside its
+address and version. There is no HTTP management endpoint. The [embedded contract](embedded-design.md)
 defines the schema and host responsibilities.
 
-Chat Completions provides request, JSON response and streaming codecs with an
-explicit HTTP route. Its [initial profile](chat-completions.md) distinguishes the
-function-wire subset from the explicit custom JSON bridge.
+[Chat Completions support](chat-completions.md) describes the function-tool format
+and explicit custom-text conversion.

@@ -1,14 +1,16 @@
+<a id="signed-candidates-and-protected-preview-promotion"></a>
 <a id="서명-후보와-보호된-preview-승격"></a>
+<a id="서명-후보의-미리보기-배포"></a>
 
-# Signed candidates and protected preview promotion
+# Signed candidates and preview releases
 
 [English](release-promotion.md) | [한국어](ko/release-promotion.md)
 
-G19 adds two manually dispatched workflows. Release candidate builds and signs
-the exact selected main commit after that commit's push CI succeeds. Preview
-promotion verifies the retained candidate, presents its receipt, waits for the
-protected release environment, then publishes the same bytes as a prerelease.
-Neither workflow qualifies live providers or consumer operation.
+Two manual workflows build candidates and publish verified previews. The candidate
+workflow builds and signs a selected main commit after its push CI succeeds.
+The promotion workflow verifies the retained files and waits for approval in the
+protected release environment before publishing the same bytes as a prerelease.
+
 
 <a id="빌드와-서명-경계"></a>
 
@@ -20,7 +22,7 @@ latest push CI for that commit to have succeeded. A failed candidate needs a new
 dispatch; rerunning an existing run is rejected. Artifact names are immutable
 within a run and retained for 30 days.
 
-Separate native Ubuntu 24.04 and macOS 15 jobs run the [G18 builder](packaging.md)
+Separate native Ubuntu 24.04 and macOS 15 jobs run the [candidate builder](packaging.md)
 without PR caches. Each distribution archive contains the binary bundle,
 corresponding source, notices, scoped SBOM, candidate manifest and checksums.
 A target descriptor binds the distribution SHA-256, inner candidate SHA-256,
@@ -40,6 +42,7 @@ invocation to the exact candidate run ID and attempt. A checksum-only or PR
 candidate cannot pass this contract. The local synthetic tests do not establish
 that an actual signature was generated or verified; a successful signed workflow
 and independent verification of its downloaded bytes provide that evidence.
+
 
 <a id="검토와-승격"></a>
 
@@ -75,6 +78,7 @@ publishes as prerelease with make_latest=false, then reads back the release,
 complete asset set and exact tag commit. An existing tag or release with a
 different source, metadata or asset digest is rejected.
 
+
 <a id="실패와-복구"></a>
 
 ## Failure and recovery
@@ -97,6 +101,4 @@ GitHub's [artifact attestation verification](https://docs.github.com/en/actions/
 [deployment environment protection](https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments),
 and [release API](https://docs.github.com/en/rest/releases/releases) describe the
 platform mechanisms. The exact workflow, helper and retained receipts define
-this repository's narrower promotion contract. A first signed candidate,
-preview publication, provider qualification and operational acceptance are
-distinct events and must be reported separately.
+this repository's promotion contract.

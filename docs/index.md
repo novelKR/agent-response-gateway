@@ -55,7 +55,7 @@ cargo run --locked -- check-config --config config.local.toml
 |---|---|
 | JSON and SSE | Native forwarding and explicitly profiled API conversion |
 | Credentials | Local Bearer authentication with separate provider credentials |
-| Tools and approvals | Executed and authorized by the consumer |
+| Tools and approvals | Executed and authorized by your application |
 | Continuity | Host-owned history, local compaction and recovery |
 | Remote state | Gateway storage, `previous_response_id` and remote compact API are unsupported |
 
@@ -63,9 +63,8 @@ cargo run --locked -- check-config --config config.local.toml
 
 <Callout variant="note">
 
-Synthetic tests and pinned Codex conformance provide repeatable evidence.
-Real-provider qualification, production activation and formal release remain
-separate acceptance stages.
+Protocol tests run with mock providers. Before production use, validate the
+selected real model and your application's permissions and recovery.
 
 </Callout>
 
