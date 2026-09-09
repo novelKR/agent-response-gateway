@@ -15,6 +15,8 @@
 
 <DiagramFigure kind="tool-roundtrip" />
 
+구체적인 요청·응답과 도구 결과 예시는 [호출 가이드](usage.md)를 따른다.
+시작, 인증, 동시 실행 한도와 스트리밍 오류는 [문제 해결](troubleshooting.md)에서 확인한다.
 
 
 <a id="shared-responsibilities"></a>

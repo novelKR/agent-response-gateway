@@ -86,25 +86,102 @@ precision JSON parsing preserves large integer and decimal values.
 
 ## Resources and failures
 
-Defaults are an 8 MiB request, 16 MiB non-streaming response, 32 concurrent
-requests, 30-second request-body timeout, 10-second connect timeout, 60-second
-response-header timeout, 60-second stream idle timeout and 5-second shutdown grace.
-Exact values are configured in TOML `[limits]`. Native streams are not fully
-buffered. Converted routes retain bounded text/tool input for final Responses
-output; max_response_bytes bounds each SSE event and aggregate output. Custom
-wrappers are restored after validation.
+TOML `[limits]` defines the following independent limits. The time settings use
+milliseconds; body settings use bytes.
+
+| Setting | Default | Scope |
+|---|---|---|
+| `max_request_bytes` | 8388608 (8 MiB) | Complete incoming request body |
+| `max_response_bytes` | 16777216 (16 MiB) | Buffered upstream JSON; for converted SSE, each event and aggregate output; not a total native-SSE byte cap |
+| `max_in_flight` | 32 | All active model requests in this gateway instance, across every alias and provider |
+| `request_body_timeout_ms` | 30000 | Total time spent receiving the local request body, not a per-chunk idle timer |
+| `connect_timeout_ms` | 10000 | Establishing the upstream connection |
+| `response_header_timeout_ms` | 60000 | Upstream send through receipt of response headers, including connection and request transmission |
+| `stream_idle_timeout_ms` | 60000 | Waiting for the next upstream body chunk after headers, for both JSON and SSE |
+| `shutdown_grace_ms` | 5000 | Graceful HTTP shutdown before the server task is stopped |
+
+Capacity is acquired before reading the model request body. A non-streaming
+request releases it after the upstream body has been buffered and processed; a
+streaming response holds it until consumed or closed. There is no waiting queue:
+excess requests receive `429 capacity_exceeded` without an upstream call. An open
+stream retains its slot; slow downstream consumption drives slower upstream polling.
+
+Body data, including heartbeat bytes, can keep the idle timer from expiring.
+None of these settings imposes one overall deadline for the complete model call.
+The host must own that deadline and cancellation. Native streams are not fully
+buffered. Converted routes retain bounded text/tool input for final output and
+restore custom wrappers after validation.
 
 When a consumer disconnects, upstream reading ends. Graceful server shutdown
 allows a bounded window for active requests. Neither guarantees cancellation of
 already-processed provider work or a refund.
 
-The gateway performs no implicit retries or fallback. Authentication failures,
-invalid inputs and unregistered models fail before a provider request. Connection
-errors, timeouts, oversized bodies and provider HTTP errors are not converted
-into success. Consumers own retry policy and execution records for uncertain outcomes.
+The gateway performs no implicit retries or fallback. Local authentication,
+common request validation and route-admission failures occur before a provider
+request. Connection errors, timeouts, oversized bodies and provider HTTP errors
+are not converted into success. Consumers own retry policy and execution records
+for uncertain outcomes.
 
 Logs contain operational metadata such as request/route identifiers, status and
-duration. Never log bodies, prompts, credentials or headers.
+duration. Keep bodies, prompts, credentials and complete HTTP header dumps out of logs.
+
+<a id="게이트웨이-오류-응답"></a>
+
+## Gateway error responses
+
+Gateway-generated API errors use this JSON envelope. The HTTP status is carried
+separately; `error.code` distinguishes failures that share a status. Errors from
+the HTTP stack or client transport need not have this envelope.
+
+```json
+{
+  "error": {
+    "code": "unauthorized",
+    "message": "A valid local bearer token is required",
+    "type": "gateway_error"
+  }
+}
+```
+
+In this table, an upstream call means the gateway attempted provider HTTP
+communication, not that the provider executed or billed model work.
+
+| HTTP status | `error.code` | Stage | Upstream call | Action |
+|---|---|---|---|---|
+| 401 | `unauthorized` | Local authentication | No | Correct the local Bearer token |
+| 404 | `not_found` | Endpoint routing | No | Use a supported gateway path |
+| 404 | `model_not_found` | Alias lookup | No | Select a registered model alias |
+| 400 | `invalid_body`, `invalid_json`, `invalid_request`, `invalid_model` | Request body or envelope | No | Correct the JSON object, model and field types |
+| 400 | `unsupported_feature` | Stateless policy | No | Remove unsupported storage/state requests and send current context |
+| 400 | `unsupported_request` | Route limits, profile or conversion admission | No | Check required features, limits and complete tool history |
+| 408 | `request_timeout` | Local body reception | No | Finish the upload within the request-body deadline |
+| 413 | `request_too_large` | Local body reception | No | Reduce request bytes or choose a suitable explicit limit |
+| 415 | `unsupported_media_type` | Local content type | No | Send application/json |
+| 429 | `capacity_exceeded` | Local admission | No | Bound consumer concurrency and close finished responses |
+| 501 | `unsupported_endpoint` | Stored-response endpoint | No | Use host-owned history instead of lookup/delete/remote compaction |
+| Provider status; redirects become 502 | `upstream_error` | Provider response headers | Yes | Check the selected provider/key and status without automatic replay |
+| 502 | `upstream_unavailable` | Upstream transport | Possible | Check connectivity and retain an uncertain attempt |
+| 504 | `upstream_timeout` | Upstream send or buffered-body read | Possible or already received headers | Identify the waiting phase and preserve the outcome before retrying |
+| 502 | `upstream_content_encoding`, `upstream_content_type` | Provider response headers | Yes | Verify identity encoding and the expected JSON/SSE content type |
+| 502 | `upstream_read_error`, `upstream_response_too_large` | Buffered response body | Yes | Check transport completion or response byte budget |
+| 502 | `upstream_invalid_json`, `upstream_invalid_response` | Native JSON or converted response validation | Yes | Verify the selected provider's response contract |
+
+For example, local `401 unauthorized` differs from `401 upstream_error`, and
+local `429 capacity_exceeded` differs from `429 upstream_error`. A received error
+after dispatch does not establish whether provider work occurred. The gateway
+suppresses provider error bodies and arbitrary response headers, including
+`Retry-After` and provider request identifiers.
+
+The gateway generates a fresh `x-request-id`, returns it to the consumer and sends
+that generated ID upstream. Match it to the local `request_id` log field; a
+consumer-supplied request ID is not reused. This ID does not provide deduplication,
+response lookup or a safe-retry guarantee.
+
+After SSE headers are sent, transport or conversion failure closes the stream
+instead of replacing its status with one of these JSON errors. Inspect terminal
+events and the local body-close outcome. See [troubleshooting](troubleshooting.md)
+for diagnosis and [stream consumption](usage.md#read-a-stream-and-handle-cancellation)
+for application handling.
 
 <a id="선언된-경로와-기능-프로필"></a>
 

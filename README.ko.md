@@ -63,6 +63,11 @@ python3 examples/client.py --base-url http://127.0.0.1:43127/v1 --model example/
 python3 examples/client.py --base-url http://127.0.0.1:43127/v1 --model example/writer --input 'Reply with hello.' --stream
 ```
 
+공급자 이름을 포함한 모델명, `Large-Model` 같은 별칭과 여러 API Key를 구분하는
+별칭 설정은 [모델 이름과 호출 경로 예시](docs/ko/route-design.md#consumer-model-names)를 참조한다.
+대화·도구·스트림 처리는 [호출·통합 예제](docs/ko/usage.md), 실패 원인 확인은
+[문제 해결](docs/ko/troubleshooting.md)로 이어서 확인할 수 있다.
+
 <a id="supported-behavior"></a>
 
 ## 지원 범위

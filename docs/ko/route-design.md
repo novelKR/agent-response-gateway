@@ -6,9 +6,172 @@
 
 [English](../route-design.md) | [한국어](route-design.md)
 
-모델 별칭은 설정된 공급자, 업스트림 API와 지원 기능 프로필을 선택한다.
-게이트웨이는 요청이 끝날 때까지 이 선택을 고정하고, 변환할 수 없는 기능은
-공급자에 요청하기 전에 거부한다.
+모델 별칭은 설정된 공급자, 실제 업스트림 모델과 API를 선택한다. 소비자가
+Responses 엔드포인트에 별칭으로 요청하면, 게이트웨이가 공급자 키를 선택하고
+해당 경로의 지원 기능을 검사한 뒤 공급자를 호출한다.
+
+<a id="consumer-model-names"></a>
+
+## 소비자용 모델 이름
+
+소비자는 요청의 `model` 필드에 등록된 별칭을 보낸다. 별칭의 `provider` 설정은
+`providers`의 항목을 선택하고, `upstream_model`은 공급자에 전달할 실제 모델 ID다.
+공급자 항목 하나에는 `base_url` 하나와 `api_key_env` 참조 하나가 연결된다.
+공급자 항목은 접속 주소와 인증정보를 묶은 설정이므로, 여러 항목이 같은 공급자
+서비스를 가리킬 수 있다.
+
+예를 들어 `A-Provider`가 `Model-L`, `Model-M`, `Model-S`를 제공한다면
+소비자에게 다음 두 방식 중 어느 쪽으로도 이름을 제공할 수 있다.
+
+| 실제 모델 | 공급자 이름을 포함한 별칭 | 크기에 따른 별칭 |
+|---|---|---|
+| `Model-L` | `A-Provider/Model-L` | `Large-Model` |
+| `Model-M` | `A-Provider/Model-M` | `Medium-Model` |
+| `Model-S` | `A-Provider/Model-S` | `Small-Model` |
+
+다음은 두 이름 체계를 함께 등록하는 완전한 설정이다. 제공할 별칭만 남겨도 된다.
+공급자, URL과 모델 이름은 설명용 예시이므로 검증한 공급자 주소와 모델 ID로
+바꾼다. 이 예시들은 기본값인 Responses API와 업스트림 Bearer 인증을 사용한다.
+
+```toml
+listen = "127.0.0.1:0"
+local_token_env = "ARG_LOCAL_TOKEN"
+
+[providers.A-Provider]
+base_url = "https://api.a-provider.example/v1"
+api_key_env = "A_PROVIDER_API_KEY"
+
+[models."A-Provider/Model-L"]
+provider = "A-Provider"
+upstream_model = "Model-L"
+
+[models."A-Provider/Model-M"]
+provider = "A-Provider"
+upstream_model = "Model-M"
+
+[models."A-Provider/Model-S"]
+provider = "A-Provider"
+upstream_model = "Model-S"
+
+[models.Large-Model]
+provider = "A-Provider"
+upstream_model = "Model-L"
+
+[models.Medium-Model]
+provider = "A-Provider"
+upstream_model = "Model-M"
+
+[models.Small-Model]
+provider = "A-Provider"
+upstream_model = "Model-S"
+```
+
+게이트웨이 프로세스의 환경변수에 `A_PROVIDER_API_KEY`와 별도의 `ARG_LOCAL_TOKEN`을
+설정한다. 설정을 `config.local.toml`로 저장한 뒤 [시작 절차](../../README.ko.md#getting-started)를
+따른다. 키의 실제 값은 TOML 파일에 넣지 않는다.
+
+별칭은 대소문자를 구분하여 정확히 일치하는 이름을 찾는다. 게이트웨이가
+`A-Provider/Model-L`을 슬래시로 나누거나 접두사에서 공급자를 추론하지 않는다.
+`Large-Model`이라는 이름이 사용 가능한 가장 큰 모델을 자동 선택하지도 않는다.
+각 이름은 명시한 매핑을 따른다. 여러 별칭을 같은 공급자와 모델에 연결할 수 있으며,
+등록되지 않은 별칭은 업스트림 호출 없이 `404 model_not_found`를 반환한다.
+
+<a id="call-a-model"></a>
+
+### 모델 호출
+
+게이트웨이의 로컬 토큰과 준비 완료 주소를 사용한다. 아래 예시 포트는 실행 중인
+게이트웨이가 알린 포트로 바꾼다.
+
+```sh
+curl --noproxy '*' http://127.0.0.1:43127/v1/responses \
+  -H "Authorization: Bearer ${ARG_LOCAL_TOKEN}" \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"Large-Model","input":"Reply with hello.","store":false,"stream":false}'
+```
+
+이 설정에서 게이트웨이는 `A_PROVIDER_API_KEY`가 참조하는 키로 공급자의
+`/v1/responses`에 `model: Model-L`을 보낸다. 요청 모델을 `A-Provider/Model-L`로
+바꿔도 같은 대상과 키를 선택한다. `Medium-Model`과 `Small-Model`은 나머지
+등록 모델을 선택한다. 로컬 토큰은 선택한 업스트림 키로 교체하며, 소비자가 보낸
+공급자 인증 헤더는 전달하지 않는다.
+
+소비자가 사용할 수 있는 이름은 다음 요청으로 확인한다.
+
+```sh
+curl --noproxy '*' http://127.0.0.1:43127/v1/models \
+  -H "Authorization: Bearer ${ARG_LOCAL_TOKEN}"
+```
+
+예시에서는 별칭 여섯 개를 반환하며 공급자 URL이나 키 참조는 포함하지 않는다.
+공급자의 모델 목록을 조회하는 API는 아니다. 네이티브 Responses 경로에서는
+응답 본문의 `model`을 별칭으로 바꾸지 않으므로, `Large-Model` 요청에 `Model-L`이
+반환될 수 있다. 소비자가 화면 표시나 요청 기록에 별칭을 사용하려면 요청한 이름을
+따로 보관한다.
+
+<a id="multiple-api-keys-for-one-provider"></a>
+
+## 같은 공급자의 여러 API Key
+
+같은 공급자의 같은 모델을 서로 다른 키로 호출하려면 키마다 공급자 항목을
+등록하고 별도의 모델 별칭을 연결한다. 각 항목에는 `api_key_env` 하나만 있으며,
+모델이 이 참조를 덮어쓰거나 키 풀에서 하나를 선택할 수는 없다.
+
+다음은 동일한 주소와 `Model-L`을 두 키로 호출하는 별개의 완전한 설정이다.
+
+```toml
+listen = "127.0.0.1:0"
+local_token_env = "ARG_LOCAL_TOKEN"
+
+[providers.A-Provider-key-a]
+base_url = "https://api.a-provider.example/v1"
+api_key_env = "A_PROVIDER_KEY_A"
+
+[providers.A-Provider-key-b]
+base_url = "https://api.a-provider.example/v1"
+api_key_env = "A_PROVIDER_KEY_B"
+
+[models.Large-Model-key-a]
+provider = "A-Provider-key-a"
+upstream_model = "Model-L"
+
+[models.Large-Model-key-b]
+provider = "A-Provider-key-b"
+upstream_model = "Model-L"
+```
+
+이 설정을 시작하기 전에 로컬 토큰과 함께 `A_PROVIDER_KEY_A`와 `A_PROVIDER_KEY_B`를
+모두 설정한다. 소비자는 별칭으로 사용할 키를 선택한다.
+
+| 요청 모델 | 공급자 항목 | 실제 모델 | 키 참조 |
+|---|---|---|---|
+| `Large-Model-key-a` | `A-Provider-key-a` | `Model-L` | `A_PROVIDER_KEY_A` |
+| `Large-Model-key-b` | `A-Provider-key-b` | `Model-L` | `A_PROVIDER_KEY_B` |
+
+예를 들어 다음 요청은 두 번째 키를 선택한다.
+
+```sh
+curl --noproxy '*' http://127.0.0.1:43127/v1/responses \
+  -H "Authorization: Bearer ${ARG_LOCAL_TOKEN}" \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"Large-Model-key-b","input":"Reply with hello.","store":false,"stream":false}'
+```
+
+키 값은 게이트웨이를 시작할 때 읽는다. 환경변수를 바꿔도 실행 중인 인스턴스가
+다시 읽지는 않는다. 요청에서 `provider`나 `credential_id`를 별도로 보내 선택하는
+기능은 없으며, 등록된 `model` 별칭으로 경로를 선택한다. `auth`는 사용할 키가 아닌
+업스트림 인증 헤더 형식을 지정한다. 인증 실패나 호출 한도 초과 시 다른 등록 키로
+재시도하지 않는다.
+
+로컬 Bearer 토큰으로 해당 인스턴스의 모든 등록 별칭에 접근할 수 있다. 별칭으로
+키를 구분하는 것만으로 사용자·테넌트별 권한을 제한하지는 않는다.
+[접근 범위](embedded-design.md#authentication-and-access)와
+[통합 계약](integration.md#calling-from-a-backend-service)을 따른다.
+
+Messages와 Chat Completions 경로도 같은 방식으로 별칭과 키를 선택한다.
+이 경로에는 아래에서 설명하는 API, 인증 방식과 지원 기능 설정을 추가로 명시해야
+한다. 같은 서비스의 키를 공급자 항목 여러 개로 나눈 경우에도 각 프로필은
+선택한 공급자 항목과 실제 모델에 일치해야 한다.
 
 <a id="evidence-and-recommendation"></a>
 <a id="routing-rules"></a>

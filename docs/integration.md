@@ -15,6 +15,9 @@ and history. The diagram below shows how tool calls return to the application.
 
 <DiagramFigure kind="tool-roundtrip" />
 
+For concrete request/response and tool-result examples, follow the
+[usage guide](usage.md). Diagnose startup, authentication, capacity and streaming
+failures with [troubleshooting](troubleshooting.md).
 
 
 <a id="공통-경계"></a>

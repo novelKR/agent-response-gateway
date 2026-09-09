@@ -65,6 +65,11 @@ python3 examples/client.py --base-url http://127.0.0.1:43127/v1 --model example/
 python3 examples/client.py --base-url http://127.0.0.1:43127/v1 --model example/writer --input 'Reply with hello.' --stream
 ```
 
+For provider-qualified names, aliases such as `Large-Model`, and separate aliases
+for multiple API keys, see the [model naming and routing examples](docs/route-design.md#consumer-model-names).
+Continue with [calling and integration examples](docs/usage.md) for conversations,
+tools and streams, or [troubleshooting](docs/troubleshooting.md) to diagnose a failure.
+
 <a id="지원-범위"></a>
 
 ## Supported behavior

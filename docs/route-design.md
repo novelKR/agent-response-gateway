@@ -6,9 +6,175 @@
 
 [English](route-design.md) | [한국어](ko/route-design.md)
 
-A model alias selects one configured provider, upstream API and capability profile.
-The gateway fixes that selection for the request and rejects unsupported conversion
-requirements before contacting the provider.
+A model alias selects a configured provider, actual upstream model and API. Consumers
+call the alias through the Responses endpoint; the gateway selects the provider key
+and applies the route's capability checks before contacting the provider.
+
+<a id="소비자용-모델-이름"></a>
+
+## Consumer model names
+
+The consumer sends a registered alias in the request's `model` field. Its
+`provider` setting selects an entry in `providers`, and `upstream_model` is the
+model ID sent to that provider. Each provider entry holds one `base_url` and one
+`api_key_env` reference. A provider entry represents a connection and credential
+binding; several entries can refer to the same provider service.
+
+For example, suppose `A-Provider` offers `Model-L`, `Model-M` and `Model-S`.
+Either naming scheme below can be exposed to consumers:
+
+| Upstream model | Alias with provider name | Alias by size |
+|---|---|---|
+| `Model-L` | `A-Provider/Model-L` | `Large-Model` |
+| `Model-M` | `A-Provider/Model-M` | `Medium-Model` |
+| `Model-S` | `A-Provider/Model-S` | `Small-Model` |
+
+The following complete configuration registers both schemes at once. Keep the
+aliases you intend to offer. The provider, URL and model names are illustrative;
+replace them with a verified provider endpoint and model IDs. These examples use
+the default Responses API and Bearer upstream authentication.
+
+```toml
+listen = "127.0.0.1:0"
+local_token_env = "ARG_LOCAL_TOKEN"
+
+[providers.A-Provider]
+base_url = "https://api.a-provider.example/v1"
+api_key_env = "A_PROVIDER_API_KEY"
+
+[models."A-Provider/Model-L"]
+provider = "A-Provider"
+upstream_model = "Model-L"
+
+[models."A-Provider/Model-M"]
+provider = "A-Provider"
+upstream_model = "Model-M"
+
+[models."A-Provider/Model-S"]
+provider = "A-Provider"
+upstream_model = "Model-S"
+
+[models.Large-Model]
+provider = "A-Provider"
+upstream_model = "Model-L"
+
+[models.Medium-Model]
+provider = "A-Provider"
+upstream_model = "Model-M"
+
+[models.Small-Model]
+provider = "A-Provider"
+upstream_model = "Model-S"
+```
+
+Set `A_PROVIDER_API_KEY` and a separate `ARG_LOCAL_TOKEN` in the gateway process
+environment. Save the configuration as `config.local.toml` and follow the
+[startup steps](../README.md#getting-started). Keys do not belong in the TOML file.
+
+Aliases are exact, case-sensitive lookup keys. The gateway does not split
+`A-Provider/Model-L` at the slash or infer a provider from its prefix. Nor does
+`Large-Model` automatically select the largest available model. Each name follows
+its explicit mapping. Different aliases can resolve to the same provider and
+model; an unregistered alias returns `404 model_not_found` without an upstream call.
+
+<a id="모델-호출"></a>
+
+### Call a model
+
+Use the gateway's local token and readiness address. Replace the example port
+below with the port reported by the running gateway.
+
+```sh
+curl --noproxy '*' http://127.0.0.1:43127/v1/responses \
+  -H "Authorization: Bearer ${ARG_LOCAL_TOKEN}" \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"Large-Model","input":"Reply with hello.","store":false,"stream":false}'
+```
+
+For this configuration, the gateway sends `model: Model-L` to the provider's
+`/v1/responses` endpoint using the key referenced by `A_PROVIDER_API_KEY`.
+Changing the request's model to `A-Provider/Model-L` selects the same destination
+and key. `Medium-Model` and `Small-Model` select the other declared models.
+The local token is replaced by the selected upstream key, and consumer-supplied
+provider authentication headers are not forwarded.
+
+List the names available to the consumer with:
+
+```sh
+curl --noproxy '*' http://127.0.0.1:43127/v1/models \
+  -H "Authorization: Bearer ${ARG_LOCAL_TOKEN}"
+```
+
+This lists all six aliases in the example, without the provider URL or key
+references. It does not query the provider's model catalog. On native Responses
+routes, the response body's `model` is not rewritten to the alias: a request for
+`Large-Model` can return `Model-L`. Keep the requested alias if the consumer needs
+it for display or its own request records.
+
+<a id="같은-공급자의-여러-api-key"></a>
+
+## Multiple API keys for one provider
+
+To call the same provider and model with different keys, register one provider
+entry per key and connect a separate model alias to each entry. Each entry has
+one `api_key_env`; a model cannot override that reference or select from a key pool.
+
+The following is a separate complete example for two keys with the same endpoint
+and `Model-L`:
+
+```toml
+listen = "127.0.0.1:0"
+local_token_env = "ARG_LOCAL_TOKEN"
+
+[providers.A-Provider-key-a]
+base_url = "https://api.a-provider.example/v1"
+api_key_env = "A_PROVIDER_KEY_A"
+
+[providers.A-Provider-key-b]
+base_url = "https://api.a-provider.example/v1"
+api_key_env = "A_PROVIDER_KEY_B"
+
+[models.Large-Model-key-a]
+provider = "A-Provider-key-a"
+upstream_model = "Model-L"
+
+[models.Large-Model-key-b]
+provider = "A-Provider-key-b"
+upstream_model = "Model-L"
+```
+
+Set both `A_PROVIDER_KEY_A` and `A_PROVIDER_KEY_B`, along with the local token,
+before starting this configuration. The consumer selects the key through the alias:
+
+| Request model | Provider entry | Upstream model | Key reference |
+|---|---|---|---|
+| `Large-Model-key-a` | `A-Provider-key-a` | `Model-L` | `A_PROVIDER_KEY_A` |
+| `Large-Model-key-b` | `A-Provider-key-b` | `Model-L` | `A_PROVIDER_KEY_B` |
+
+For example, this request selects the second key:
+
+```sh
+curl --noproxy '*' http://127.0.0.1:43127/v1/responses \
+  -H "Authorization: Bearer ${ARG_LOCAL_TOKEN}" \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"Large-Model-key-b","input":"Reply with hello.","store":false,"stream":false}'
+```
+
+Key values are loaded when the gateway starts. Updating an environment variable
+does not reload a running instance. The request has no separate `provider` or
+`credential_id` selector; routing uses the registered `model` alias. `auth` controls
+the upstream header format, not which key is selected. Authentication failures or
+rate limits do not trigger a retry with another registered key.
+
+A local Bearer token permits access to every configured alias in that instance.
+Choosing a key through an alias does not enforce per-user or per-tenant permissions.
+See the [access scope](embedded-design.md#authentication-and-access) and
+[integration contract](integration.md#calling-from-a-backend-service).
+
+The same alias and key selection applies to Messages and Chat Completions routes.
+Those routes also require the explicit API, authentication and capability settings
+described below. Each profile must match the selected provider entry and actual
+model, including when separate provider entries use different keys for one service.
 
 <a id="evidence-and-recommendation"></a>
 <a id="경로-처리-규칙"></a>
