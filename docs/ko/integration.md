@@ -4,9 +4,15 @@
 
 [English](../integration.md) | [한국어](integration.md)
 
+<Callout>
+
 게이트웨이는 독립 저장소에서 개발·릴리스하며 소비자는 검증한 버전을
 선택한다. 이 문서는 범용 연결 계약을 설명하며 특정 제품의 도입 상태를
 나타내지 않는다. 소비자별 식별정보와 운영 기록은 공개 문서에 포함하지 않는다.
+
+</Callout>
+
+<DiagramFigure kind="tool-roundtrip" />
 
 <a id="shared-responsibilities"></a>
 

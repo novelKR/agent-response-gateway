@@ -30,6 +30,12 @@ configuration, tests, and documentation before editing. Preserve unrelated work.
   changes. Unsupported protocol features must remain explicit errors.
 - Run `python3 -B -m unittest discover -s scripts/tests -v` and the publication
   boundary checks described in `docs/documentation.md` before committing.
+- For documentation site changes, use Node 24.21.0 and npm 11.19.0 under
+  `docs-site/`. Run `npm ci --prefix docs-site --ignore-scripts`,
+  `npm test --prefix docs-site`, `npm run build --prefix docs-site` and
+  `python3 -B docs-site/scripts/check-output.py`. The static preview serves only
+  verified build files on loopback. Do not start the Vite development server.
+  Review web notice changes explicitly; recording digests is not legal approval.
 - Run `python3.14 -B scripts/check_docs.py` for maintained documentation. Review
   both language editions before recording their hashes; preserve existing anchors,
   technical literals and canonical legal originals. CI must never stamp a review.

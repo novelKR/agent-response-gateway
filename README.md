@@ -73,6 +73,8 @@ python3 examples/client.py --base-url http://127.0.0.1:43127/v1 --model example/
 
 ## Supported behavior
 
+<SupportTable>
+
 | Interface | Behavior |
 |---|---|
 | `GET /` | Version, license and configured source location |
@@ -80,6 +82,8 @@ python3 examples/client.py --base-url http://127.0.0.1:43127/v1 --model example/
 | `GET /readyz` | Local readiness; no real-provider probe |
 | `GET /v1/models` | Configured model aliases after Bearer authentication |
 | `POST /v1/responses` | Model mapping, provider-credential replacement and JSON/SSE forwarding after Bearer authentication |
+
+</SupportTable>
 
 Native Responses does not reconstruct tools, structured output or reasoning
 items. JSON values are preserved except for model mapping and `store:false`

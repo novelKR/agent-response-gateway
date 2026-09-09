@@ -139,3 +139,115 @@ Korean edition and registry entry. The checker validates inventory, sections,
 technical literals, code blocks, table structure, shared anchors and relative
 links. Its synthetic regressions exercise missing/stale translations and broken
 contracts; it does not replace editorial review.
+
+<a id="문서-사이트-개발"></a>
+
+## Documentation site development
+
+The site uses VitePress 1.6.4, Node 24.21.0 and npm 11.19.0 with the committed
+[npm lock](../docs-site/package-lock.json). Use Python 3.11+; CI selects Python
+3.14. Set the DOCS_PYTHON environment variable if the Python executable has a
+different name. From the repository root:
+
+```sh
+npm ci --prefix docs-site --ignore-scripts
+npm test --prefix docs-site
+npm run build --prefix docs-site
+python3 -B docs-site/scripts/check-output.py
+npm run preview --prefix docs-site
+```
+
+The preview listens at `http://127.0.0.1:43140/agent-response-gateway/`. Rebuild
+and reload after edits; the preview has no hot module replacement. The project
+base is `/agent-response-gateway/`, with English at the root and Korean under
+`/ko/`. Maintained pages live under `/guide/` and `/ko/guide/`. The toolbar links
+to the same document in the other language and retains compatibility anchors.
+Local search keeps queries in the browser. Search indexes contain only selected
+public document content; no provider, analytics or remote search request is needed.
+
+The document registry owns stable IDs, source pairs, groups, order and site routes.
+[Navigation metadata](../docs-site/navigation.json) supplies localized group labels,
+locale prefixes and the API route illustration. Page titles and card summaries
+come from the Markdown heading and first prose paragraph. Add a paired document
+and registry route, then its group label if needed; existing routes remain stable.
+Both languages share the same theme and components. Adding another language also
+requires extending the editorial checker and translated UI labels explicitly.
+
+Edit [central tokens](../docs-site/theme/tokens.css) for color, type, spacing and
+width changes. Components consume semantic tokens; VitePress variables map to
+the same values. Responsive rules extend the official theme at its existing
+breakpoints. The site uses system fonts and locally bundled theme icons, with
+original SVG connectors. Content slots and typed props keep page text separate
+from layout. Code, sidebar, outline, theme selection and search use VitePress's
+official extension points.
+
+The input generator copies only registry-selected Markdown to an ignored build
+directory. It rejects page scripts, page styles and transitive include directives.
+Unpublished source links point to the public source commit instead of copying
+the checkout. Output checks verify the complete page inventory, local links,
+anchors, resource origins and generated assets. The build manifest records each
+published file's SHA-256 and whether it came from a dirty working tree. It is
+an integrity record, not an attestation. Installation directories, caches and
+generated pages are excluded from Git and source packages.
+
+<a id="웹-고지와-개발-서버-제약"></a>
+
+## Web notices and development-server constraints
+
+Web dependencies are development dependencies of the static site, separate from
+the Rust gateway and its license audit. The build reads Rollup's client module
+inventory, matches package versions and integrity records to the npm lock, and
+preserves original notice bytes. The [reviewed records](../docs-site/licensing/dependencies.json)
+also include Lucide/Feather icons embedded in VitePress. Their source file and
+license hashes are pinned separately. The DocSearch CSS tarball omits its license;
+its original MIT notice is retained from the exact official source tag's commit.
+No font files or social-icon assets are shipped.
+
+The generated `web-dependencies.json`, `web-notices.txt` and the unchanged project
+license in `LICENSE.txt` accompany the site.
+After reviewing changed packages, their license terms, original notices and any
+embedded assets, record the revised inventory explicitly:
+
+```sh
+npm run build --prefix docs-site -- --record-notices
+git diff -- docs-site/licensing
+npm run build --prefix docs-site
+```
+
+Recording hashes does not approve commercial rights. Ordinary builds and CI fail
+on stale records. An update to VitePress also requires reviewing its bundled
+theme assets; npm package boundaries alone do not describe every copied asset.
+
+The selected stable release resolves Vite 5.4.21 and esbuild 0.21.5. The npm audit
+reports three affected package entries (two moderate, one high), covering four
+development-server advisories: [esbuild CORS](https://github.com/advisories/GHSA-67mh-4wv8-2f99),
+[optimized-dependency paths](https://github.com/advisories/GHSA-4w7w-66w2-5vf9),
+[Windows filesystem paths](https://github.com/advisories/GHSA-fx2h-pf6j-xcff) and
+[Windows editor launch](https://github.com/advisories/GHSA-v6wh-96g9-6wx3).
+These findings are not fixed by this site implementation. The supported commands
+perform production builds and use a separate static HTTP preview bound to
+loopback. They never start Vite's development server, esbuild's server or an
+editor-launch endpoint. Do not substitute `vitepress dev` or the built-in preview
+for this workflow. Dependency upgrades require a fresh compatibility and notice
+review; do not force an incompatible Vite major through an npm override.
+
+<a id="사이트-검증과-공개"></a>
+
+## Site verification and publication
+
+Before review, check both languages at desktop, tablet and 320-pixel mobile
+widths; inspect long titles, tables, keyboard focus, theme changes and direct
+page reloads. Search for `authentication`, `인증`, `previous_response_id` and
+`압축`. Confirm same-page language switching, preserved anchors and the 404 page.
+Test a temporary palette and spacing change across navigation, cards, badges,
+tables, code and diagrams, then restore the tokens. Synthetic tests also exercise
+new groups and translations, forbidden output and preview traversal.
+
+The read-only `docs` CI job is part of `ci-required` and retains the verified
+static artifact for review. Pages activation, deployment permissions and the
+protected deployment environment require a separate publication decision.
+Supply the source commit, build manifest and web notices for that decision.
+Deploy the approved artifact without rebuilding it and verify the actual URL.
+Restore an earlier verified artifact for a site rollback; use a reverting PR
+for source changes. A successful local build or retained artifact is not a live
+site, a formal gateway release or consumer operational acceptance.

@@ -10,3 +10,7 @@
 __pycache__/
 *.py[cod]
 .DS_Store
+/docs-site/node_modules/
+/docs-site/.vitepress/.cache/
+/docs-site/.vitepress/.temp/
+/docs-site/.temp/

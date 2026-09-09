@@ -6,7 +6,7 @@ rust-version = "1.98"
 license = "AGPL-3.0-only"
 description = "An independent, local Responses gateway for agent runtimes and backend services"
 publish = false
-exclude = ["/.private/**"]
+exclude = ["/.private/**", "/docs-site/node_modules/**", "/docs-site/.temp/**", "/docs-site/.vitepress/.cache/**", "/docs-site/.vitepress/.temp/**"]
 
 [dependencies]
 async-stream = "0.3"

@@ -1,0 +1,22 @@
+[
+  {
+    "name": "Lucide and Feather icons embedded in VitePress",
+    "embedded_version": "vitepress@1.6.4",
+    "license": "ISC AND MIT",
+    "asset": "node_modules/vitepress/dist/client/theme-default/styles/icons.css",
+    "asset_sha256": "9a66e7f9b1f32899dfdcbf5454b39ade90246bb88cece3f913a0855714719449",
+    "asset_source": "https://github.com/vuejs/vitepress/blob/1fc537b78cda287fa23c1129a815ad9455fd8106/src/client/theme-default/styles/icons.css",
+    "notices": [
+      {
+        "file": "lucide-LICENSE",
+        "sha256": "1e7290b35280a048667bbf0ebabac1c7fd52a75300e8b2946ac165715997f2bc",
+        "source": "https://github.com/lucide-icons/lucide/blob/1eee03451a5447069aceaaafbb1967fc78670bf8/LICENSE"
+      },
+      {
+        "file": "feather-LICENSE",
+        "sha256": "308028e93fcf84972523cdf6e616f73168546b4953895f516d01287f16fe7bee",
+        "source": "https://github.com/feathericons/feather/blob/a299aad93bffe2b85ad49d49aa04aff735d52a65/LICENSE"
+      }
+    ]
+  }
+]

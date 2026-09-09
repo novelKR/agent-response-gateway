@@ -1,0 +1,218 @@
+[
+  {
+    "name": "@docsearch/css",
+    "version": "3.8.2",
+    "license": "MIT",
+    "resolved": "https://registry.npmjs.org/@docsearch/css/-/css-3.8.2.tgz",
+    "integrity": "sha512-y05ayQFyUmCXze79+56v/4HpycYF3uFqB78pLPrSV5ZKAlDuIAAJNhaRi8tTdRNXh05yxX/TyNnzD6LwSM89vQ==",
+    "notices": [
+      {
+        "file": "docsearch-3.8.2-LICENSE",
+        "sha256": "1e605499213e06118cc81abc00b32bbb33ead185d9b0e190f2662588e8806f02",
+        "source": "https://github.com/algolia/docsearch/blob/a425f6f4e5714e9454ea172dc5ada5e4a0da27af/LICENSE"
+      }
+    ]
+  },
+  {
+    "name": "@vue/reactivity",
+    "version": "3.5.42",
+    "license": "MIT",
+    "resolved": "https://registry.npmjs.org/@vue/reactivity/-/reactivity-3.5.42.tgz",
+    "integrity": "sha512-TzNNfKpb7hDxbQltwAut8VDQA5YP+BuRlxntHUuRjyKwlMvmAPbs3unhCvieijifY6vFfVBwsS7wG/C7uq+bEQ==",
+    "notices": [
+      {
+        "file": "LICENSE",
+        "sha256": "1bb85cc9b13b81ef41c81c51866172fc345e0503c86726a6755b796590b70175",
+        "source": "https://registry.npmjs.org/@vue/reactivity/-/reactivity-3.5.42.tgz"
+      }
+    ]
+  },
+  {
+    "name": "@vue/runtime-core",
+    "version": "3.5.42",
+    "license": "MIT",
+    "resolved": "https://registry.npmjs.org/@vue/runtime-core/-/runtime-core-3.5.42.tgz",
+    "integrity": "sha512-9uACtuHs7vJGkm5Bp3xu4xRDLFTIYy5DgxpToVjqGIAhAEKwQfsaLvKINhM6nFVp6bZPRFGdDqd1g52MqKsotA==",
+    "notices": [
+      {
+        "file": "LICENSE",
+        "sha256": "1bb85cc9b13b81ef41c81c51866172fc345e0503c86726a6755b796590b70175",
+        "source": "https://registry.npmjs.org/@vue/runtime-core/-/runtime-core-3.5.42.tgz"
+      }
+    ]
+  },
+  {
+    "name": "@vue/runtime-dom",
+    "version": "3.5.42",
+    "license": "MIT",
+    "resolved": "https://registry.npmjs.org/@vue/runtime-dom/-/runtime-dom-3.5.42.tgz",
+    "integrity": "sha512-rsCmhiWLaRxGltLwhlCWyYkFn7WAbKRh0q17eZ1A6Dq6eqc2ACQ61IIryxz0LrsvCzHSilLA9JHovVwM8CNE2g==",
+    "notices": [
+      {
+        "file": "LICENSE",
+        "sha256": "1bb85cc9b13b81ef41c81c51866172fc345e0503c86726a6755b796590b70175",
+        "source": "https://registry.npmjs.org/@vue/runtime-dom/-/runtime-dom-3.5.42.tgz"
+      }
+    ]
+  },
+  {
+    "name": "@vue/shared",
+    "version": "3.5.42",
+    "license": "MIT",
+    "resolved": "https://registry.npmjs.org/@vue/shared/-/shared-3.5.42.tgz",
+    "integrity": "sha512-2rPxex1jQf4jvl9MOHl6YaXCPcrNqz/FstMOEh3QWY+/OME9nQTvl9WYeCwhW7AFjaR0SnngZGlp/wkR6rkI6g==",
+    "notices": [
+      {
+        "file": "LICENSE",
+        "sha256": "1bb85cc9b13b81ef41c81c51866172fc345e0503c86726a6755b796590b70175",
+        "source": "https://registry.npmjs.org/@vue/shared/-/shared-3.5.42.tgz"
+      }
+    ]
+  },
+  {
+    "name": "@vueuse/core",
+    "version": "12.8.2",
+    "license": "MIT",
+    "resolved": "https://registry.npmjs.org/@vueuse/core/-/core-12.8.2.tgz",
+    "integrity": "sha512-HbvCmZdzAu3VGi/pWYm5Ut+Kd9mn1ZHnn4L5G8kOQTPs/IwIAmJoBrmYk2ckLArgMXZj0AW3n5CAejLUO+PhdQ==",
+    "notices": [
+      {
+        "file": "LICENSE",
+        "sha256": "0f844b1160603552a01662ac2999c14e5fb4df487e65619b9ed4406e43eb3c0b",
+        "source": "https://registry.npmjs.org/@vueuse/core/-/core-12.8.2.tgz"
+      }
+    ]
+  },
+  {
+    "name": "@vueuse/integrations",
+    "version": "12.8.2",
+    "license": "MIT",
+    "resolved": "https://registry.npmjs.org/@vueuse/integrations/-/integrations-12.8.2.tgz",
+    "integrity": "sha512-fbGYivgK5uBTRt7p5F3zy6VrETlV9RtZjBqd1/HxGdjdckBgBM4ugP8LHpjolqTj14TXTxSK1ZfgPbHYyGuH7g==",
+    "notices": [
+      {
+        "file": "LICENSE",
+        "sha256": "0f844b1160603552a01662ac2999c14e5fb4df487e65619b9ed4406e43eb3c0b",
+        "source": "https://registry.npmjs.org/@vueuse/integrations/-/integrations-12.8.2.tgz"
+      }
+    ]
+  },
+  {
+    "name": "@vueuse/shared",
+    "version": "12.8.2",
+    "license": "MIT",
+    "resolved": "https://registry.npmjs.org/@vueuse/shared/-/shared-12.8.2.tgz",
+    "integrity": "sha512-dznP38YzxZoNloI0qpEfpkms8knDtaoQ6Y/sfS0L7Yki4zh40LFHEhur0odJC6xTHG5dxWVPiUWBXn+wCG2s5w==",
+    "notices": [
+      {
+        "file": "LICENSE",
+        "sha256": "0f844b1160603552a01662ac2999c14e5fb4df487e65619b9ed4406e43eb3c0b",
+        "source": "https://registry.npmjs.org/@vueuse/shared/-/shared-12.8.2.tgz"
+      }
+    ]
+  },
+  {
+    "name": "focus-trap",
+    "version": "7.8.0",
+    "license": "MIT",
+    "resolved": "https://registry.npmjs.org/focus-trap/-/focus-trap-7.8.0.tgz",
+    "integrity": "sha512-/yNdlIkpWbM0ptxno3ONTuf+2g318kh2ez3KSeZN5dZ8YC6AAmgeWz+GasYYiBJPFaYcSAPeu4GfhUaChzIJXA==",
+    "notices": [
+      {
+        "file": "LICENSE",
+        "sha256": "b8d0347312c547c22802b39e495bc8f75d1a27bd69a51950fe5dcf8529b05070",
+        "source": "https://registry.npmjs.org/focus-trap/-/focus-trap-7.8.0.tgz"
+      }
+    ]
+  },
+  {
+    "name": "mark.js",
+    "version": "8.11.1",
+    "license": "MIT",
+    "resolved": "https://registry.npmjs.org/mark.js/-/mark.js-8.11.1.tgz",
+    "integrity": "sha512-1I+1qpDt4idfgLQG+BNWmrqku+7/2bi5nLf4YwF8y8zXvmfiTBY3PV3ZibfrjBueCByROpuBjLLFCajqkgYoLQ==",
+    "notices": [
+      {
+        "file": "LICENSE",
+        "sha256": "402936bcc8f1b6947750eb9193183d7d0c4dbca3c0ba06398571d94ee85c24be",
+        "source": "https://registry.npmjs.org/mark.js/-/mark.js-8.11.1.tgz"
+      }
+    ]
+  },
+  {
+    "name": "minisearch",
+    "version": "7.2.0",
+    "license": "MIT",
+    "resolved": "https://registry.npmjs.org/minisearch/-/minisearch-7.2.0.tgz",
+    "integrity": "sha512-dqT2XBYUOZOiC5t2HRnwADjhNS2cecp9u+TJRiJ1Qp/f5qjkeT5APcGPjHw+bz89Ms8Jp+cG4AlE+QZ/QnDglg==",
+    "notices": [
+      {
+        "file": "LICENSE.txt",
+        "sha256": "70d37354d6395629fb99edb28cb37a5d356ffa24a48cd02a5def5b83a300a899",
+        "source": "https://registry.npmjs.org/minisearch/-/minisearch-7.2.0.tgz"
+      }
+    ]
+  },
+  {
+    "name": "tabbable",
+    "version": "6.5.0",
+    "license": "MIT",
+    "resolved": "https://registry.npmjs.org/tabbable/-/tabbable-6.5.0.tgz",
+    "integrity": "sha512-wieBHXygIm7OyQOu5hQlkk62/WyCFYGlWg7L6/ZCUZwx0o398Zkn4pVmMyfYhfMG8kGrj/Krt8eIk6UKC6VzwA==",
+    "notices": [
+      {
+        "file": "LICENSE",
+        "sha256": "8e714750725e75c8b31172ef84c0805f94873f86e3b5cfca8a948553f0778fa1",
+        "source": "https://registry.npmjs.org/tabbable/-/tabbable-6.5.0.tgz"
+      }
+    ]
+  },
+  {
+    "name": "vitepress",
+    "version": "1.6.4",
+    "license": "MIT",
+    "resolved": "https://registry.npmjs.org/vitepress/-/vitepress-1.6.4.tgz",
+    "integrity": "sha512-+2ym1/+0VVrbhNyRoFFesVvBvHAVMZMK0rw60E3X/5349M1GuVdKeazuksqopEdvkKwKGs21Q729jX81/bkBJg==",
+    "notices": [
+      {
+        "file": "LICENSE",
+        "sha256": "6db2f08c2112251083b26df3117dde40c5589d337195953531e7e677d1a600e5",
+        "source": "https://registry.npmjs.org/vitepress/-/vitepress-1.6.4.tgz"
+      }
+    ]
+  },
+  {
+    "name": "vue",
+    "version": "3.5.42",
+    "license": "MIT",
+    "resolved": "https://registry.npmjs.org/vue/-/vue-3.5.42.tgz",
+    "integrity": "sha512-4RyHQTbQvOPs3MfvUO1Sg0YRrKNnA0mAVtvpd12Tg1fKDN7OHBUl1IqSn8zGJjK9nI3NkNp8cgTpVrSZC5TTcA==",
+    "notices": [
+      {
+        "file": "LICENSE",
+        "sha256": "1bb85cc9b13b81ef41c81c51866172fc345e0503c86726a6755b796590b70175",
+        "source": "https://registry.npmjs.org/vue/-/vue-3.5.42.tgz"
+      }
+    ]
+  },
+  {
+    "name": "Lucide and Feather icons embedded in VitePress",
+    "embedded_version": "vitepress@1.6.4",
+    "license": "ISC AND MIT",
+    "asset": "node_modules/vitepress/dist/client/theme-default/styles/icons.css",
+    "asset_sha256": "9a66e7f9b1f32899dfdcbf5454b39ade90246bb88cece3f913a0855714719449",
+    "asset_source": "https://github.com/vuejs/vitepress/blob/1fc537b78cda287fa23c1129a815ad9455fd8106/src/client/theme-default/styles/icons.css",
+    "notices": [
+      {
+        "file": "lucide-LICENSE",
+        "sha256": "1e7290b35280a048667bbf0ebabac1c7fd52a75300e8b2946ac165715997f2bc",
+        "source": "https://github.com/lucide-icons/lucide/blob/1eee03451a5447069aceaaafbb1967fc78670bf8/LICENSE"
+      },
+      {
+        "file": "feather-LICENSE",
+        "sha256": "308028e93fcf84972523cdf6e616f73168546b4953895f516d01287f16fe7bee",
+        "source": "https://github.com/feathericons/feather/blob/a299aad93bffe2b85ad49d49aa04aff735d52a65/LICENSE"
+      }
+    ]
+  }
+]
