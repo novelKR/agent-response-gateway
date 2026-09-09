@@ -145,6 +145,7 @@ class ReleaseProvenanceTests(unittest.TestCase):
             for flag in ["--repo","--signer-workflow","--source-ref","--source-digest","--signer-digest","--deny-self-hosted-runners"]:
                 self.assertIn(flag,args)
             self.assertEqual(args[args.index("--source-digest")+1],COMMIT)
+            self.assertEqual(args[args.index("--source-ref")+1],"refs/tags/v0.1.0")
             with self.assertRaises(package.PackageError):
                 provenance.Github().verify(Path("asset"),Path("proof"),COMMIT,124,1,"v0.1.0")
 

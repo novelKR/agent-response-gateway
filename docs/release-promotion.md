@@ -42,6 +42,19 @@ release-write permission. GitHub CLI verifies the repository, signing workflow,
 refs/tags source ref, source and signer commit, hosted runner, and exact SLSA run
 ID and attempt. PR artifacts cannot satisfy this contract.
 
+To verify a downloaded target with a trusted checkout, put only its distribution
+archive, target.manifest.json and target.sigstore.jsonl in the selected directory.
+The command requires GitHub CLI with attestation support and Python 3.11+.
+Substitute the source commit and candidate run ID from the release manifest, and
+select the intended target/tag explicitly; the Windows tag below is illustrative.
+
+```sh
+python3 -B scripts/release_provenance.py verify \
+  --directory .local/downloaded-target \
+  --commit SOURCE_COMMIT --target x86_64-pc-windows-msvc \
+  --run-id CANDIDATE_RUN_ID --attempt 1 --tag v0.1.0
+```
+
 <a id="검토와-승격"></a>
 
 ## Review and promotion

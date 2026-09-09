@@ -163,6 +163,7 @@ def inspect_distribution(directory, commit, target, state_dir):
 
 def verify_distribution(github, directory, commit, target, run_id, attempt, state_dir, tag):
     descriptor = inspect_distribution(directory, commit, target, state_dir)
+    version_tag(tag, descriptor["version"])
     proof = directory/f"{target}.sigstore.jsonl"
     names = {descriptor["filename"], f"{target}.manifest.json", proof.name}
     require({p.name for p in directory.iterdir()} == names, "signed distribution includes unexpected files")

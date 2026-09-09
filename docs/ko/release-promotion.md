@@ -40,6 +40,19 @@ actions:read, id-token:write와 attestations:write가 있다. 다운로드한 �
 저장소, 서명 워크플로, refs/tags 소스 참조, 소스·서명 커밋, hosted runner와
 정확한 SLSA 실행 ID·attempt를 확인한다. PR 산출물은 이 계약을 충족할 수 없다.
 
+신뢰하는 체크아웃에서 다운로드 대상을 검증하려면 선택한 디렉터리에 해당
+배포 압축파일, target.manifest.json과 target.sigstore.jsonl만 둔다.
+명령에는 attestation을 지원하는 GitHub CLI와 Python 3.11+가 필요하다.
+릴리스 명세의 소스 커밋과 후보 실행 ID를 넣고 사용할 대상·태그를 명시적으로
+선택한다. 아래 Windows 태그는 예시다.
+
+```sh
+python3 -B scripts/release_provenance.py verify \
+  --directory .local/downloaded-target \
+  --commit SOURCE_COMMIT --target x86_64-pc-windows-msvc \
+  --run-id CANDIDATE_RUN_ID --attempt 1 --tag v0.1.0
+```
+
 <a id="review-and-promotion"></a>
 
 ## 검토와 승격

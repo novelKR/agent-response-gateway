@@ -464,8 +464,8 @@
       "order": 2,
       "source": "docs/release-promotion.md",
       "translation": "docs/ko/release-promotion.md",
-      "source_sha256": "28b74e8268e0ff7b777f44a404f031946b72b67d486d9e09da467b0d3af33eb0",
-      "translation_sha256": "4e8ad7623eabe5ef129f2e591f1a9a2164da2d1c92acc21137816822fc4bb89e",
+      "source_sha256": "54c1f863d98160bf1019793504c269b60ce3dd4dff4a561e7242b3b4239f1453",
+      "translation_sha256": "c7132cd0204ac25de3448466b7e550c17161aee22cbfab1ff6c7674419ac4c8b",
       "anchors": [
         "build-and-signing-boundaries",
         "failure-and-recovery",
@@ -510,8 +510,8 @@
       "order": 5,
       "source": "docs/roadmap.md",
       "translation": "docs/ko/roadmap.md",
-      "source_sha256": "56fe94e7bb261bb6f68b3aec5f67a23f56e8397d924394f079dddd10fb0b8a87",
-      "translation_sha256": "8341f7b2d4aff217369cda5d3cb417be558f8a6948fb89265203dbe80636fc28",
+      "source_sha256": "40e84050296afb5bdc3c5423716f37714b6bb9810b66eb3b2310bc926d4ce414",
+      "translation_sha256": "610ea4227925d7863017338bdaccf6e5e3717ee57088e8f153479c47abd0cebf",
       "anchors": [
         "available-capabilities",
         "before-production-use",
