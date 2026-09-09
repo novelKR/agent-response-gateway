@@ -1,0 +1,100 @@
+<a id="host-owned-continuity-contract"></a>
+
+# 호스트가 소유하는 연속성 계약
+
+[English](../continuity.md) | [한국어](continuity.md)
+
+승인된 [G15 설계](continuity-design.md)는 gateway HTTP 전송을 stateless로
+유지한다. 재사용 가능한 [Python 계약 모듈](../../scripts/continuity_contract.py)은
+호스트의 비공개 기록을 검증하고 새 revision을 반환한다. I/O, 모델 호출, 인증,
+워크플로 승인이나 자동 복구를 수행하지 않는다. Python 호스트가 선택적으로
+사용하는 표준 라이브러리 모듈이며 Rust gateway에 새 런타임 의존성을 추가하지
+않는다. 소비자 통합과 운영 수락은 G17에서 별도로 추적한다.
+
+<a id="verified-inputs-and-private-journal"></a>
+
+## 검증된 입력과 비공개 저널
+
+`gateway-run-binding/v1`은 정확한 Codex 바이너리·상태 호환성, gateway
+바이너리·설정, 해석된 경로·프로필·어댑터·한도, 자격 증명 소유자 realm/세대,
+thread·이력 정체성, 완료 도구 ID, 복구 상태와 호스트 요청 예산을 포함한다.
+Prompt, 도구 결과, 키, 키 지문이나 승인 결정은 담지 않는다.
+
+호스트는 검증한 실행 파일, 내장 manifest, 권위 있는 자격 증명 소유자와
+비공개 이력에서 현재 정체성을 도출한다. 기록 자체만으로는 이 사실을 증명할 수
+없다. `thread/resume` 전에 `resume(record, identity, thread)`으로 현재 입력을
+대조한다. 이후 실제 제어 응답의 모델·공급자가 반환된 기대값과 같은지 확인한 뒤
+`turn/start`를 보낸다. 별칭 매핑, 바이너리, 프로필, 상태 호환성, 자격 증명 세대나
+이력 digest가 바뀌면 비교가 실패한다.
+
+호스트는 전이를 직렬화하고 반환된 revision을 비공개 저널에 원자적으로 기록해야
+한다. 이전 revision과 호환 이력 백업을 보존한다. 각 revision은 이전 기록
+digest를 연결하며, revision을 내구성 있게 저장한 뒤 current 포인터를 갱신한다.
+낡은 포인터 때문에 진행 중 요청이 재실행돼서는 안 된다. 파일시스템 경계,
+비공개 mode, 잠금, 중단 복구와 백업 복원은 호출자 책임이다. 합성 시험은
+불변 revision과 원자적 포인터를 보여주며 생산 영속화는 호스트가 소유한다.
+
+새 Codex thread는 첫 rollout 파일이 생기기 전에 이력 경로를 선언할 수 있다.
+`history_sha256: null`은 아직 파일로 생성되지 않은 이력을 뜻하며 완료 turn이나
+재개를 qualification할 수 없다. 첫 요청 완료 후 실제 바이트를 연결한다.
+고정 alpha는 `includeTurns: false`인 `thread/read` 메타데이터를 지원한다.
+Turn 목록 요청은 미지원으로 응답한다. 비공개 이력 파일의 해시를 확인하는 데
+이 미지원 목록 요청은 필요하지 않다.
+
+<a id="transitions-and-recovery"></a>
+
+## 전이와 복구
+
+- `create`: 새 thread와 검증된 현재 origin을 연결한다.
+- `begin`: turn 또는 압축 요청 전에 진행 중 revision을 저장한다. 대기 중
+  도구·승인과 소진된 호스트 요청 예산은 거부한다.
+- `complete`: 관측한 완료 이력과 turn을 연결한다. 완료 도구 ID를 유지하고
+  중복 ID를 거부한다. 도구를 직접 실행하는 호스트는 실행 전에 `admit_tool`도
+  호출한다. Codex 도구 실행은 Codex 권한을 따르며 이 메타데이터 모듈은 실행·승인을 하지 않는다.
+- `interrupted`: upstream 종료를 관측했을 때만 `cancelled`로 기록하고 그 외에는
+  `unknown`으로 남긴다. 중단 후 발견한 pending 기록도 불확실하다. 어느 상태도
+  자동 재개·재시도를 허용하지 않는다.
+- `recover`: 별도의 호스트 복구 확인 참조, 동일 origin, 독립적으로 검증한
+  호환 이력과 완전한 도구 ID 집합을 요구한다. 미해결 도구·승인은 복구를
+  차단한다. 참조는 감사용 정체성이며 사용자 승인 증거는 아니다. 승인은 호출자
+  책임이다. 첫 요청이 완료 turn 없이 중단됐다면 `last_completed_turn: null`을
+  유지하고 완료 정체성을 만들어내지 않는다.
+- `switch`: 명시적 호스트 전이와 새 thread를 요구한다. 이동 가능한 사용자·
+  assistant 텍스트와 완료 도구 결과를 digest로 연결하고 완료 도구 ID, 생략한
+  opaque state와 원본 기록 digest를 보존한다. 대기 중 동작과 암호화 reasoning은
+  이동 맥락에 들어갈 수 없다.
+
+예산은 명시적 압축을 포함한 **호스트 제어 요청**을 센다. 내부 검토자 호출,
+모든 HTTP 시도나 실제 과금 횟수라고 주장하지 않는다. 주 전송 재시도는 0이다.
+공급자·검토자 시도 한도, 모델별 qualification과 실제 비용 한도는 별도 수락이 필요하다.
+
+검증된 로컬 압축만 허용한다. `remote_compaction`은 `unsupported`,
+`compaction`은 `local-only`여야 한다. 고정 Codex는 일반 Responses 요청으로
+요약을 수행하고 대체 이력을 소유한다. 이 정책은 명시적 호스트 압축과 Codex가
+시작한 로컬 압축을 허용하지만, 모든 내부 압축이 별도 호스트 제어 요청이라는
+뜻은 아니다. 호스트는 제어 turn 후 최종 이력 digest를 기록한다. 자동 압축
+임계값에는 G17 소비자 수락이 필요하다. Gateway는 원격 compact와 저장 응답
+endpoint를 계속 거부한다. 새 런타임·프로필은 실제 선택하는 압축 경로를 다시 증명해야 한다.
+
+<a id="reproducible-validation"></a>
+
+## 재현 가능한 검증
+
+```sh
+python3 -B -m unittest discover -s scripts/tests -p 'test_continuity_contract.py' -v
+python3 -B scripts/codex_runtime.py prepare
+cargo build --locked
+python3 -B tests/codex/continuity.py
+```
+
+실제 고정 Codex 시험은 합성 루프백 upstream만 사용한다. 함수 결과가 다음
+turn에 유지되는지, 명시적 로컬 압축, 후속 turn, gateway/Codex 재시작과 새
+thread의 명시적 모델 전환을 확인한다. 필요한 각 upstream 요청에 필수 sentinel과
+완료 도구 결과가 있어야 한다. 도구는 한 번 실행되며 origin binding 변경
+6가지는 새 요청 전에 거부된다. 원격 compact endpoint는 호출하지 않는다.
+공개 결과는 버전, 상태와 요청 횟수만 포함한다.
+
+이 시험은 실제 모델 요약 품질, 공급자 qualification, 소비자 워크플로 수락,
+생산 활성화나 릴리스 준비를 증명하지 않는다. 소비자는 이 계약을 자신의
+비공개 영속화·제어 경로 및 권한·승인·복구 검사에 연결한다. G17은 이 통합을
+재사용 계약과 실제 공급자·생산 수락에서 구분해 추적한다.

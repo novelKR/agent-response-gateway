@@ -1,48 +1,60 @@
-# 별도 상용 라이선스 정책
+<a id="별도-상용-라이선스-정책"></a>
 
-이 프로젝트의 공개 라이선스는 [AGPL-3.0-only](LICENSE)다. 해당 조건에
-따라 상업적으로 이용하는 것도 가능하다. 기업 사용이나 유료 서비스라는
-이유만으로 별도 계약 구매 의무가 생긴다고 해석하지 않는다.
+# Separately negotiated commercial licensing
 
-프로젝트는 향후 권한을 가진 권리자와 이용자 사이의 **별도 서면 계약**으로
-AGPL과 다른 조건을 제공하는 방식을 지향한다. 비공개 통합·재배포·OEM,
-유지보수와 지원 등의 범위는 실제 계약에서 정한다.
+[English](COMMERCIAL-LICENSING.md) | [한국어](COMMERCIAL-LICENSING.ko.md)
 
-이 문서는 상용 이용권, 예외, 면책 또는 서브라이선스 권한을 부여하는
-계약이 아니다. 체결된 대체 계약이 없다면 공개 라이선스가 적용된다.
-현재 권리자 표시, 계약 담당 연락처, 표준 상용 계약과 가격은 확정되지 않았다.
-이중 라이선스 정책을 준비한 상태이며 상용 계약 체계가 완성되었다고
-표현하지 않는다.
+The public project license is [AGPL-3.0-only](LICENSE). Commercial use is possible
+under those terms. Operating a business or a paid service does not, by itself,
+create an obligation to purchase a separate contract.
 
-## 버전별 적용 조건
+The project intends to offer different terms through a **separate written
+agreement** between an authorized rights holder and a licensee. The actual
+agreement determines the scope of private integration, redistribution, OEM use,
+maintenance and support.
 
-| 버전·배포 상태 | 공개 이용 조건 | 대체 조건 | 권리·계약 준비 상태 |
+This document grants no commercial entitlement, exception, waiver or sublicense.
+Without an executed alternative agreement, the public license applies. The rights
+holder designation, contracting contact, standard commercial agreement and prices
+are not finalized. A dual-licensing policy is being prepared; the commercial
+contracting framework is not represented as complete.
+
+<a id="버전별-적용-조건"></a>
+
+## Terms by version
+
+| Version and distribution status | Public terms | Alternative terms | Rights and contracting readiness |
 |---|---|---|---|
-| `0.1.0` — 미출시 개발 버전 | AGPL-3.0-only | 권한 있는 권리자와 체결한 별도 계약이 있을 때 그 계약에 따름 | 권리자·기여 계약·표준 상용 계약 미확정 |
+| `0.1.0` — unreleased development version | AGPL-3.0-only | The terms of an executed separate agreement with an authorized rights holder, if one exists | Rights holder, contribution agreement and standard commercial contract not finalized |
 
-이 표와 [관리 정책](licensing/policy.json)은 현재 확인된 상태만 기록한다.
-새 버전의 조건은 해당 버전의 기록으로 관리하며, 과거에 제공한 버전의 허가를
-새 정책으로 소급해서 바꾸었다고 표현하지 않는다. 실제 릴리스가 없으면
-릴리스 태그·배포 URL·계약 완료 상태를 만들어 넣지 않는다.
+This table and the [management policy](licensing/policy.json) record only verified
+status. Record a new version's terms for that version; do not claim a new policy
+retroactively changes permission for an earlier distributed version. Do not invent
+release tags, download URLs or completed agreements when no release exists.
 
-버전별 조건, 실제 이용 경로와 제3자 권리를 구분해 검토한다.
-별도 브랜치·배포 경로나 다른 언어로의 포팅만으로 제3자 조건이 사라지지 않는다.
+Review version-specific terms, the actual use and third-party rights separately.
+A separate branch, distribution channel or port to another language does not
+remove third-party conditions.
 
-## 기여와 제3자 권리
+<a id="기여와-제3자-권리"></a>
 
-외부 기여를 받기 전에는 공개·상용 양쪽으로 배포할 수 있는 충분한 권한을
-확보해야 한다. 필요한 기여 조건은 [기여 정책](CONTRIBUTING.md)에 설명한다.
-제3자 코드와 의존성은 각자의 라이선스를 유지하며, 프로젝트의 상용 계약이
-이들의 권리를 자동으로 변경하지 않는다.
+## Contributions and third-party rights
 
-의존성의 선언·선택·고지 원문·해시는 [라이선스 관리 자료](licensing/README.md)에서
-관리한다. 검사 통과는 허용한 라이선스 조건과 기록의 일치 확인이며, 상용 계약
-체결이나 저작권 권원의 확정이 아니다. 계약·기여 동의서 등 비공개 증빙은
-공개 소스·고지·CI 산출물에 넣지 않는다.
+Before accepting external contributions, establish sufficient rights to distribute
+the same implementation under both the public and commercial arrangements. The
+[contribution policy](CONTRIBUTING.md) describes the required terms. Third-party
+code and dependencies retain their own licenses; the project's commercial
+agreement does not automatically change those rights.
 
-배포나 계약을 확정할 때는 권리 보유, 기여 조건, 실제 결합 방식과 소스 제공
-의무를 검토한다. 별도 프로세스·HTTP 통신이라는 사실만으로 라이선스
-독립성이 확정되는 것으로 취급하지 않는다.
+Dependency declarations, selections, original notices and hashes are managed in
+the [licensing records](licensing/README.md). A passing check establishes agreement
+with the allowed-license policy and records. It does not establish an executed
+commercial agreement, ownership or authority to relicense. Keep private contracts
+and contribution consents out of public source, notices and CI artifacts.
 
-참고: [GNU GPL FAQ](https://www.gnu.org/licenses/gpl-faq.html),
-[GNU AGPLv3 제13조](https://www.gnu.org/licenses/agpl-3.0.html#section13).
+Before distributing or contracting, review rights ownership, contribution terms,
+the actual combination of components and source-provision obligations. Separate
+processes or HTTP communication alone do not establish licensing independence.
+
+References: [GNU GPL FAQ](https://www.gnu.org/licenses/gpl-faq.html),
+[GNU AGPLv3 section 13](https://www.gnu.org/licenses/agpl-3.0.html#section13).

@@ -1,10 +1,16 @@
+<a id="고정-codex-실행-계약"></a>
+
 # Pinned Codex contract
+
+[English](codex-contract.md) | [한국어](ko/codex-contract.md)
 
 The temporary test baseline is the official Codex **0.154.0-alpha.6** package for macOS ARM64.
 `tests/codex/runtime-lock.json` records the official archive URL, byte size and
 SHA-256, each executable/package member, and stable/experimental generated schema
 bundle digests. These values were obtained from the official release and the
 verified executable, not from a consumer's private configuration or generated logs.
+
+<a id="준비와-검증"></a>
 
 ## Preparation and verification
 
@@ -26,6 +32,8 @@ The official archive digest is
 The generated stable and experimental bundles have different digests; choose the
 matching profile instead of treating experimental fields as stable protocol.
 
+<a id="제어-인터페이스와-모델-인터페이스"></a>
+
 ## Control and model interfaces
 
 Use stdio JSONL control: initialize once, send initialized, start a thread and
@@ -38,6 +46,8 @@ The conformance profile uses a dedicated CODEX_HOME, synthetic credentials and a
 loopback custom provider with HTTP and stream retries disabled. It does not use
 personal authentication, WebSockets or provider fallback. Tools and approvals
 remain in Codex and the host, not the gateway.
+
+<a id="필수-수락-기준"></a>
 
 ## Required acceptance
 
@@ -62,6 +72,8 @@ The harness records which tests actually ran; the [current three-route suite](co
 extends the original G04 baseline. Binary integrity,
 schema generation and synthetic archive tests alone are not Codex conformance,
 provider qualification, consumer acceptance or a production release.
+
+<a id="임시-기준과-안정판-교체"></a>
 
 ## Temporary baseline and stable replacement
 

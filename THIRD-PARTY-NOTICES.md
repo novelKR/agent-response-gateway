@@ -1,28 +1,35 @@
-# 제3자 구성요소와 출처
+<a id="제3자-구성요소와-출처"></a>
 
-프로젝트의 신규 소스에는 AGPL-3.0-only를 적용한다. Rust 의존성에는 각각의
-라이선스가 적용되며 프로젝트 라이선스가 원래 허가와 고지를 대체하지 않는다.
+# Third-party components and provenance
 
-`Cargo.toml`은 직접 의존성을, `Cargo.lock`은 실제 해결된 의존성 버전을
-기록한다. 이 문서는 고지 자료의 안내다. 실제 버전별 선언·선택 기록은
-[의존성 기록](licensing/dependencies.json), 패키지별 고지와 원문 링크는
-[생성된 고지](licensing/THIRD-PARTY-NOTICES.md), 검사·갱신 절차는
-[라이선스 관리 안내](licensing/README.md)에서 관리한다.
+[English](THIRD-PARTY-NOTICES.md) | [한국어](THIRD-PARTY-NOTICES.ko.md)
 
-고지 원문은 `licensing/texts/`에 바이트와 해시를 보존한다. 목록은 잠금 파일의
-모든 플랫폼·빌드·개발 의존성을 포함하며 모두가 실제 바이너리에 링크됐다는
-뜻은 아니다. 프로젝트의 별도 상용 계약은 제3자 고지나 허가를 대체하지 않는다.
+New project source is AGPL-3.0-only. Rust dependencies have their own licenses;
+the project license does not replace their original permissions or notices.
 
-배포 전에는 잠금 파일 기준으로 의존성 메타데이터와 배포 대상에 포함되는
-코드를 조사하고, 각 패키지의 `LICENSE`, `COPYING`, `NOTICE` 등 요구되는
-원문을 확인한다. `license_audit.py check`가 기록과 원본을 대조하고 `bundle`이
-고지 묶음을 만든다. 메타데이터의 SPDX 식별자만으로 필요한 저작권 고지가
-충족된다고 간주하지 않는다. 시스템 라이브러리·컨테이너·번들 실행 파일은
-별도 검토 대상이며 절차는 [배포 문서](docs/release.md)를 따른다.
+`Cargo.toml` records direct dependencies and `Cargo.lock` records resolved versions.
+This document is a guide to the evidence. The [dependency record](licensing/dependencies.json)
+contains version-specific declarations and selections. The [generated notices](licensing/THIRD-PARTY-NOTICES.md)
+link each package to its originals. The [license guide](licensing/README.md) covers
+verification and updates.
 
-## 라이선스 본문 출처
+Original notice bytes and hashes are preserved under `licensing/texts/`. The
+inventory includes dependencies for every platform, build and development scope;
+it does not claim all entries are linked into the final binary. The project's
+commercial agreement does not replace third-party notice or permission requirements.
 
-`LICENSE`는 GNU 공식 원문
-<https://www.gnu.org/licenses/agpl-3.0.txt>에서 내려받은 AGPLv3 전문이다.
-본문을 수정하지 않는다. 프로젝트의 버전 선택은 Cargo 메타데이터와
-문서에서 `AGPL-3.0-only`로 지정한다.
+Before distribution, inspect locked dependency metadata and the code actually
+included in the target. Verify each package's required `LICENSE`, `COPYING`,
+`NOTICE` and other originals. `license_audit.py check` compares records with the
+sources; `bundle` creates a notice collection. An SPDX metadata identifier alone
+does not establish that required copyright notices are present. System libraries,
+containers and bundled executables need separate inspection under the
+[release procedure](docs/release.md).
+
+<a id="라이선스-본문-출처"></a>
+
+## Source of the license text
+
+`LICENSE` is the complete AGPLv3 text obtained from the GNU original at
+<https://www.gnu.org/licenses/agpl-3.0.txt>. Do not edit its body. Cargo metadata
+and the documentation specify the project's version selection as `AGPL-3.0-only`.

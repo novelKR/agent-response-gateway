@@ -1,4 +1,8 @@
+<a id="미공개-배포-후보"></a>
+
 # Unpublished release candidates
+
+[English](packaging.md) | [한국어](ko/packaging.md)
 
 G18 builds and verifies candidates for x86_64-unknown-linux-gnu on Ubuntu 24.04
 and aarch64-apple-darwin on macOS 15. The build requires native Rust 1.98.0 and
@@ -43,6 +47,8 @@ Source and binary archives both run the existing public-boundary checker. Cargo'
 package inclusion list is inspected separately. The source archive includes the
 scripts required to rebuild the corresponding source.
 
+<a id="목록-범위와-고지"></a>
+
 ## Inventory scope and notices
 
 Cargo metadata is filtered to the target, then matched against actual successful
@@ -74,6 +80,8 @@ contains no Codex executable.
 Primary inventory contracts are [Cargo metadata](https://doc.rust-lang.org/cargo/commands/cargo-metadata.html),
 [CycloneDX 1.6](https://cyclonedx.org/docs/1.6/json/), and the Rust project's
 [copyright inventory description](https://github.com/rust-lang/rust/blob/main/COPYRIGHT).
+
+<a id="검증과-승격-경계"></a>
 
 ## Validation and promotion boundary
 

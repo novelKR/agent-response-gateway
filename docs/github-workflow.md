@@ -1,7 +1,13 @@
+<a id="github-개발검증배포-절차"></a>
+
 # GitHub delivery workflow
+
+[English](github-workflow.md) | [한국어](ko/github-workflow.md)
 
 The [roadmap](roadmap.md) defines M0–M7. GitHub milestones and work-item issues
 track implementation separately from validation, qualification and adoption.
+
+<a id="브랜치커밋검토"></a>
 
 ## Branches, commits and reviews
 
@@ -22,6 +28,8 @@ and release changes require explicit approval. Design-only work items precede
 their implementation. A label is a tracking aid, not the source of approval.
 An agent review is not an independent human GitHub approval. Do not self-approve
 a PR using the author's identity.
+
+<a id="필수-검사"></a>
 
 ## Required checks
 
@@ -46,6 +54,8 @@ Do not execute untrusted PR code with write credentials or on a consumer host.
 Keep runtime execution logs, private content and provider payloads out of public
 artifacts. Tests use synthetic inputs and mock upstreams, even when exercising
 the real pinned Codex executable.
+
+<a id="릴리스와-의존성-변경"></a>
 
 ## Release and dependency changes
 

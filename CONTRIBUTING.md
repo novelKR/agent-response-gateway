@@ -1,49 +1,59 @@
-# 기여 정책
+<a id="기여-정책"></a>
 
-공개 저장소의 [Issues](https://github.com/novelKR/agent-response-gateway/issues)에서
-문제 설명, API 계약에 대한 의견과 비밀정보를 포함하지 않는 재현 절차를 받는다.
-별도 계약 연락처나 계약 체결 기능을 제공하는 문서는 아니다.
+# Contribution policy
 
-**외부 코드 기여 병합은 권리자 및 기여 계약 확정 전까지 보류한다.** 공개판과
-별도 상용 계약판에 동일한 구현을 사용할 수 있는 충분한 권한을 확보하기
-위한 정책이다. 현시점에 CLA 서명이나 저작권 양도가 완료되었다고 간주하지
-않는다. DCO 서명만으로 대체 라이선스 권한까지 확보했다고 판단하지 않는다.
+[English](CONTRIBUTING.md) | [한국어](CONTRIBUTING.ko.md)
 
-외부 코드 기여를 열기 전에 다음을 결정한다.
+Use the public repository's [Issues](https://github.com/novelKR/agent-response-gateway/issues)
+for problem reports, API contract feedback and reproduction steps without secrets.
+This document does not provide a commercial contracting contact or execute an agreement.
 
-- 기여자가 가진 권리와 제3자 구성요소의 출처를 확인하는 절차.
-- 공개판과 별도 계약판에 필요한 수정·배포·재라이선스 허가 범위.
-- 권리자, 계약 주체, 기여 조건과 동의 기록을 보존하는 방식.
+**Merging external code contributions is on hold until the rights holder and
+contribution terms are established.** This policy requires sufficient permission
+to use the same implementation in the public edition and a separately contracted
+edition. Do not assume a CLA has been signed or copyright transferred. A DCO
+sign-off alone does not establish alternative-licensing rights.
 
-외부 기여·포팅·복사 코드의 검토에는 다음 기록이 필요하다. 공개 기록에는
-공개 가능한 출처와 허가 조건만 넣고, 동의서·계약 및 내부 식별정보는 독립적인
-비공개 이력으로 보존한다. 정책 문서를 만드는 행위로 실제 동의가 생기지는 않는다.
+Before opening external code contributions, define:
 
-| 항목 | 기록할 내용 |
+- How to verify the contributor's rights and the provenance of third-party components.
+- The modification, distribution and relicensing permissions required for both editions.
+- The rights holder, contracting party, contribution terms and retention of consent records.
+
+Review external contributions, ports and copied code using the records below.
+Public records contain only publishable provenance and permission terms. Retain
+consents, contracts and internal identifiers in independent private history.
+Writing a policy does not create consent.
+
+| Item | Required record |
 |---|---|
-| 원본 | 공개 원본 위치, 정확한 버전 또는 커밋, 가져온 범위 |
-| 허가 | 원래 라이선스 식, 선택한 허가, 필요한 원문·저작권·변경 고지 |
-| 출처 증빙 | 원본 및 고지의 해시, 라이선스 예외가 있다면 그 근거 |
-| 배포 권한 | 공개판과 별도 계약 배포에 필요한 권한의 확인 근거와 미확정 사항 |
+| Original | Public source location, exact version or commit and imported scope |
+| Permission | Original license expression, selected permission and required license, copyright and change notices |
+| Provenance evidence | Source and notice hashes, plus evidence supporting any license exception |
+| Distribution rights | Evidence and unresolved questions about permission for public and separately contracted distribution |
 
-라이선스 검사·테스트 통과, DCO와 일반적인 기여 동의를 상용 재라이선스 권한으로
-취급하지 않는다. 권리 확인이 필요한 부분이 남으면 병합 보류 상태를 유지한다.
+Do not treat license checks, passing tests, DCO sign-offs or general contribution
+consent as commercial relicensing authority. Keep the merge on hold while required
+rights remain unresolved.
 
-내부 개발 시에는 기존 파일을 읽고 작은 변경으로 구현하며
-`cargo fmt --check`, `cargo clippy --all-targets --locked -- -D warnings`,
-`cargo test --locked`를 실행한다. 실제 API 키가 필요한 테스트를 기본 CI에
-추가하지 않는다. 테스트는 공개 가능한 합성 데이터와 모의 공급자를 사용한다.
+For internal development, read existing files, make a focused change, and run
+`cargo fmt --check`, `cargo clippy --all-targets --locked -- -D warnings` and
+`cargo test --locked`. Do not add tests requiring real API keys to default CI.
+Use publishable synthetic data and mock providers.
 
-의존성을 바꿀 때는 [라이선스 관리 절차](licensing/README.md)에 따라 잠금 파일,
-선택 기록과 고지 원문을 같은 변경에서 검토한다. `refresh`는 검토할 diff를
-생성하고 `check`는 일치 여부를 검사한다. 허용 목록이나 보완 원문을 넓혀
-실패를 숨기지 않는다. Python 검증에는 3.11 이상을 사용한다.
+When changing dependencies, review the lockfile, license selections and original
+notices in the same change under the [license-management procedure](licensing/README.md).
+`refresh` produces a reviewable diff; `check` verifies consistency. Do not expand
+the allowlist or supplemental notices to hide a failure. Python checks require
+version 3.11 or later.
 
-다른 구현체나 비공개 소비자 프로젝트의 코드·테스트를 무단으로 가져오지
-않는다. 허용되는 재사용도 원래 저작권·라이선스 고지와 출처를 보존한다.
-원고, 설정 자료, 사내 데이터나 인증정보를 issue·PR·fixture에 넣지 않는다.
-소비자 이름·저장소 주소·내부 구조를 공개하는 대신 일반적인 통합 요구로
-설명한다. 공개 문서와 로컬 기록의 분리는 [문서 관리](docs/documentation.md)를 따른다.
+Do not import code or tests from another implementation or a private consumer
+without authorization. Permitted reuse must preserve original copyright, license
+notices and provenance. Do not put manuscripts, configuration material, internal
+business data or credentials into issues, PRs or fixtures. Describe generic
+integration requirements without exposing consumer names, repository URLs or
+internal topology. Follow [documentation management](docs/documentation.md) to
+separate public documentation and local records.
 
-API 변경은 [지원 계약](docs/protocol.md), 소비자 책임 변경은
-[통합 경계](docs/integration.md)와 함께 검토한다.
+Review API changes with the [support contract](docs/protocol.md), and consumer
+responsibility changes with the [integration boundaries](docs/integration.md).

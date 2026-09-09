@@ -1,10 +1,16 @@
+<a id="서명-후보와-보호된-preview-승격"></a>
+
 # Signed candidates and protected preview promotion
+
+[English](release-promotion.md) | [한국어](ko/release-promotion.md)
 
 G19 adds two manually dispatched workflows. Release candidate builds and signs
 the exact selected main commit after that commit's push CI succeeds. Preview
 promotion verifies the retained candidate, presents its receipt, waits for the
 protected release environment, then publishes the same bytes as a prerelease.
 Neither workflow qualifies live providers or consumer operation.
+
+<a id="빌드와-서명-경계"></a>
 
 ## Build and signing boundaries
 
@@ -34,6 +40,8 @@ invocation to the exact candidate run ID and attempt. A checksum-only or PR
 candidate cannot pass this contract. The local synthetic tests do not establish
 that an actual signature was generated or verified; a successful signed workflow
 and independent verification of its downloaded bytes provide that evidence.
+
+<a id="검토와-승격"></a>
 
 ## Review and promotion
 
@@ -66,6 +74,8 @@ only missing matching assets without overwrite, verifies GitHub's asset digests,
 publishes as prerelease with make_latest=false, then reads back the release,
 complete asset set and exact tag commit. An existing tag or release with a
 different source, metadata or asset digest is rejected.
+
+<a id="실패와-복구"></a>
 
 ## Failure and recovery
 

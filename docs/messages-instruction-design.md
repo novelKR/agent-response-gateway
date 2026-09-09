@@ -1,8 +1,14 @@
+<a id="messages-지시-역할-변환--승인-부록"></a>
+
 # Messages instruction-role lowering — approval addendum
+
+[English](messages-instruction-design.md) | [한국어](ko/messages-instruction-design.md)
 
 Status: explicitly approved on 2026-09-08 after detailed review of the semantic
 limits. G07/G08 implement the bridge. This document preserves its approved design
 and acceptance boundaries; the [Messages support contract](messages.md) describes current behavior.
+
+<a id="관측된-경계"></a>
 
 ## Observed boundary
 
@@ -16,6 +22,8 @@ with no distinct developer-message role. See the [Messages reference](https://pl
 Responses retains [explicit input instruction roles](https://developers.openai.com/api/reference/typescript/resources/responses/methods/create).
 The current route cannot truthfully declare native instruction-hierarchy support.
 A successful mock response would not establish equivalent model behavior.
+
+<a id="권고와-정확한-동작"></a>
 
 ## Recommendation and exact proposed behavior
 
@@ -41,6 +49,8 @@ The profile must explicitly declare the bridge. Existing profiles/configs retain
 current behavior. A missing rule rejects the request before dispatch. The target
 Codex profile must also disable unsupported hosted tool search and unsupported
 reasoning options; do not strip these fields at the gateway.
+
+<a id="대안과-영향-경계"></a>
 
 ## Alternatives and affected boundaries
 

@@ -1,8 +1,14 @@
+<a id="g13--호스트가-소유하는-내장-프로세스-계약"></a>
+
 # G13 — Host-owned embedded process contract
+
+[English](embedded-design.md) | [한국어](ko/embedded-design.md)
 
 Status: **explicitly approved on 2026-09-08; implemented and covered by synthetic contract tests**.
 This is a generic gateway contract. It does not activate a consumer, select a
 consumer runtime upgrade, enable service mode or create a release.
+
+<a id="근거원인권고"></a>
 
 ## Evidence, root cause and recommendation
 
@@ -26,6 +32,8 @@ semantically identical reformattings and leaves the host without a standardized
 resolved-route report. The selected M5 contract instead makes that reusable report
 explicit. No gateway process manager or consumer-specific orchestration layer is
 needed.
+
+<a id="cli와-manifest-제안"></a>
 
 ## Proposed CLI and manifest
 
@@ -63,6 +71,8 @@ integrity separately under the release/consumer adoption contract.
 Keep `check-config` behavior compatible. Do not introduce another configuration
 file format, write configuration during inspection, or allow manifest input to
 choose a different endpoint or bypass normal configuration validation.
+
+<a id="준비-통지와-수명"></a>
 
 ## Readiness and lifecycle
 
@@ -104,6 +114,8 @@ workflow approval or consumer operational acceptance. Existing HTTP readiness an
 model-list meanings remain unchanged. No HTTP shutdown/admin/manifest endpoint is
 added; process supervision stays with the parent.
 
+<a id="인증과-접근-범위"></a>
+
 ## Authentication and access scope
 
 One local bearer token authorizes the existing protected endpoints for every model
@@ -118,6 +130,8 @@ and one attempt per gateway request. Do not change the host's tool sandbox,
 user-approval policy or domain authority when selecting a gateway model route.
 The host owns the credential realm/generation required for resume. A matching
 manifest or environment-variable name cannot substitute for that generation.
+
+<a id="호환성과-연속성"></a>
 
 ## Compatibility and continuity
 
@@ -140,6 +154,8 @@ G14 must present its concrete consumer integration and any runtime or authentica
 mode change for separate approval. No model/provider spend or production activation
 is authorized here.
 
+<a id="대안비용위험"></a>
+
 ## Alternatives, cost and risks
 
 | Alternative | Consequence |
@@ -156,6 +172,8 @@ are separate, larger G14/G17 work. The principal risks are digest drift, leaking
 real configuration into shared records, launching Codex before validated readiness,
 and confusing credential references with generations. The explicit schemas,
 synthetic-only publication tests and host-owned launch/recovery rules address them.
+
+<a id="검증과-롤백"></a>
 
 ## Validation and rollback
 
@@ -178,6 +196,8 @@ executable/configuration combination. Older hosts continue reading existing read
 fields; new hosts that require the manifest contract fail explicitly when paired
 with an older binary instead of silently bypassing verification. No state migration
 or destructive cleanup is required.
+
+<a id="구현된-인터페이스"></a>
 
 ## Implemented interface
 

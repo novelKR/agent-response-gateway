@@ -1,4 +1,8 @@
+<a id="실제-codex와-합성-upstream"></a>
+
 # Real Codex, synthetic upstream
+
+[English](README.md) | [한국어](README.ko.md)
 
 This explicit conformance command starts the pinned Codex executable, the actual
 gateway binary and a synthetic loopback HTTP upstream. The upstream supplies
@@ -41,6 +45,8 @@ Runtime processes, upstream threads and temporary workspaces are cleaned up afte
 each scenario. Standard Rust tests still exercise the gateway without requiring
 Codex. See the [pinned contract](../../docs/codex-contract.md).
 
+<a id="이전-실패와-임시-기준"></a>
+
 ## Previous failure and temporary baseline
 
 On stable 0.153.4 the heartbeat cancellation scenario failed: the control turn became
@@ -69,6 +75,8 @@ version does not erase the repeated local reproduction or the source-level gap.
 This fixture does not guarantee a provider will stop already-processed work or
 reverse charges.
 
+<a id="messages-프로필과-확장-검사"></a>
+
 ## Messages profile and extended checks
 
 The current [common matrix](../../docs/conformance.md) has 35 scenarios: nine native
@@ -96,6 +104,8 @@ overhead. See [Messages support](../../docs/messages.md) for the exact profile,
 limitations and one local measurement. Consumer activation and live-model tests
 remain separate from this suite.
 
+<a id="내장-child-계약"></a>
+
 ## Embedded child contract
 
 Before each scenario the harness inspects the offline manifest without credentials,
@@ -107,6 +117,8 @@ The host fixture raises on mismatched readiness or startup timeout and its exist
 cleanup stack reaps started children. Separate script/Rust tests cover malformed
 frames, deadline cleanup, bind failure and graceful shutdown with an active body.
 Executable/release provenance and consumer operational acceptance remain separate.
+
+<a id="연속성"></a>
 
 ## Continuity
 

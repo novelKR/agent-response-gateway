@@ -1,4 +1,8 @@
+<a id="github-작업-단위"></a>
+
 # GitHub work items
+
+[English](work-items.md) | [한국어](ko/work-items.md)
 
 Each work item tracks its own PR and evidence. Issue closure does not imply provider qualification, consumer acceptance or a release. Consumer-owned work is implemented and validated in its own repository.
 

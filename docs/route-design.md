@@ -1,8 +1,14 @@
+<a id="g05--모델-경로와-기능-admission"></a>
+
 # G05 — Model routes and capability admission
+
+[English](route-design.md) | [한국어](ko/route-design.md)
 
 Status: **explicitly approved on 2026-09-08; implemented by G06 and the G09/G12 adapters**.
 This document is the implementation contract for G06 and adapter activation in
 G09/G12. It preserves the existing loopback and stateless transport boundary.
+
+<a id="근거와-권고"></a>
 
 ## Evidence and recommendation
 
@@ -18,6 +24,8 @@ would hide unsupported semantics.
 translation boundary, while retaining the distinct native passthrough path.
 A per-call collection of provider special cases is not a maintainable complete
 alternative. Retaining the original native-only service was a valid limited alternative.
+
+<a id="공개-설정-추가"></a>
 
 ## Public configuration additions
 
@@ -46,6 +54,8 @@ redirect/no-retry rules continue to apply.
 
 `/v1/models` remains the enabled alias list, not a capability certificate. Do not
 silently change its public shape or substitute a different provider/model.
+
+<a id="실행-흐름과-ir-추가"></a>
 
 ## Runtime flow and IR additions
 
@@ -76,6 +86,8 @@ only, never reads or changes files. Bridged post-generation validation is explic
 different from native constrained decoding. Do not emit successful tool completion
 until arguments and required grammar pass. A grammar failure is a failed response.
 
+<a id="codex-전송-필드와-미지원-의미"></a>
+
 ## Codex transport fields and unsupported semantics
 
 | Input | Converted-route policy |
@@ -93,6 +105,8 @@ deleted to obtain a successful response. If the pinned Codex profile sends a
 required feature the target cannot represent, that route remains unqualified.
 The transport-hint exceptions above are the complete initial exception list.
 
+<a id="모델-한도와-책임"></a>
+
 ## Model limits and ownership
 
 Enforce the requested maximum output against the selected model limit before
@@ -106,6 +120,8 @@ model has a verified counting method. Production context acceptance additionally
 requires the host's final settings and counter/estimator evidence in M5/M6. A
 synthetic token-count fixture is not real-model evidence. This staging must be
 approved as part of this proposal; it does not mark the full context goal complete.
+
+<a id="검증호환성복구"></a>
 
 ## Validation, compatibility and rollback
 

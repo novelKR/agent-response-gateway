@@ -1,6 +1,12 @@
+<a id="g15--호스트-이력에-기반한-연속성"></a>
+
 # G15 — Continuity with host-owned history
 
+[English](continuity-design.md) | [한국어](ko/continuity-design.md)
+
 Status: **explicitly approved on 2026-09-08; implementation and acceptance tracked by G16/G17**.
+
+<a id="근거와-권고"></a>
 
 ## Evidence and recommendation
 
@@ -24,6 +30,8 @@ complete-history replay. A new gateway history database, provider-ID emulation o
 encrypted summary envelope is not required by this observed path and is excluded
 from the initial implementation.
 
+<a id="책임과-인터페이스"></a>
+
 ## Responsibilities and interfaces
 
 | Owner | Responsibility |
@@ -37,6 +45,8 @@ Use existing `thread/start`, `thread/resume`, `thread/compact/start`, `turn/star
 and `turn/interrupt` control interfaces. No gateway storage, response lookup or
 compact HTTP endpoint is enabled by this proposal. Unsupported stateful requests
 continue to fail rather than being forwarded to a nonexistent provider ID.
+
+<a id="실행-binding과-복구-기록"></a>
 
 ## Run binding and recovery record
 
@@ -60,6 +70,8 @@ authoritative credential owner; reusing an environment-variable name alone is
 insufficient. If that binding cannot be established, reject same-context resume.
 Do not silently resolve an old alias using changed configuration.
 
+<a id="지원하는-연속-실행-경로"></a>
+
 ## Supported continuation paths
 
 1. **Same process and route:** Codex sends the complete current context and tool
@@ -80,6 +92,8 @@ A provider profile that requests remote compaction is not eligible for this loca
 compaction contract. It remains unsupported until a separate adapter is designed
 and approved. A new Codex version must demonstrate which path it actually uses;
 do not rely on a provider's display name or on old observed behavior.
+
+<a id="불투명-상태취소불확실성"></a>
 
 ## Opaque state, cancellation and uncertainty
 
@@ -103,6 +117,8 @@ pending in the host's workflow.
 The [host contract implementation](continuity.md) defines executable record
 validation and synthetic conformance. Consumer persistence and operational
 acceptance remain separate.
+
+<a id="g16g17-수락과-마이그레이션"></a>
 
 ## G16/G17 acceptance and migration
 
