@@ -26,6 +26,10 @@ crate sources and pinned cargo-deny must already be prepared. Cargo runs offline
 with an explicit release target and sanitized environment, rejects external Cargo
 configuration overrides, and remaps source/cache/toolchain paths. Build artifacts
 stay under target; temporary exports and private build logs stay under .local.
+On Windows, the installed vcvars64.bat initializes the native x64 MSVC environment.
+Only the required build variables are retained, the selected MSVC tools precede
+Git tools on PATH, and DUMPBIN uses the same configured toolset. See the
+[Microsoft command-line build guidance](https://learn.microsoft.com/en-us/cpp/build/building-on-the-command-line).
 The verification command additionally checks that the packaging/smoke tool bytes
 are present in the source archive with the same hashes. Commit tooling changes
 before constructing a verified candidate.

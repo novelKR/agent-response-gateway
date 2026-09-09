@@ -418,8 +418,8 @@
       "order": 1,
       "source": "docs/packaging.md",
       "translation": "docs/ko/packaging.md",
-      "source_sha256": "2ef3ac849ea7f6de6d876ff4aced2c40d595f497fba97940a10333cec0571b99",
-      "translation_sha256": "f0452ea9fcb1c8051b6a5b1234074e087d65264a053aa0e09eeaaca61a3f0681",
+      "source_sha256": "afc16766dce6c55216103366af0732567216257b3808e67eb41e85be4c7676ec",
+      "translation_sha256": "b2c4bfaa9337332640f041832605f66ee861ee4926a46655f511505ce0d26d17",
       "anchors": [
         "inventory-scope-and-notices",
         "unpublished-release-candidates",

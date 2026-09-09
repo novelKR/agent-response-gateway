@@ -93,12 +93,46 @@ def run(args, cwd, env=None, log=None, timeout=1800):
     return result.stdout
 
 
+def msvc_tool(env, name):
+    require(env.get("VCTOOLSINSTALLDIR"), "configured MSVC tool directory missing")
+    return Path(env["VCTOOLSINSTALLDIR"]) / "bin/Hostx64/x64" / name
+
+
+def windows_environment(env, source):
+    # Initialize one installed x64 MSVC environment, not whichever link.exe is on PATH.
+    require(env.get("PROGRAMFILES(X86)") and env.get("COMSPEC"), "Windows build environment missing")
+    vswhere = Path(env["PROGRAMFILES(X86)"]) / "Microsoft Visual Studio/Installer/vswhere.exe"
+    installations = run([vswhere, "-latest", "-products", "*", "-requires", "Microsoft.VisualStudio.Component.VC.Tools.x86.x64", "-property", "installationPath", "-utf8"], source, env).decode("utf-8").splitlines()
+    require(len(installations) == 1, "installed MSVC build environment missing")
+    setup = Path(installations[0]) / "VC/Auxiliary/Build/vcvars64.bat"
+    require(setup.is_file(), "installed x64 MSVC setup missing")
+    with tempfile.TemporaryDirectory(prefix="msvc-env-", dir=source.parent) as temporary:
+        # A fixed batch name avoids nested cmd quoting for paths containing spaces.
+        bootstrap = Path(temporary) / "environment.cmd"
+        write_new(bootstrap, b'@echo off\r\ncall "%ARG_MSVC_SETUP%" >nul\r\nif errorlevel 1 exit /b 1\r\nset\r\n')
+        raw = run([env["COMSPEC"], "/d", "/u", "/c", bootstrap.name], temporary, {**env, "ARG_MSVC_SETUP":str(setup)}, timeout=120)
+    configured = {}
+    for line in raw.decode("utf-16-le").splitlines():
+        key, separator, value = line.partition("=")
+        if separator and key:
+            configured[key.upper()] = value
+    require(configured.get("VSCMD_ARG_TGT_ARCH") == "x64" and configured.get("VSCMD_ARG_HOST_ARCH") == "x64", "MSVC environment must target native x64")
+    require(all(configured.get(key) for key in ["PATH", "INCLUDE", "LIB", "VCTOOLSINSTALLDIR"]), "MSVC library environment incomplete")
+    keys = {"PATH", "INCLUDE", "LIB", "LIBPATH", "VCINSTALLDIR", "VSINSTALLDIR", "VCTOOLSINSTALLDIR", "VCTOOLSVERSION", "VSCMD_ARG_TGT_ARCH", "VSCMD_ARG_HOST_ARCH", "WINDOWSSDKDIR", "WINDOWSSDKVERSION", "WINDOWSSDKBINPATH", "WINDOWSSDKVERBINPATH", "UNIVERSALCRTSDKDIR", "UCRTVERSION"}
+    result = {**env, **{key:value for key,value in configured.items() if key in keys}}
+    require(all(msvc_tool(result, name).is_file() for name in ["link.exe", "dumpbin.exe"]), "configured MSVC linker or DUMPBIN missing")
+    result["PATH"] = str(msvc_tool(result, "link.exe").parent) + os.pathsep + result["PATH"]
+    return result
+
+
 def clean_environment(target_dir, source):
     # Do not inherit provider/GitHub credentials, Cargo feature overrides or compiler wrappers.
     keys = {"PATH", "HOME", "TMPDIR", "LANG", "LC_ALL", "SYSTEMROOT", "RUSTUP_HOME", "CARGO_HOME", "SDKROOT", "DEVELOPER_DIR", "LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH"}
     if os.name == "nt":
-        keys.update({"USERPROFILE", "APPDATA", "LOCALAPPDATA", "TEMP", "TMP", "PROGRAMFILES", "PROGRAMFILES(X86)", "PROGRAMW6432", "COMSPEC", "PATHEXT", "INCLUDE", "LIB", "LIBPATH", "VCINSTALLDIR", "VCTOOLSINSTALLDIR", "WINDOWSSDKDIR", "WINDOWSSDKVERSION", "UNIVERSALCRTSDKDIR", "UCRTVERSION"})
-    env = {k: v for k, v in os.environ.items() if k.upper() in keys}
+        keys.update({"USERPROFILE", "APPDATA", "LOCALAPPDATA", "TEMP", "TMP", "PROGRAMFILES", "PROGRAMFILES(X86)", "PROGRAMW6432", "COMSPEC", "PATHEXT", "WINDIR", "SYSTEMDRIVE"})
+    env = {k.upper(): v for k, v in os.environ.items() if k.upper() in keys}
+    if os.name == "nt":
+        env = windows_environment(env, source)
     env["CARGO_TARGET_DIR"] = str(target_dir)
     env["CARGO_INCREMENTAL"] = "0"
     sysroot = run(["rustc", "--print", "sysroot"], source, env).decode().strip()
@@ -293,12 +327,7 @@ def macos_versions(load):
 
 def dynamic_linkage(binary, target, env):
     if TARGETS[target]["format"] == "PE":
-        program_files = next((v for k, v in env.items() if k.upper() == "PROGRAMFILES(X86)"), None)
-        require(program_files is not None, "MSVC installer location missing")
-        vswhere = Path(program_files) / "Microsoft Visual Studio/Installer/vswhere.exe"
-        found = run([vswhere, "-latest", "-products", "*", "-requires", "Microsoft.VisualStudio.Component.VC.Tools.x86.x64", "-find", "VC/Tools/MSVC/*/bin/Hostx64/x64/dumpbin.exe"], ROOT, env).decode().splitlines()
-        require(found, "installed MSVC DUMPBIN missing")
-        dumpbin = Path(sorted(found)[-1])
+        dumpbin = msvc_tool(env, "dumpbin.exe")
         headers = run([dumpbin, "/HEADERS", binary], ROOT, env).decode()
         dependencies = run([dumpbin, "/DEPENDENTS", binary], ROOT, env).decode()
         require(re.search(r"8664 machine \(x64\)", headers, re.IGNORECASE) and re.search(r"20B magic # \(PE32\+\)", headers, re.IGNORECASE), "candidate is not an x64 PE executable")

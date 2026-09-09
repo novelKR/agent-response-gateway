@@ -23,7 +23,11 @@
 작업 파일은 소스 빌드에 들어가지 않는다. 잠금 crate 원본과 고정 cargo-deny는
 미리 준비해야 한다. Cargo는 명시적 release target과 정리된 환경으로 오프라인
 실행하고 외부 Cargo 설정 override를 거부하며 소스·캐시·도구 경로를 재매핑한다.
-빌드 결과는 target, 임시 소스와 비공개 빌드 로그는 .local에 둔다. 검증 명령은
+빌드 결과는 target, 임시 소스와 비공개 빌드 로그는 .local에 둔다. Windows에서는
+설치된 vcvars64.bat로 네이티브 x64 MSVC 환경을 초기화한다. 필요한 빌드 변수만
+유지하고 PATH에서 선택한 MSVC 도구를 Git 도구보다 앞에 두며 DUMPBIN도 같은
+설정의 도구 모음을 사용한다. [Microsoft 명령줄 빌드 안내](https://learn.microsoft.com/en-us/cpp/build/building-on-the-command-line)를 참고한다.
+검증 명령은
 패키지·smoke 도구가 동일 hash로 소스 압축파일에 포함됐는지도 확인한다.
 검증 후보를 만들기 전에 도구 변경을 커밋해야 한다.
 

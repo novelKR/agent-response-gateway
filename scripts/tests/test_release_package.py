@@ -164,14 +164,33 @@ class ReleasePackageTests(unittest.TestCase):
                 with patch.object(package, "MAX_FILE", 1 if change == "size" else package.MAX_FILE), self.assertRaises(package.PackageError):
                     package.archive_files(path)
 
+    def test_windows_build_selects_native_msvc_before_git_link_and_filters_setup_output(self):
+        env = {"PATH":"synthetic-git-bin", "COMSPEC":"cmd.exe", "PROGRAMFILES(X86)":"C:/Program Files (x86)"}
+        configured = "Path=synthetic-sdk-path\r\nINCLUDE=synthetic-headers\r\nLIB=synthetic-libraries\r\nVCToolsInstallDir=C:/VS/VC/Tools/MSVC/14.50/\r\nVSCMD_ARG_TGT_ARCH=x64\r\nVSCMD_ARG_HOST_ARCH=x64\r\nGH_TOKEN=do-not-inherit\r\nRUSTFLAGS=do-not-inherit\r\n"
+        with tempfile.TemporaryDirectory(prefix="source with spaces ") as temporary:
+            for arch in ["x64", "x86"]:
+                with self.subTest(arch=arch), patch.object(package, "run", side_effect=[b"C:/Program Files/VS\r\n", configured.replace("TGT_ARCH=x64", "TGT_ARCH=" + arch).encode("utf-16-le")]) as run, patch.object(Path, "is_file", return_value=True):
+                    if arch != "x64":
+                        with self.assertRaises(package.PackageError):
+                            package.windows_environment(env, Path(temporary)/"source")
+                        continue
+                    result = package.windows_environment(env, Path(temporary)/"source")
+                    self.assertTrue(result["PATH"].startswith(str(Path("C:/VS/VC/Tools/MSVC/14.50/bin/Hostx64/x64")) + package.os.pathsep))
+                    self.assertEqual(result["LIB"], "synthetic-libraries")
+                    self.assertNotIn("GH_TOKEN", result)
+                    self.assertNotIn("RUSTFLAGS", result)
+                    self.assertEqual(run.call_args_list[1].args[0], ["cmd.exe", "/d", "/u", "/c", "environment.cmd"])
+                    self.assertEqual(run.call_args_list[1].args[2]["ARG_MSVC_SETUP"], str(Path("C:/Program Files/VS/VC/Auxiliary/Build/vcvars64.bat")))
+
     def test_pe_inspection_uses_installed_dumpbin_and_records_external_dlls(self):
-        raw = [b"C:/VS/VC/Tools/MSVC/14.50/bin/Hostx64/x64/dumpbin.exe\n", b"Microsoft (R) COFF/PE Dumper Version 14.50.1\n8664 machine (x64)\n20B magic # (PE32+)\n", b"  KERNEL32.dll\n  VCRUNTIME140.dll\n"]
+        raw = [b"Microsoft (R) COFF/PE Dumper Version 14.50.1\n8664 machine (x64)\n20B magic # (PE32+)\n", b"  KERNEL32.dll\n  VCRUNTIME140.dll\n"]
         with patch.object(package, "run", side_effect=raw) as run:
-            value = package.dynamic_linkage(Path("gateway.exe"), "x86_64-pc-windows-msvc", {"PROGRAMFILES(X86)":"C:/Program Files (x86)"})
+            value = package.dynamic_linkage(Path("gateway.exe"), "x86_64-pc-windows-msvc", {"VCTOOLSINSTALLDIR":"C:/VS/VC/Tools/MSVC/14.50"})
             self.assertEqual(value["libraries"], ["kernel32.dll", "vcruntime140.dll"])
             self.assertEqual(value["inspection_tool"]["version"], "14.50.1")
-            self.assertIn("/HEADERS", run.call_args_list[1].args[0])
-            self.assertIn("/DEPENDENTS", run.call_args_list[2].args[0])
+            self.assertIn("/HEADERS", run.call_args_list[0].args[0])
+            self.assertIn("/DEPENDENTS", run.call_args_list[1].args[0])
+            self.assertEqual(run.call_args_list[0].args[0][0], Path("C:/VS/VC/Tools/MSVC/14.50/bin/Hostx64/x64/dumpbin.exe"))
 
     def test_macos_minimum_version_excludes_dylib_versions(self):
         raw = "cmd LC_BUILD_VERSION\nminos 11.0\nsdk 15.5\ntools 1\ntool LD\nversion 1267.0\ncmd LC_SOURCE_VERSION\nversion 0.0\ncmd LC_ID_DYLIB\nversion 1267.0"
