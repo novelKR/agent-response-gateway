@@ -10,18 +10,20 @@ import json
 import os
 from pathlib import Path, PurePosixPath
 import re
+import stat
 import subprocess
 import sys
 import tarfile
 import tempfile
 import tomllib
+import zipfile
 from urllib.parse import quote
 
 import check_public_boundary
 import license_audit
+from release_targets import TARGETS
 
 ROOT = Path(__file__).resolve().parents[1]
-TARGETS = {"x86_64-unknown-linux-gnu", "aarch64-apple-darwin"}
 SCHEMA = "gateway-release-candidate/v1"
 MAX_FILE = 64 * 1024 * 1024
 MAX_TOTAL = 256 * 1024 * 1024
@@ -58,7 +60,7 @@ def json_value(data):
 
 def relative_name(value):
     require(isinstance(value, str) and value and not value.startswith("/") and "\\" not in value, "invalid package path")
-    require(all(p not in {"", ".", ".."} for p in value.split("/")), "invalid package path")
+    require(all(p not in {"", ".", ".."} and not p.endswith((".", " ")) and not re.search(r'[\x00-\x1f:<>"|?*]', p) and not re.fullmatch(r"(?i:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\..*)?", p) for p in value.split("/")), "invalid package path")
     return PurePosixPath(value)
 
 
@@ -79,7 +81,9 @@ def run(args, cwd, env=None, log=None, timeout=1800):
 def clean_environment(target_dir, source):
     # Do not inherit provider/GitHub credentials, Cargo feature overrides or compiler wrappers.
     keys = {"PATH", "HOME", "TMPDIR", "LANG", "LC_ALL", "SYSTEMROOT", "RUSTUP_HOME", "CARGO_HOME", "SDKROOT", "DEVELOPER_DIR", "LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH"}
-    env = {k: v for k, v in os.environ.items() if k in keys}
+    if os.name == "nt":
+        keys.update({"USERPROFILE", "APPDATA", "LOCALAPPDATA", "TEMP", "TMP", "PROGRAMFILES", "PROGRAMFILES(X86)", "PROGRAMW6432", "COMSPEC", "PATHEXT", "INCLUDE", "LIB", "LIBPATH", "VCINSTALLDIR", "VCTOOLSINSTALLDIR", "WINDOWSSDKDIR", "WINDOWSSDKVERSION", "UNIVERSALCRTSDKDIR", "UCRTVERSION"})
+    env = {k: v for k, v in os.environ.items() if k.upper() in keys}
     env["CARGO_TARGET_DIR"] = str(target_dir)
     env["CARGO_INCREMENTAL"] = "0"
     sysroot = run(["rustc", "--print", "sysroot"], source, env).decode().strip()
@@ -113,7 +117,54 @@ def tar_bytes(files):
     return compressed.getvalue()
 
 
+def zip_bytes(files):
+    """Deterministic ZIP with regular Unix mode metadata understood on every host."""
+    raw = io.BytesIO()
+    total, seen = 0, set()
+    with zipfile.ZipFile(raw, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
+        for name, (data, mode) in sorted(files.items()):
+            relative_name(name)
+            require(name.casefold() not in seen and mode in {0o644, 0o755} and len(data) <= MAX_FILE, "invalid ZIP member")
+            seen.add(name.casefold())
+            total += len(data)
+            require(total <= MAX_TOTAL and len(seen) <= 4096, "ZIP exceeds package limit")
+            info = zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
+            info.create_system = 3
+            info.external_attr = (stat.S_IFREG | mode) << 16
+            info.compress_type = zipfile.ZIP_DEFLATED
+            archive.writestr(info, data, compresslevel=9)
+    return raw.getvalue()
+
+
+def zip_files(path):
+    files, total, seen = {}, 0, set()
+    require(path.stat().st_size <= MAX_FILE, "ZIP exceeds package limit")
+    with zipfile.ZipFile(path) as archive:
+        require(not archive.comment and len(archive.infolist()) <= 4096, "invalid ZIP metadata")
+        for item in archive.infolist():
+            relative_name(item.filename)
+            require(item.orig_filename == item.filename, "ZIP filename was truncated")
+            mode = item.external_attr >> 16
+            require(item.filename.casefold() not in seen and stat.S_ISREG(mode) and stat.S_IMODE(mode) in {0o644, 0o755}, "unsafe or duplicate ZIP member")
+            seen.add(item.filename.casefold())
+            require(not item.extra and not item.comment and item.create_system == 3 and item.date_time == (1980, 1, 1, 0, 0, 0) and not item.flag_bits & 1 and item.compress_type == zipfile.ZIP_DEFLATED, "invalid ZIP metadata")
+            total += item.file_size
+            require(item.file_size <= MAX_FILE and total <= MAX_TOTAL, "ZIP exceeds package limit")
+            with archive.open(item) as stream:
+                data = stream.read(MAX_FILE + 1)
+            require(len(data) == item.file_size, "ZIP member size differs")
+            files[item.filename] = (data, stat.S_IMODE(mode))
+    require(all(not any(str(p).casefold() in seen for p in PurePosixPath(name).parents if str(p) != ".") for name in files), "ZIP path conflicts with a file")
+    return files
+
+
+def archive_bytes(files, target):
+    return zip_bytes(files) if TARGETS[target]["archive"] == "zip" else tar_bytes(files)
+
+
 def archive_files(path):
+    if path.suffix == ".zip":
+        return zip_files(path)
     files, total = {}, 0
     with tarfile.open(path, "r:*", tarinfo=check_public_boundary.BoundedTarInfo) as archive:
         for item in archive:
@@ -226,6 +277,20 @@ def macos_versions(load):
 
 
 def dynamic_linkage(binary, target, env):
+    if TARGETS[target]["format"] == "PE":
+        program_files = next((v for k, v in env.items() if k.upper() == "PROGRAMFILES(X86)"), None)
+        require(program_files is not None, "MSVC installer location missing")
+        vswhere = Path(program_files) / "Microsoft Visual Studio/Installer/vswhere.exe"
+        found = run([vswhere, "-latest", "-products", "*", "-requires", "Microsoft.VisualStudio.Component.VC.Tools.x86.x64", "-find", "VC/Tools/MSVC/*/bin/Hostx64/x64/dumpbin.exe"], ROOT, env).decode().splitlines()
+        require(found, "installed MSVC DUMPBIN missing")
+        dumpbin = Path(sorted(found)[-1])
+        headers = run([dumpbin, "/HEADERS", binary], ROOT, env).decode()
+        dependencies = run([dumpbin, "/DEPENDENTS", binary], ROOT, env).decode()
+        require(re.search(r"8664 machine \(x64\)", headers, re.IGNORECASE) and re.search(r"20B magic # \(PE32\+\)", headers, re.IGNORECASE), "candidate is not an x64 PE executable")
+        libraries = re.findall(r"^\s+([A-Za-z0-9_.+-]+\.dll)\s*$", dependencies, re.MULTILINE | re.IGNORECASE)
+        tool = re.search(r"Microsoft .*? Version ([0-9.]+)", headers)
+        require(libraries and tool, "PE library or inspection tool evidence missing")
+        return {"format":"PE", "machine":"x64", "libraries":sorted(set(v.lower() for v in libraries)), "inspection_tool":{"name":"MSVC DUMPBIN", "version":tool[1]}, "runtime":"external Windows and MSVC runtime DLLs; not bundled"}
     if target == "aarch64-apple-darwin":
         raw = run(["otool", "-L", binary], ROOT, env).decode()
         libraries = []
@@ -284,13 +349,18 @@ def verify_candidate(directory, expected_commit=None, expected_target=None):
     require(read(directory / "SHA256SUMS") == "".join(f"{v}  {k}\n" for k,v in sorted(checksums.items())).encode(), "candidate checksum list differs")
     files = archive_files(directory / manifest["binary_archive"])
     require({n:{"sha256":sha(v), "mode":m} for n,(v,m) in files.items()} == manifest["package_files"], "binary archive membership differs")
-    require(files["agent-response-gateway/bin/agent-response-gateway"][1] == 0o755 and sha(files["agent-response-gateway/bin/agent-response-gateway"][0]) == manifest["binary_sha256"], "packaged executable differs")
-    for key in ["binary_archive", "source_archive"]:
-        check_public_boundary.Checker(ROOT, []).archive(directory / manifest[key])
+    executable = "agent-response-gateway/bin/" + TARGETS[manifest["target"]]["executable"]
+    require(files[executable][1] == 0o755 and sha(files[executable][0]) == manifest["binary_sha256"], "packaged executable differs")
+    checker = check_public_boundary.Checker(ROOT, [])
+    for name, (data, mode) in files.items():
+        checker.path(name.encode(), f"100{mode:o}".encode())
+        checker.size(len(data))
+        checker.content(data)
+    check_public_boundary.Checker(ROOT, []).archive(directory / manifest["source_archive"])
     with tarfile.open(directory / manifest["source_archive"], tarinfo=check_public_boundary.BoundedTarInfo) as source:
         require(source.pax_headers.get("comment") == manifest["source_commit"], "source archive commit receipt differs")
         tools = manifest["packaging_tools"]
-        require(set(tools) == {"release_package.py", "package_smoke.py"}, "incomplete packaging source binding")
+        require(set(tools) == {"release_package.py", "package_smoke.py", "release_targets.py"}, "incomplete packaging source binding")
         for name, digest in tools.items():
             member = source.getmember("agent-response-gateway/scripts/" + name)
             require(member.isfile() and member.size <= MAX_FILE and sha(source.extractfile(member).read()) == digest, "packaging tools differ from committed source")
@@ -332,7 +402,7 @@ def build_candidate(root, target, output, cargo_deny):
         metadata = json_value(run(["cargo", "metadata", "--format-version=1", "--locked", "--offline", "--filter-platform", target], source, env))
         raw = run(["cargo", "build", "--release", "--locked", "--offline", "--target", target, "--message-format=json"], source, env, logs / "cargo.log")
         built = compiled_packages(raw)
-        binary = Path(env["CARGO_TARGET_DIR"]) / target / "release/agent-response-gateway"
+        binary = Path(env["CARGO_TARGET_DIR"]) / target / "release" / TARGETS[target]["executable"]
         binary_bytes = read(binary)
         run([sys.executable, "-B", root / "scripts/package_smoke.py", "--binary", binary, "--state-dir", temporary / "smoke"], source, env, logs / "smoke.log", timeout=60)
         linkage = dynamic_linkage(binary, target, env)
@@ -341,7 +411,7 @@ def build_candidate(root, target, output, cargo_deny):
         sbom = make_sbom(metadata, built, records, target, version, commit, sha(binary_bytes), compiler, linkage)
         package_list = run(["cargo", "package", "--list", "--locked", "--offline"], source, env).decode().splitlines()
         require(package_list and all(not set(PurePosixPath(p).parts) & {".private", ".codex", ".local", "target"} for p in package_list), "Cargo package includes reserved files")
-        files = {"agent-response-gateway/bin/agent-response-gateway":(binary_bytes, 0o755)}
+        files = {"agent-response-gateway/bin/" + TARGETS[target]["executable"]:(binary_bytes, 0o755)}
         for name in ["LICENSE", "COMMERCIAL-LICENSING.md", "README.md", "config.example.toml", "config.messages.example.toml", "config.chat.example.toml", "docs/protocol.md", "docs/conformance.md"]:
             files["agent-response-gateway/" + name] = (read(source / name), 0o644)
         for path in sorted((temporary / "notices").rglob("*")):
@@ -350,10 +420,17 @@ def build_candidate(root, target, output, cargo_deny):
         for name, value in tool_notices.items():
             files["agent-response-gateway/rust-notices/" + name] = (value, 0o644)
         output.mkdir(parents=True)
-        binary_name = f"agent-response-gateway-{version}-{target}.tar.gz"
+        binary_name = f"agent-response-gateway-{version}-{target}.{TARGETS[target]['archive']}"
         source_name = f"agent-response-gateway-{version}-source.tar.gz"
         sbom_name = f"agent-response-gateway-{version}-{target}.cdx.json"
-        write_new(output / binary_name, tar_bytes(files))
+        write_new(output / binary_name, archive_bytes(files, target))
+        # Run the actual extracted package, including Windows ZIP path/mode handling.
+        extracted = temporary / "extracted package"
+        for name, (data, mode) in archive_files(output / binary_name).items():
+            path = extracted / name
+            write_new(path, data)
+            path.chmod(mode)
+        run([sys.executable, "-B", root / "scripts/package_smoke.py", "--binary", extracted / "agent-response-gateway/bin" / TARGETS[target]["executable"], "--state-dir", temporary / "extracted-smoke"], source, env, logs / "extracted-smoke.log", timeout=60)
         # Normalize gzip metadata around Git's committed tar bytes, including its commit receipt.
         zipped = io.BytesIO()
         with gzip.GzipFile(fileobj=zipped, mode="wb", filename="", mtime=0) as stream:
@@ -367,7 +444,8 @@ def build_candidate(root, target, output, cargo_deny):
             "assets":{p.name:sha(read(p)) for p in sorted(output.iterdir())}, "package_files":{n:{"sha256":sha(v), "mode":m} for n,(v,m) in sorted(files.items())},
             "cargo_package_files":sorted(package_list), "dynamic_linkage":linkage, "rust_toolchain_evidence":tool_receipt,
             "build_recipe":{"profile":"release", "locked":True, "offline":True, "native_target":True, "path_remapping":["/source", "/cargo", "/rust"]},
-            "packaging_tools":{n:sha(read(root / "scripts" / n)) for n in ["release_package.py", "package_smoke.py"]},
+            "packaging_tools":{n:sha(read(root / "scripts" / n)) for n in ["release_package.py", "package_smoke.py", "release_targets.py"]},
+            "build_platform":{"runner":os.environ.get("ImageOS", "local"), "image_version":os.environ.get("ImageVersion", "not_recorded"), "target_spec":TARGETS[target]},
             "validation":{"package_smoke":"passed", "provider_qualification":"not_performed", "consumer_acceptance":"not_performed", "attestation":"not_created", "formal_release":"not_approved"}}
         write_new(output / "candidate.json", encoded(manifest))
         checksums = {p.name:sha(read(p)) for p in sorted(output.iterdir())}
@@ -381,7 +459,7 @@ def main():
     build = commands.add_parser("build")
     build.add_argument("--target", choices=sorted(TARGETS), required=True)
     build.add_argument("--output", type=Path, required=True)
-    build.add_argument("--cargo-deny", type=Path, default=ROOT / ".local/tools/bin/cargo-deny")
+    build.add_argument("--cargo-deny", type=Path, default=ROOT / ".local/tools/bin" / ("cargo-deny.exe" if os.name == "nt" else "cargo-deny"))
     verify = commands.add_parser("verify")
     verify.add_argument("directory", type=Path)
     verify.add_argument("--commit")
@@ -389,7 +467,7 @@ def main():
     args = parser.parse_args()
     try:
         result = build_candidate(ROOT, args.target, args.output.resolve(), args.cargo_deny.resolve()) if args.command == "build" else verify_candidate(args.directory, args.commit, args.target)
-    except (OSError, ValueError, KeyError, TypeError, PackageError, license_audit.AuditError, check_public_boundary.BoundaryError, tarfile.TarError, subprocess.TimeoutExpired):
+    except (OSError, ValueError, KeyError, TypeError, PackageError, license_audit.AuditError, check_public_boundary.BoundaryError, tarfile.TarError, zipfile.BadZipFile, subprocess.TimeoutExpired):
         print("release-package: failed; inspect ignored local inputs/logs", file=sys.stderr)
         return 1
     print(json.dumps({"status":"passed", "command":args.command, "source_commit":result["source_commit"], "target":result["target"], "binary_sha256":result["binary_sha256"], "formal_release":"not_approved"}))

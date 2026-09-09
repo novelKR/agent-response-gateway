@@ -8,6 +8,42 @@
 이어가는 방법을 설명한다. 예제는 합성 텍스트와 로컬 게이트웨이를 사용한다.
 검증에는 모의 공급자를 사용한다. 실제 공급자를 설정하면 실제 모델 요청이 전달된다.
 
+<a id="run-a-downloaded-package"></a>
+
+## 배포 파일에서 실행
+
+[GitHub Releases](https://github.com/novelKR/agent-response-gateway/releases)에
+버전이 공개되면 특정 태그와 [네이티브 대상](packaging.md)을 선택한다. Linux
+x64·ARM64와 macOS ARM64는 tar.gz, Windows x64는 zip과 agent-response-gateway.exe를
+사용한다. Pre-release와 정식 Release의 파일은 같으며 승인 후 표시가 바뀐다.
+
+해당 대상의 배포 압축파일, manifest.json과 sigstore.jsonl을 다운로드하고
+release-manifest.json도 보관한다. 실행하기 전에 [출처 검증 절차](release-promotion.md)로
+소스 커밋, 태그, 실행과 파일 해시를 확인한다. 체크섬 일치만으로 다운로드의
+출처를 인증할 수는 없다.
+
+배포 압축파일을 새 디렉터리에 푼다. 내부 candidate 디렉터리에 실행 압축파일,
+소스 압축파일, SBOM, candidate.json과 SHA256SUMS가 있다. 실행 압축파일을
+한 번 더 풀면 agent-response-gateway/bin과 설정 예제가 나온다. 대응 소스와
+고지를 함께 보관한다. 기존 설치에 덮어쓰지 않고 이전에 검증한 실행 파일과
+설정을 복구용으로 유지한다.
+
+아래 명령은 실행 압축파일을 현재 디렉터리에 풀고 config.local.toml을 준비한
+상태를 가정한다. 시작 안내의 cargo run 명령 대신 패키지 실행 파일을 사용한다.
+공급자 키를 게이트웨이 환경에 설정하고 별도 로컬 토큰을 사용하는 원칙은 같다.
+
+```sh
+./agent-response-gateway/bin/agent-response-gateway check-config --config config.local.toml
+./agent-response-gateway/bin/agent-response-gateway serve --config config.local.toml
+```
+
+```powershell
+$env:ARG_LOCAL_TOKEN = [guid]::NewGuid().ToString("N")
+.\agent-response-gateway\bin\agent-response-gateway.exe check-config --config config.local.toml
+.\agent-response-gateway\bin\agent-response-gateway.exe serve --config config.local.toml
+```
+
+
 <a id="configure-the-route-and-make-a-first-call"></a>
 
 ## 경로 설정과 첫 호출

@@ -1,28 +1,33 @@
 name: Release candidate
 
 on:
+  push:
+    tags: ['v*']
   workflow_dispatch:
-    inputs:
-      expected_commit:
-        description: Exact verified main commit to build
-        type: string
-        required: true
 
 permissions:
   contents: read
 
 concurrency:
-  group: release-candidate-${{ github.sha }}
+  group: release-candidate-${{ github.ref }}
   cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
 
 jobs:
   gate:
-    if: github.repository == 'novelKR/agent-response-gateway' && github.ref == 'refs/heads/main'
+    if: github.repository == 'novelKR/agent-response-gateway' && startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       contents: read
       actions: read
+    outputs:
+      commit: ${{ steps.gate.outputs.commit }}
+      tag: ${{ steps.gate.outputs.tag }}
+      matrix: ${{ steps.targets.outputs.matrix }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -30,22 +35,19 @@ jobs:
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.14'
-      - name: Require successful push CI for this main commit
+      - id: gate
+        name: Require existing version tag, main ancestry and exact successful CI
         env:
           GH_TOKEN: ${{ github.token }}
-          EXPECTED_COMMIT: ${{ inputs.expected_commit }}
-        run: python3 -B scripts/release_provenance.py gate --commit "$EXPECTED_COMMIT"
+        run: python -B scripts/release_provenance.py gate
+      - id: targets
+        run: echo "matrix=$(python -B scripts/release_targets.py)" >> "$GITHUB_OUTPUT"
 
   build:
     needs: gate
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-24.04
-            target: x86_64-unknown-linux-gnu
-          - os: macos-15
-            target: aarch64-apple-darwin
+      matrix: ${{ fromJSON(needs.gate.outputs.matrix) }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 40
     env:
@@ -53,6 +55,9 @@ jobs:
       CARGO_TARGET_DIR: ${{ github.workspace }}/target
       PACKAGE_TARGET: ${{ matrix.target }}
     steps:
+      - name: Preserve committed file bytes on Windows
+        if: runner.os == 'Windows'
+        run: git config --global core.autocrlf false
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
@@ -64,13 +69,13 @@ jobs:
       - name: Prepare pinned sources and notice tool without PR caches
         shell: bash
         run: |
-          cargo +1.98.0 install cargo-deny --version "$(python3 -c 'import json; print(json.load(open("licensing/policy.json"))["cargo_deny_version"])')" --locked --root .local/tools --target-dir target/license-tools
+          cargo +1.98.0 install cargo-deny --version "$(python -c 'import json; print(json.load(open("licensing/policy.json"))["cargo_deny_version"])')" --locked --root .local/tools --target-dir target/license-tools
           cargo +1.98.0 fetch --locked
       - name: Build, smoke and seal the distribution bytes
         run: |
-          python3 -B scripts/release_package.py build --target "$PACKAGE_TARGET" --output .local/candidate
-          python3 -B scripts/release_package.py verify .local/candidate --commit "$GITHUB_SHA" --target "$PACKAGE_TARGET"
-          python3 -B scripts/release_provenance.py pack --directory .local/candidate --output .local/distribution
+          python -B scripts/release_package.py build --target "$PACKAGE_TARGET" --output .local/candidate
+          python -B scripts/release_package.py verify .local/candidate --commit "$GITHUB_SHA" --target "$PACKAGE_TARGET"
+          python -B scripts/release_provenance.py pack --directory .local/candidate --output .local/distribution
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: candidate-input-${{ matrix.target }}
@@ -79,11 +84,10 @@ jobs:
           retention-days: 30
 
   attest:
-    needs: build
+    needs: [gate, build]
     strategy:
       fail-fast: false
-      matrix:
-        target: [x86_64-unknown-linux-gnu, aarch64-apple-darwin]
+      matrix: ${{ fromJSON(needs.gate.outputs.matrix) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -94,6 +98,7 @@ jobs:
     env:
       PACKAGE_TARGET: ${{ matrix.target }}
       GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: ${{ needs.gate.outputs.tag }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -106,19 +111,18 @@ jobs:
           name: candidate-input-${{ matrix.target }}
           path: .local/signed
       - name: Inspect exact artifacts without executing a binary or build script
-        run: python3 -B scripts/release_provenance.py inspect --directory .local/signed --commit "$GITHUB_SHA" --target "$PACKAGE_TARGET"
+        run: python -B scripts/release_provenance.py inspect --directory .local/signed --commit "$GITHUB_SHA" --target "$PACKAGE_TARGET"
       - id: provenance
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
         with:
           subject-path: |
-            .local/signed/*.tar.gz
-            .local/signed/*.manifest.json
+            .local/signed/*
       - name: Preserve and verify the signed provenance
         env:
           PROOF_PATH: ${{ steps.provenance.outputs.bundle-path }}
         run: |
           cp "$PROOF_PATH" ".local/signed/$PACKAGE_TARGET.sigstore.jsonl"
-          python3 -B scripts/release_provenance.py verify --directory .local/signed --commit "$GITHUB_SHA" --target "$PACKAGE_TARGET" --run-id "$GITHUB_RUN_ID" --attempt "$GITHUB_RUN_ATTEMPT"
+          python -B scripts/release_provenance.py verify --directory .local/signed --commit "$GITHUB_SHA" --target "$PACKAGE_TARGET" --run-id "$GITHUB_RUN_ID" --attempt "$GITHUB_RUN_ATTEMPT" --tag "$RELEASE_TAG"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: release-candidate-${{ matrix.target }}

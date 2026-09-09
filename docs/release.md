@@ -7,8 +7,10 @@
 A distribution binds a specific source version to its executable, configuration,
 notices and verified build provenance. Build a [candidate](packaging.md), inspect
 its [workflow result](https://github.com/novelKR/agent-response-gateway/actions/workflows/release-candidate.yml),
-then follow [signing and promotion](release-promotion.md) to publish the verified
-files after approval.
+then follow [signing and promotion](release-promotion.md): a successful tag build
+automatically publishes a Pre-release, and approval promotes the same files to
+a formal Release. Choose the native target and archive format from the
+[platform table](packaging.md).
 
 <a id="검증할-단위"></a>
 
@@ -31,7 +33,7 @@ cargo build --release --locked
 Use Python 3.11 or later and prepare the pinned license tool and exact sources
 under the [license guide](../licensing/README.md).
 
-Linux/macOS workflows use public test data without provider secrets.
+Linux x64/ARM64, macOS ARM64 and Windows x64 workflows use public test data without provider secrets.
 Action versions are pinned in the [CI workflow](../.github/workflows/ci.yml).
 
 <a id="소스와-고지"></a>
@@ -77,8 +79,9 @@ Verify contribution permissions under the [contribution policy](../CONTRIBUTING.
 Public distributions use AGPL; covered commercial distributions follow their
 [separate agreement](../COMMERCIAL-LICENSING.md). Third-party conditions apply to both.
 
-Version `0.1.0` is a development version. Publish preview releases through the
-approved promotion workflow.
+The manifest version is `0.1.0`. Creating its matching version tag is a separate
+release action. A successful configuration PR does not create a tag or Release;
+the protected promotion changes release state without altering downloaded files.
 
 <a id="소비자의-채택과-복구"></a>
 

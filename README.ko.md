@@ -14,6 +14,9 @@ Responses, Messages와 Chat Completions를 사용한다.
 
 ## 시작하기
 
+패키지 실행은 [다운로드·실행 안내](docs/ko/usage.md#run-a-downloaded-package)에
+따라 특정 버전과 플랫폼을 선택한다. 아래 소스 빌드에는 Rust 1.98.0이 필요하다.
+
 Rust 1.98.0과 Cargo가 필요하다. 고정 도구 체계는 `rust-toolchain.toml`,
 의존성 버전은 `Cargo.lock`에서 관리한다.
 
@@ -124,8 +127,8 @@ cargo-deny 0.20.2와 잠금 파일의 소스를 오프라인으로 읽는다.
 [도구 준비·고지 갱신 안내](licensing/README.ko.md)를 먼저 따른다.
 
 테스트는 모의 업스트림과 합성 데이터를 사용하며 실제 모델 API 키를 요구하지
-않는다. CI는 Linux와 macOS에서 Rust 1.98.0으로 같은 검사를 실행하도록
-구성했다. 실제 결과는 [공개 CI 실행](https://github.com/novelKR/agent-response-gateway/actions/workflows/ci.yml)에서
+않는다. CI는 Linux x64·ARM64, macOS ARM64와 Windows x64에서 Rust 1.98.0
+검사와 네이티브 패키지 실행을 수행하도록 구성했다. 실제 결과는 [공개 CI 실행](https://github.com/novelKR/agent-response-gateway/actions/workflows/ci.yml)에서
 해당 commit의 성공 여부를 확인한다. CI 성공은 실제 공급자 검증이나 운영 수락이 아니다.
 
 [Codex 적합성 시험](tests/codex/README.ko.md)은 실제 `0.154.0-alpha.6` 시험

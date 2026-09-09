@@ -46,8 +46,8 @@
       "order": 0,
       "source": "README.md",
       "translation": "README.ko.md",
-      "source_sha256": "5c4225228fa3f634f8dbe4b0b2609aed1d1ce25a1f673638281ee511b0716ac5",
-      "translation_sha256": "e10359e1798c4e88882c9a866c4ecb2607beb00da20763d1ca178cc66e4ccfa0",
+      "source_sha256": "0737bfb4a3619ae552796163c56857397d7ced30b2f00ee191c3a21a11acbefc",
+      "translation_sha256": "f0892cf97a9bf1e91ff207cfbe2e54b6675f581f4366b8043b654f65335b94e6",
       "anchors": [
         "agent-response-gateway",
         "getting-started",
@@ -236,8 +236,8 @@
       "order": 3,
       "source": "docs/embedded-design.md",
       "translation": "docs/ko/embedded-design.md",
-      "source_sha256": "addd9301e1acd44eba2074e87820567adab071194157c292e2248eaad67c485c",
-      "translation_sha256": "6322b82ac40f18fbd6fb649b3e3f162479afa8c7a4c6975e4fc943de6ba985af",
+      "source_sha256": "e7430cbcf91f85d2dfd2f6b7bad0aac1c7b5de8ac8b7e8efbe1d3a854a66fb8a",
+      "translation_sha256": "19c1f78bb34cffd5fed8756fc859719fa6d9032db73783b4cf1d6e2ef1a5329b",
       "anchors": [
         "alternatives-cost-and-risks",
         "authentication-and-access",
@@ -282,8 +282,8 @@
       "order": 3,
       "source": "docs/github-workflow.md",
       "translation": "docs/ko/github-workflow.md",
-      "source_sha256": "6c45ab1bba5d1c41ff7e9e953918f4356c4012bce877e0c5258e50957a494216",
-      "translation_sha256": "0ad38c6607f56e1dfd583cb969cb763a3490227c0c4c6432c97894151e9294a4",
+      "source_sha256": "c61ee877a78a194aa3d6e913d62334bd8f085082b730af7c8c489e6cf5eb429e",
+      "translation_sha256": "bcea28b892dcbe5e558dad99709e95e82ed96d469285ef233ee15c01c696894f",
       "anchors": [
         "branches-commits-and-reviews",
         "github-delivery-workflow",
@@ -302,8 +302,8 @@
       "order": 0,
       "source": "docs/integration.md",
       "translation": "docs/ko/integration.md",
-      "source_sha256": "45cfc99eadf1935af403a84dce2717878a1b37908f17a0d1443b7e204d1dd19e",
-      "translation_sha256": "44e77f0e39a2b31d7c4422eb5043eaa149f8b9d42d85727a53942324a627d016",
+      "source_sha256": "4ad64eaa18151c73472a6ee9b01f2a92efc45355ecd235a044e8e357fe481b4c",
+      "translation_sha256": "dd96b52c81bb9bf15e0232162b03cbb18b896e1017768d840d2cc28a6d1a7bb9",
       "anchors": [
         "application-integration",
         "calling-from-a-backend-service",
@@ -418,8 +418,8 @@
       "order": 1,
       "source": "docs/packaging.md",
       "translation": "docs/ko/packaging.md",
-      "source_sha256": "c2cdcffd85e0ecf837e4f2791b95aca20f99d00d44c87ed5cc79b756e00ee539",
-      "translation_sha256": "114f68a286165999d193554ea7d2b7f4a497e4fbd9b9eee07f5fb0fc9bc59bc6",
+      "source_sha256": "2ef3ac849ea7f6de6d876ff4aced2c40d595f497fba97940a10333cec0571b99",
+      "translation_sha256": "f0452ea9fcb1c8051b6a5b1234074e087d65264a053aa0e09eeaaca61a3f0681",
       "anchors": [
         "inventory-scope-and-notices",
         "unpublished-release-candidates",
@@ -464,19 +464,21 @@
       "order": 2,
       "source": "docs/release-promotion.md",
       "translation": "docs/ko/release-promotion.md",
-      "source_sha256": "d248956c01cb072b7f160d9c33a7d4ee4dc84728cbfe092759081ceb9d7d7eaf",
-      "translation_sha256": "6d64fabc48ebb83c2a9153aa57db46b6c1911447feff5fb9f280b165862ac14c",
+      "source_sha256": "28b74e8268e0ff7b777f44a404f031946b72b67d486d9e09da467b0d3af33eb0",
+      "translation_sha256": "4e8ad7623eabe5ef129f2e591f1a9a2164da2d1c92acc21137816822fc4bb89e",
       "anchors": [
         "build-and-signing-boundaries",
         "failure-and-recovery",
         "review-and-promotion",
         "signed-candidates-and-preview-releases",
         "signed-candidates-and-protected-preview-promotion",
+        "tagged-builds-and-release-promotion",
         "검토와-승격",
         "빌드와-서명-경계",
         "서명-후보와-보호된-preview-승격",
         "서명-후보의-미리보기-배포",
-        "실패와-복구"
+        "실패와-복구",
+        "태그-빌드와-릴리스-승급"
       ],
       "route": "/guide/release-promotion"
     },
@@ -486,8 +488,8 @@
       "order": 0,
       "source": "docs/release.md",
       "translation": "docs/ko/release.md",
-      "source_sha256": "424b42dd887f4231cb9ecdf0452d2eefed04e416953b26cd40595bc93edbadb8",
-      "translation_sha256": "b80ae6ba9dbf39d34b21f1e2e88da00afd361880258b46080d49e0ae2886eacc",
+      "source_sha256": "54b229247bada07cd41a9e32555c3fbc33d9ab2fb6d5c036099307b83f28dbca",
+      "translation_sha256": "626e1f661458abbff1cc299cca32bfafa7da97e8e849ae2674ba91bd3398f274",
       "anchors": [
         "consumer-adoption-and-recovery",
         "distribution-preparation-and-version-pinning",
@@ -701,16 +703,18 @@
         "continue-a-conversation",
         "read-a-stream-and-handle-cancellation",
         "request-options-and-response-values",
+        "run-a-downloaded-package",
         "경로-설정과-첫-호출",
         "대화-이어가기",
+        "배포-파일에서-실행",
         "스트리밍과-취소",
         "애플리케이션에-연결",
         "요청-옵션과-응답-값",
         "함수-도구-호출-왕복",
         "호출통합-예제"
       ],
-      "source_sha256": "d3660b131af47a6224910791f757439a287f2404518a45c70cdf14cf30e2a41a",
-      "translation_sha256": "53780848933332f8aee30a5be9a387619de0837f6f4a531e953a20d8d22177a1"
+      "source_sha256": "b197ec030abc96554823fe5e2069b0a0165335e7fd72100995aa140418620993",
+      "translation_sha256": "50f1ccf993763e7646434d3d6e03333efbb258b286565332b3a9ea498186cd82"
     },
     {
       "id": "troubleshooting",

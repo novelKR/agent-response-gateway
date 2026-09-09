@@ -14,6 +14,10 @@ Connections are restricted to loopback addresses.
 
 ## Getting started
 
+For a packaged build, select a specific version and platform using the
+[download and execution guide](docs/usage.md#run-a-downloaded-package).
+The source-build steps below require Rust 1.98.0.
+
 Rust 1.98.0 and Cargo are required. The pinned toolchain is in
 `rust-toolchain.toml`; dependency versions are recorded in `Cargo.lock`.
 
@@ -127,7 +131,8 @@ cargo-deny 0.20.2 and exact locked crate sources offline. Follow the
 [tool preparation and notice guide](licensing/README.md) first.
 
 Tests use mock upstreams and synthetic data without real model API keys. CI runs
-the same Rust 1.98.0 checks on Linux and macOS. Verify the relevant commit in the
+Rust 1.98.0 checks and native package execution on Linux x64/ARM64, macOS ARM64
+and Windows x64. Verify the relevant commit in the
 [public CI runs](https://github.com/novelKR/agent-response-gateway/actions/workflows/ci.yml).
 CI success is not real-provider qualification or operational acceptance.
 

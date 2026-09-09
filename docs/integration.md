@@ -33,6 +33,11 @@ repository paths to the gateway.
 reports local readiness, not a live-model call, consumer test or operational
 acceptance. Public fixtures contain synthetic inputs only.
 
+Native package targets are Linux x64/ARM64, macOS ARM64 and Windows x64.
+Select the [package format](packaging.md) and use the
+[platform shutdown contract](embedded-design.md#process-lifecycle) when supervising
+its executable. Packaging does not add remote service or installer behavior.
+
 Execution is currently loopback-only. An HTTP consumer can run on the same host
 or in the same network namespace. Communication between separate Docker
 containers and exposing a public service are outside this version's support.
