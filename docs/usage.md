@@ -9,6 +9,44 @@ workflow from your application. These examples use synthetic text and a local
 gateway. Use a mock provider for verification; a configured real provider receives
 actual model requests.
 
+<a id="배포-파일에서-실행"></a>
+
+## Run a downloaded package
+
+When a version is available on [GitHub Releases](https://github.com/novelKR/agent-response-gateway/releases),
+select a specific tag and the [native target](packaging.md). Linux x64/ARM64 and
+macOS ARM64 use tar.gz; Windows x64 uses zip and agent-response-gateway.exe.
+Pre-release and formal Release use the same files; the label changes after approval.
+
+Download that target's distribution archive, manifest.json and sigstore.jsonl,
+and retain release-manifest.json. Verify the source commit, tag, run and file
+hashes using the [provenance procedure](release-promotion.md) before executing a
+binary. A matching checksum alone does not authenticate a download.
+
+Extract the distribution archive into a new directory. Its candidate directory
+contains a second binary archive, source archive, SBOM, candidate.json and
+SHA256SUMS. Extract the binary archive to obtain agent-response-gateway/bin and
+the configuration examples. Keep the corresponding source and notices with it.
+Do not replace an existing installation in place; retain the previous verified
+executable and configuration for rollback.
+
+The following commands assume the binary archive has been extracted in the
+current directory and config.local.toml has been prepared. Replace cargo run
+commands in the getting-started guide with the packaged executable. Set provider
+keys in the gateway's environment and use a separate local token as before.
+
+```sh
+./agent-response-gateway/bin/agent-response-gateway check-config --config config.local.toml
+./agent-response-gateway/bin/agent-response-gateway serve --config config.local.toml
+```
+
+```powershell
+$env:ARG_LOCAL_TOKEN = [guid]::NewGuid().ToString("N")
+.\agent-response-gateway\bin\agent-response-gateway.exe check-config --config config.local.toml
+.\agent-response-gateway\bin\agent-response-gateway.exe serve --config config.local.toml
+```
+
+
 <a id="경로-설정과-첫-호출"></a>
 
 ## Configure the route and make a first call

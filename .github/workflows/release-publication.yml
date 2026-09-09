@@ -1,0 +1,85 @@
+name: Publish prerelease
+
+on:
+  workflow_run:
+    workflows: ['Release candidate']
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      candidate_run_id:
+        description: Successful tag candidate run to publish without rebuilding
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  verify:
+    if: >-
+      github.repository == 'novelKR/agent-response-gateway' &&
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    outputs:
+      tag: ${{ steps.receipt.outputs.tag }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.14'
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ github.event.workflow_run.id || inputs.candidate_run_id }}
+          pattern: release-candidate-*
+          path: .local/candidates
+      - name: Verify all signed targets and freeze the release manifest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_RUN: ${{ github.event.workflow_run.id || inputs.candidate_run_id }}
+        run: python -B scripts/release_provenance.py prepare-publication --directory .local/candidates --run-id "$CANDIDATE_RUN" --output .local/publication
+      - id: receipt
+        run: |
+          python -c 'import json, os; r=json.load(open(".local/publication/release-manifest.json")); open(os.environ["GITHUB_OUTPUT"], "a").write("tag="+r["tag"]+"\n")'
+          cat .local/publication/release-manifest.json >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: verified-publication
+          path: .local/publication/*
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    needs: verify
+    concurrency:
+      group: release-${{ needs.verify.outputs.tag }}
+      cancel-in-progress: false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.14'
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: verified-publication
+          path: .local/publication
+      - name: Reverify and publish every original asset as a prerelease
+        run: python -B scripts/release_provenance.py publish --directory .local/publication

@@ -4,7 +4,7 @@
 import json
 import os
 
-REQUIRED_JOBS = {"format", "rust-linux", "rust-macos", "publication", "licenses", "codex-conformance", "package-smoke", "docs"}
+REQUIRED_JOBS = {"format", "targets", "rust", "publication", "licenses", "codex-conformance", "package-smoke", "docs"}
 
 
 def succeeded(raw: str) -> bool:

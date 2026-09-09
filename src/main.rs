@@ -132,11 +132,13 @@ fn shutdown_signal() -> Result<impl std::future::Future<Output = ()>, ConfigErro
     })
 }
 
-#[cfg(not(unix))]
+#[cfg(windows)]
 fn shutdown_signal() -> Result<impl std::future::Future<Output = ()>, ConfigError> {
     let mut interrupt = tokio::signal::windows::ctrl_c()
         .map_err(|_| ConfigError("Cannot register interrupt handler".into()))?;
+    let mut terminate = tokio::signal::windows::ctrl_break()
+        .map_err(|_| ConfigError("Cannot register termination handler".into()))?;
     Ok(async move {
-        interrupt.recv().await;
+        tokio::select! { _ = terminate.recv() => {}, _ = interrupt.recv() => {} }
     })
 }

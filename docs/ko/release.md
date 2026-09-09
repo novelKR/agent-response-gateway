@@ -6,7 +6,9 @@
 
 배포물은 특정 소스 버전, 실행 파일, 설정, 고지와 검증된 빌드 출처를 연결한다.
 [후보](packaging.md)를 만들고 [워크플로 결과](https://github.com/novelKR/agent-response-gateway/actions/workflows/release-candidate.yml)를
-확인한 뒤, [서명·배포 절차](release-promotion.md)에 따라 승인된 파일을 게시한다.
+확인한 뒤 [서명·배포 절차](release-promotion.md)를 따른다. 태그 빌드 성공 시
+Pre-release를 자동 공개하고 승인 후 같은 파일을 정식 Release로 승급한다.
+[플랫폼 표](packaging.md)에서 네이티브 대상과 압축 형식을 선택한다.
 
 <a id="unit-of-verification"></a>
 
@@ -29,7 +31,7 @@ cargo build --release --locked
 Python은 3.11 이상을 사용하며, 라이선스 검사의 고정 도구와 원본 캐시는
 [라이선스 관리 안내](../../licensing/README.ko.md)에 따라 먼저 준비한다.
 
-Linux·macOS 워크플로는 공급자 자격 증명 없이 공개 가능한 시험 데이터를 사용한다.
+Linux x64·ARM64, macOS ARM64와 Windows x64 워크플로는 공급자 자격 증명 없이 공개 가능한 시험 데이터를 사용한다.
 Action 버전은 [CI 워크플로](../../.github/workflows/ci.yml)에 고정한다.
 
 <a id="source-and-notices"></a>
@@ -72,7 +74,9 @@ python3 -B scripts/check_public_boundary.py --archive .local/release/license-not
 공개 배포는 AGPL을, 계약 대상 상용 배포는 [별도 계약](../../COMMERCIAL-LICENSING.ko.md)을
 따른다. 양쪽 모두 제3자 조건을 지켜야 한다.
 
-`0.1.0`은 개발 버전이다. 미리보기 버전은 승인을 거친 배포 워크플로로 게시한다.
+명세 버전은 `0.1.0`이다. 일치하는 버전 태그를 만드는 것은 별도 배포 작업이다.
+설정 PR이 통과해도 태그나 Release를 만들지는 않는다. 보호된 승급은 다운로드
+파일을 바꾸지 않고 릴리스 상태만 변경한다.
 
 <a id="consumer-adoption-and-recovery"></a>
 

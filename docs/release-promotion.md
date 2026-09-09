@@ -1,104 +1,124 @@
 <a id="signed-candidates-and-protected-preview-promotion"></a>
 <a id="서명-후보와-보호된-preview-승격"></a>
 <a id="서명-후보의-미리보기-배포"></a>
+<a id="signed-candidates-and-preview-releases"></a>
+<a id="태그-빌드와-릴리스-승급"></a>
 
-# Signed candidates and preview releases
+# Tagged builds and release promotion
 
 [English](release-promotion.md) | [한국어](ko/release-promotion.md)
 
-Two manual workflows build candidates and publish verified previews. The candidate
-workflow builds and signs a selected main commit after its push CI succeeds.
-The promotion workflow verifies the retained files and waits for approval in the
-protected release environment before publishing the same bytes as a prerelease.
-
+Push an existing-source version tag to build, verify and sign all four native
+[packages](packaging.md). A successful candidate automatically publishes a GitHub
+Pre-release. A separate manual workflow waits for approval before promoting the
+same tag, Release ID and download files to a formal Release.
 
 <a id="빌드와-서명-경계"></a>
 
 ## Build and signing boundaries
 
-Release candidate accepts a full expected_commit SHA and runs only on main in
-this repository. The gate requires that SHA to equal the workflow source and the
-latest push CI for that commit to have succeeded. A failed candidate needs a new
-dispatch; rerunning an existing run is rejected. Artifact names are immutable
-within a run and retained for 30 days.
+The tag must exactly equal v followed by the Cargo.toml package version. Both
+vX.Y.Z and prerelease versions such as vX.Y.Z-rc.1 are accepted. Tags with build
+metadata are not supported. The source commit must be contained in main, and the
+latest main push CI run for that exact commit must have succeeded. Main can move
+forward later without requiring a rebuild; moving the version tag is rejected.
 
-Separate native Ubuntu 24.04 and macOS 15 jobs run the [candidate builder](packaging.md)
-without PR caches. Each distribution archive contains the binary bundle,
-corresponding source, notices, scoped SBOM, candidate manifest and checksums.
-A target descriptor binds the distribution SHA-256, inner candidate SHA-256,
+Release candidate starts on a version-tag push. To recover a failed candidate,
+start a new manual run against the same existing tag after inspecting the failure.
+The workflow rejects branch dispatches and rerun attempts. Candidate artifacts
+are retained for 30 days; do not replace a published candidate with a new build.
+
+All four native build jobs use Rust 1.98.0, locked dependencies and the prepared
+license audit tool, without PR caches. Each distribution includes the binary
+archive, corresponding source, notices, scoped SBOM, candidate manifest and
+checksums. A target descriptor binds the distribution and inner candidate hashes,
 source commit, version, target and Cargo.lock hash.
 
 Build jobs have contents:read. Separate signing jobs have contents:read,
 actions:read, id-token:write and attestations:write. They inspect the downloaded
-distribution without executing its binary or build scripts, then use the pinned
-actions/attest action to attest both the archive and descriptor. The saved
-Sigstore bundle accompanies those exact files. No release-write permission is
-available to candidate jobs.
+files without executing them, then attest the distribution archive and descriptor.
+The saved Sigstore bundle accompanies those exact files. Candidate jobs have no
+release-write permission. GitHub CLI verifies the repository, signing workflow,
+refs/tags source ref, source and signer commit, hosted runner, and exact SLSA run
+ID and attempt. PR artifacts cannot satisfy this contract.
 
-Verification uses GitHub CLI's authenticated attestation verifier with the
-expected repository, signing workflow, main source ref, source and signer commit
-digests, and hosted runners only. It additionally binds the verified SLSA
-invocation to the exact candidate run ID and attempt. A checksum-only or PR
-candidate cannot pass this contract. The local synthetic tests do not establish
-that an actual signature was generated or verified; a successful signed workflow
-and independent verification of its downloaded bytes provide that evidence.
+To verify a downloaded target with a trusted checkout, put only its distribution
+archive, target.manifest.json and target.sigstore.jsonl in the selected directory.
+The command requires GitHub CLI with attestation support and Python 3.11+.
+Substitute the source commit and candidate run ID from the release manifest, and
+select the intended target/tag explicitly; the Windows tag below is illustrative.
 
+```sh
+python3 -B scripts/release_provenance.py verify \
+  --directory .local/downloaded-target \
+  --commit SOURCE_COMMIT --target x86_64-pc-windows-msvc \
+  --run-id CANDIDATE_RUN_ID --attempt 1 --tag v0.1.0
+```
 
 <a id="검토와-승격"></a>
 
 ## Review and promotion
 
-Preview promotion accepts candidate_run_id, expected_commit and release_tag.
-The tag must match vVERSION-preview.N for the candidate's package version. The
-operational track is an explicit error until a separately verified consumer
-acceptance contract exists.
+Publish prerelease runs after a successful Release candidate. Its verification job
+has read permissions and uses the trusted main workflow's verifier. It requires
+all four signed targets from the same commit, version and run. The immutable
+release-manifest.json records these bindings and all 12 target-file hashes.
+The manifest is the thirteenth release asset. It contains no mutable release state.
 
-The first job has only contents:read and actions:read. It requires a successful
-main candidate workflow, verifies both signed targets and emits promotion.json
-with all six asset hashes to the job summary and an immutable workflow artifact.
-Review that receipt and the candidate's inventory/qualification limits before
-approving the publish job. The publish job alone has contents:write, runs through
-the release environment and downloads the verified receipt and original assets.
-It repeats provenance and byte verification after approval. It never rebuilds.
+Only the publish job has contents:write. It verifies the prepared files again,
+creates a draft, uploads missing files without overwrite, checks the complete asset
+set and GitHub digests, then publishes as prerelease with make_latest=false.
+It executes no downloaded binaries or build scripts. No platform is omitted to
+make a partial release succeed.
 
-The release environment requires the designated repository owner, protected
-branches only, and disabled administrator bypass. The sole owner may review
-their own manual dispatch; this is explicit release authorization, not an
-independent code review. The helper checks the configured reviewer/branch policy
-and GitHub's actual approval history for that environment and promotion run.
-An environment-name variable alone is insufficient. Administrator bypass must
-also be inspected in repository settings because the environment REST response
-does not expose that setting. Configure the environment before dispatching a
-promotion; merely merging these workflows does not configure it.
+Promote release runs manually on main with release_tag. It accepts only a public
+release whose tag has the stable vX.Y.Z form. It downloads the release files,
+verifies their signatures and manifest, and shows the manifest before waiting for
+the protected release environment. After approval, it downloads and verifies the
+public files again and requires the same manifest digest. It changes only
+prerelease=false and make_latest=legacy on the same Release. It never rebuilds,
+renames the tag or replaces an asset. A tag ending in -rc.1 remains a prerelease.
+For example, v0.1.0 initially publishes as Pre-release and can later be promoted
+with the same v0.1.0 tag and files; this example does not announce a published version.
 
-The candidate source must still equal current main when publishing starts.
-Create a fresh candidate if main has moved. Publication creates a draft, uploads
-only missing matching assets without overwrite, verifies GitHub's asset digests,
-publishes as prerelease with make_latest=false, then reads back the release,
-complete asset set and exact tag commit. An existing tag or release with a
-different source, metadata or asset digest is rejected.
-
+The release environment requires the designated repository owner and protected
+branches. The helper checks that policy and actual approval history for this run
+and environment; an environment-name variable alone is insufficient. The owner
+may approve their own dispatch. This is release authorization, not independent
+code review. Keep administrator bypass disabled and inspect that setting in
+GitHub because the environment REST response does not expose it. Merging workflows
+does not configure the environment. Approval changes the distribution channel;
+real-provider qualification and consumer operational acceptance remain separate.
 
 <a id="실패와-복구"></a>
 
 ## Failure and recovery
 
-A lost upload acknowledgement leaves a draft and an unknown workflow outcome.
-There is no automatic retry. Inspect the draft and start a new promotion dispatch
-with fresh environment approval; an exact matching draft can resume only its
-missing assets. A matching complete release is recognized without uploading
-again. Unexpected assets, changed bytes or conflicting tags stop recovery and
-are never overwritten or deleted automatically. A failure after publication
-requires release/tag readback before deciding the next action.
+If publication fails, inspect the draft and start Publish prerelease manually on
+main with the original candidate_run_id. The successful candidate is retained
+separately, so publication recovery does not rebuild. A draft resumes only missing
+files whose existing names and digests match. A matching complete release returns
+success without another upload; an already promoted release remains formal.
+Unexpected files, changed digests or conflicting tags stop recovery without
+replacement or deletion. Per-tag publication and promotion jobs serialize writes.
+There is no automatic retry of an uncertain write.
 
-To pause publication, disable the manual promotion workflow or withhold the
-release environment approval. Retain existing candidates and source commits for
-investigation; do not rewrite a published version. Consumer rollback selects a
-previous verified executable/configuration combination through its own adoption
-process. Gateway automation does not restart or migrate a consumer.
+Formal promotion reads GitHub Release assets, so it does not depend on the
+30-day Actions artifact retention. If an unpublished candidate has expired, the
+original signed files must be recovered before publication; a new build cannot
+stand in for a partially uploaded candidate. A failed formal promotion can be
+started again with a fresh environment approval; the same completed state is
+recognized without modifying files.
+
+Disable Publish prerelease to pause automatic publication; withhold the release
+environment approval to pause formal promotion. Retain candidate evidence and
+published source commits. Consumer rollback selects an earlier verified executable
+and configuration through the consumer's own adoption procedure.
 
 GitHub's [artifact attestation verification](https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations/verifying-the-provenance-of-artifacts),
-[deployment environment protection](https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments),
+[environment protection](https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments),
 and [release API](https://docs.github.com/en/rest/releases/releases) describe the
-platform mechanisms. The exact workflow, helper and retained receipts define
-this repository's promotion contract.
+platform mechanisms. The workflow, verifier and retained manifest define this
+repository's release contract. Mock tests verify rejection and state transitions;
+a real tag build, signed publication and approved promotion are separate execution
+evidence, not consequences of merging the configuration.

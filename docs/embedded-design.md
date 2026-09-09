@@ -84,8 +84,11 @@ confirms local startup, not provider credentials or model availability.
    home, the supported model/catalog profile, Responses API and reported base URL.
    Disable fallback/retries and confirm the effective model and provider.
 5. On shutdown, stop new work, interrupt or resolve active turns, close agent model
-   connections and terminate the gateway. SIGTERM/SIGINT use the configured grace
-   window; the host enforces an outer deadline and reaps its own child.
+   connections and terminate the gateway. Unix SIGTERM/SIGINT and Windows
+   CTRL_C_EVENT/CTRL_BREAK_EVENT use the configured grace window. On Windows,
+   create the child with CREATE_NEW_PROCESS_GROUP and send CTRL_BREAK_EVENT to
+   that group only. The host enforces an outer deadline and reaps its own child;
+   TerminateProcess is forced cleanup, not graceful shutdown.
 6. On startup failure, clean up started children and temporary credentials.
    Unexpected exit marks affected work failed or uncertain. Do not silently
    restart the model request or select another route.

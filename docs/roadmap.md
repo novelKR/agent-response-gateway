@@ -36,7 +36,7 @@ and [support matrix](conformance.md).
 | Tools and output | Functions, custom text, namespaces, registered patch grammar and declared output controls |
 | Embedding | Offline configuration manifest, readiness verification and host-supervised process lifecycle |
 | Continuity | Host-owned history, local compaction, verified resume and explicit model switching |
-| Distribution tooling | Candidate archives, source/notices, dependency inventory, signed provenance and approved preview promotion |
+| Distribution tooling | Four native targets, source/notices, dependency inventory, signed tag builds, automatic prereleases and approved formal promotion |
 
 The automated suites use mock providers, including when running the actual pinned
 Codex executable. They validate protocol and host contracts, not real-model output
