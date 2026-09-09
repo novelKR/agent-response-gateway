@@ -4,10 +4,9 @@
 
 [English](packaging.md) | [한국어](ko/packaging.md)
 
-G18 builds and verifies candidates for x86_64-unknown-linux-gnu on Ubuntu 24.04
-and aarch64-apple-darwin on macOS 15. The build requires native Rust 1.98.0 and
-Python 3.14 in CI. It adds no gateway runtime dependency, signing permission,
-release tag, published release or consumer activation.
+The packaging tool builds and verifies candidates for x86_64-unknown-linux-gnu
+on Ubuntu 24.04 and aarch64-apple-darwin on macOS 15, using native Rust 1.98.0
+and Python 3.14 in CI. It produces local candidate files without publishing a release.
 
 The builder exports Git HEAD into an isolated source directory. Ignored,
 untracked and modified checkout files cannot enter that source build. The locked
@@ -30,7 +29,7 @@ The output directory must not exist. No existing candidate is overwritten.
 Prepare the cache and cargo-deny as described in [licensing](../licensing/README.md).
 Use x86_64-unknown-linux-gnu on the native Linux builder. These commands never
 publish or create an attestation. A checksum establishes internal consistency;
-[G19](release-promotion.md) supplies authenticated build provenance and protected promotion.
+[Signing and promotion](release-promotion.md) provides verified build provenance and release approval.
 
 | Candidate file | Evidence |
 |---|---|
@@ -96,6 +95,6 @@ The PR package-smoke matrix builds and retains only verified public candidate
 assets, not compiler logs or local state. Its result joins ci-required. A PR
 artifact is for review and is never eligible for formal promotion. A release
 candidate must come from a verified main commit with authenticated provenance.
-G19 verifies that provenance and promotes the exact retained bytes after user
-approval. Consumer integration, long-running acceptance, live-model qualification
-and release approval remain separate recorded stages.
+The [promotion workflow](release-promotion.md) verifies that provenance and
+publishes the exact retained bytes after approval. Test the intended application
+and real model separately before operational use.

@@ -5,6 +5,10 @@
 [English](documentation.md) | [한국어](ko/documentation.md)
 
 The public repository maintains reusable API, execution and distribution contracts.
+Lead with current behavior, requirements and limits. Use descriptive feature names
+instead of internal milestone or PR labels, and explain technical terms where
+needed. Keep development chronology and approval discussions in work records.
+A reader should not need closed issues or Git history to understand a guide.
 Do not include consumer names, repository URLs, local paths, internal service
 topology or operational records in public documentation, examples, commit messages,
 tags or CI logs. Public builds and tests must work without separate local records.
@@ -160,8 +164,11 @@ npm run preview --prefix docs-site
 The preview listens at `http://127.0.0.1:43140/agent-response-gateway/`. Rebuild
 and reload after edits; the preview has no hot module replacement. The project
 base is `/agent-response-gateway/`, with English at the root and Korean under
-`/ko/`. Maintained pages live under `/guide/` and `/ko/guide/`. The toolbar links
-to the same document in the other language and retains compatibility anchors.
+`/ko/`. Maintained pages live under `/guide/` and `/ko/guide/`. The toolbar's
+Copy Page button copies the current language's maintained Markdown source,
+preserving headings, code blocks and original links. It reports success or a
+clipboard permission failure. The header menu switches the same document's
+language and retains compatibility anchors.
 Local search keeps queries in the browser. Search indexes contain only selected
 public document content; no provider, analytics or remote search request is needed.
 
@@ -239,6 +246,8 @@ Before review, check both languages at desktop, tablet and 320-pixel mobile
 widths; inspect long titles, tables, keyboard focus, theme changes and direct
 page reloads. Search for `authentication`, `인증`, `previous_response_id` and
 `압축`. Confirm same-page language switching, preserved anchors and the 404 page.
+Check that Copy Page copies the current language's original Markdown and reports
+the clipboard result.
 Test a temporary palette and spacing change across navigation, cards, badges,
 tables, code and diagrams, then restore the tokens. Synthetic tests also exercise
 new groups and translations, forbidden output and preview traversal.

@@ -4,10 +4,9 @@
 
 [English](README.md) | [한국어](README.ko.md)
 
-Public terms are **AGPL-3.0-only**. Alternative terms require an executed separate
-agreement with an authorized rights holder. Manage version-specific terms and
-third-party rights separately. Policies and machine checks do not execute an
-agreement or establish relicensing authority.
+The project uses **AGPL-3.0-only and a separate commercial license** under the
+[licensing policy](../COMMERCIAL-LICENSING.md). This guide explains how to verify
+and package dependency licenses and original notices for either distribution.
 
 <a id="관리-자료"></a>
 
@@ -20,10 +19,9 @@ agreement or establish relicensing authority.
 | [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) | Package notice guide generated from the records |
 | `texts/<sha256>.txt` | Actual notice originals with bytes and line endings preserved |
 
-Content hashes deduplicate original texts while preserving each package's version
-and provenance links. Old originals are not deleted automatically. Review changes
-to policy, selections and originals in the diff. The initial record covers 184
-third-party packages in the current lockfile; dependency updates can change that count.
+Content hashes deduplicate notice texts while preserving each package's version
+and provenance. Review changes to policy, selections and originals together.
+Keep existing originals needed to reproduce earlier notice bundles.
 
 Do not apply Git line-ending normalization or whitespace reformatting to originals.
 Verify their integrity with checksums instead of whitespace edits.

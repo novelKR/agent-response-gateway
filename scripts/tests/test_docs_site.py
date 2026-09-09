@@ -62,6 +62,23 @@ class DocsSiteTests(unittest.TestCase):
         (self.root / '404.html').write_text('<a href="/project/">Home</a>')
         return catalogue
 
+    def test_copy_page_preserves_original_markdown_before_site_rewrites(self):
+        page = {'id': 'guide', 'locale': 'ko', 'source': 'docs/ko/guide.md',
+            'title': '안내', 'description': '공개 안내'}
+        original = ('# 안내\n\n[English](../guide.md) | [한국어](guide.md)\n\n'
+            '[시작](../../README.md#start)\n\n```html\n</script>\n```\n\n'
+            '```sh\nprintf "%s\\n" "$VALUE"\n```\n')
+        generated = prepare.render_page(page, original, {'README.md': '/guide/start'},
+            'https://github.com/example/repository', 'a' * 40)
+        _, metadata, rendered = generated.split('---\n', 2)
+        fields = {key: json.loads(value) for key, value in
+            (line.split(': ', 1) for line in metadata.splitlines())}
+        self.assertEqual(fields['copyMarkdown'], original)
+        self.assertIn('[시작](/guide/start#start)', rendered)
+        self.assertNotIn('[English]', rendered)
+        self.assertIn('```html\n</script>\n```', rendered)
+        self.assertEqual(fields['docLocale'], 'ko')
+
     def test_extra_pages_and_private_canaries_cannot_enter_the_artifact(self):
         catalogue = self.fixture()
         self.assertEqual(len(output.check(self.root, catalogue)), 2)

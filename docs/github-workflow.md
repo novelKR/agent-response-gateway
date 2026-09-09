@@ -4,14 +4,14 @@
 
 [English](github-workflow.md) | [한국어](ko/github-workflow.md)
 
-The [roadmap](roadmap.md) defines M0–M7. GitHub milestones and work-item issues
-track implementation separately from validation, qualification and adoption.
+Use issues to define scoped changes and pull requests to review them. This guide
+describes branch management, required checks and release approvals.
 
 <a id="브랜치커밋검토"></a>
 
 ## Branches, commits and reviews
 
-Use a separate worktree and a `codex/m<N>-<purpose>` branch for each bounded PR.
+Use a separate worktree and a `codex/<purpose>` branch for each bounded PR.
 Keep existing user changes and independent local repositories intact. A PR has
 one reviewable purpose and one to three logical commits; implementation and its
 regression tests belong together. Merge commits preserve the individual history.

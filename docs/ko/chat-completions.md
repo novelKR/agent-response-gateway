@@ -4,98 +4,83 @@
 
 [English](../chat-completions.md) | [한국어](chat-completions.md)
 
-G10–G12는 명시적 프로필 아래 요청·JSON 응답·스트림·HTTP 변환을 제공한다.
-Function-wire 프로필은 실제 고정 Codex·모의 upstream 및 HTTP 시험을 통과했다.
-이 fixture는 실제 공급자 모델을 qualification하지 않는다.
+Chat Completions 어댑터는 선언된 지원 기능 프로필에 따라 Responses 요청,
+JSON 응답과 SSE 스트림을 변환한다. [설정 예제](../../config.chat.example.toml)로
+경로와 사용할 기능을 선택한다.
 
-초기 프로필은 표준 function-tool wire 형식을 사용한다. Custom 자유 형식
-도구는 명시적 CustomToolJson bridge를 사용하고 Messages와 동일한 요청 단위
-정체성·선택·결과 검증을 따른다. 현재 Chat Completions API에 별도 native custom
-도구 형식이 있어도 이 어댑터의 구현·검증 부분집합에는 포함되지 않는다.
-Custom을 Native로 선언하면 JSON bridge로 몰래 바꾸지 않고 명시적으로 실패한다.
+도구는 표준 함수 도구 형식을 사용한다. 사용자 정의 자유 형식 입력은 Messages와
+같은 명시적 JSON 변환 규칙이 필요하며, 요청 단위로 이름·선택·결과를 검사한다.
+Chat Completions의 별도 고유 사용자 정의 도구 형식은 지원하지 않는다.
+해당 기능을 Native로 선언하면 임의로 변환하지 않고 거부한다.
 
-| 계약 | 구현 동작 |
+| 기능 | 동작 |
 |---|---|
-| Top-level instructions | 선행 system 메시지 |
-| 명시적 system/developer/user/assistant | 뒤늦은 지시를 포함해 native 역할과 원래 순서 유지 |
-| 순서 있는 텍스트 | Text/part 순서 보존; assistant 서문과 뒤따르는 병렬 도구를 같은 메시지에 둘 수 있음 |
-| User의 HTTPS 이미지 참조 | 선택적 auto/low/high detail을 가진 image_url, 다운로드 없음; 다른 역할의 이미지는 거부 |
-| 함수 schema·호출·결과 | Schema JSON 값, 원래 인자 문자열, call ID와 결과 연결 보존 |
-| 인자 없는 함수 | additionalProperties false인 명시적 빈 객체 schema |
-| Custom/namespace/등록 문법 | 대응 승인 bridge 필요; 정의·선택·이력·출력에 하나의 매핑 사용 |
-| 도구 선택·병렬 제어 | Native 필드 매핑과 반환 정체성·횟수 검증 |
-| max_output_tokens | 선언 한도로 제한한 max_completion_tokens; 과거 max_tokens로 fallback하지 않음 |
-| Temperature/top_p | Chat의 0–2 / 0–1 범위 안에서 값 보존 |
-| 스트리밍 | 증분 텍스트, 제한된 도구 ID·이름·인자 조각, 텍스트 후 도구의 정규 출력과 명시적 finish + [DONE] |
-| Strict 함수 schema | 지원을 선언했을 때 native strict flag 보존 |
-| JSON/text 출력 형식 | response_format으로 매핑; schema 이름·규칙·선택 strict flag 보존 |
-| Reasoning effort | none/minimal/low/medium/high/xhigh/max를 reasoning_effort에 이름 변경·fallback 없이 매핑 |
-| Reasoning 요약·상태·verbosity | 이 codec 프로필에서 명시적 미지원 |
-| 비스트리밍 출력 | 정확히 하나의 choice; 텍스트·function/custom 출력을 EventIR로 검증 |
-| stop/tool_calls 종료 | 도구 횟수·선택이 일치할 때만 완료 |
-| length 종료 | Incomplete/max_output_tokens; 성공 완료로 처리하지 않음 |
-| Refusal/filter/과거 function_call/미지 의미 출력 | 명시적 변환 오류 |
-| Usage | 선택적 prompt/completion/total 산술 검사; cache/reasoning 세부값 보존, 누락은 null |
+| 최상위 지시 | 대화 앞의 system 메시지 |
+| system/developer/user/assistant 메시지 | 뒤늦은 지시를 포함해 원래 역할 필드와 순서 유지 |
+| 순서 있는 텍스트 | 내용 순서 보존; assistant 텍스트와 뒤따르는 병렬 호출을 같은 메시지에 배치 가능 |
+| 사용자 HTTPS 이미지 | 선택적 auto/low/high detail을 가진 image_url; 다운로드 없음; 다른 역할의 이미지는 거부 |
+| 함수 스키마·호출·결과 | JSON 스키마, 원래 인자 문자열, 호출 ID와 결과 연결 보존 |
+| 인자 없는 함수 | additionalProperties false인 빈 객체 스키마 |
+| 사용자 정의 텍스트·네임스페이스·등록 문법 | 변환 규칙 선언 필요; 정의·선택·이력·출력에서 하나의 매핑 공유 |
+| 도구 선택·병렬 제어 | 필드 매핑과 반환 식별자·횟수 검사 |
+| max_output_tokens | 한도를 적용한 max_completion_tokens; max_tokens로 대체하지 않음 |
+| Temperature/top_p | 0–2 / 0–1 범위에서 값 보존 |
+| 스트리밍 | 증분 텍스트, 크기가 제한된 도구 조각, 텍스트 다음 도구 출력, 명시적 finish + [DONE] |
+| 엄격한 함수 스키마 | 지원을 선언한 경우 strict 필드 보존 |
+| JSON/text 출력 형식 | 원래 스키마 이름·규칙·선택적 strict 필드를 담은 response_format |
+| 추론 강도 | reasoning_effort의 none/minimal/low/medium/high/xhigh/max를 이름 변경·대체 없이 사용 |
+| 추론 요약·상태와 verbosity | 미지원 |
+| 비스트리밍 출력 | 정확히 하나의 choice; 텍스트와 도구 출력 검사 |
+| stop/tool_calls 종료 | 도구 횟수와 선택이 일치할 때만 완료 |
+| length 종료 | Incomplete/max_output_tokens |
+| 거절·필터·function_call·알 수 없는 의미 출력 | 명시적 변환 오류 |
+| 토큰 사용량 | 선택적 prompt/completion/total 검사; 캐시·추론 세부값 보존; 누락은 null |
 
-Chat created는 Responses created_at으로 보존한다. 변환 response/item ID는
-공급자 응답 ID에서 도출하고, tool call ID와 namespace/name은 유지한다.
-Gateway가 응답 조회·저장이나 이력을 소유하지 않는다. 미지 확장과 cross-protocol
-opaque 입력은 계속 오류다. 공급자별 모델·역할 동작에는 별도 검증 프로필이 필요하다.
+공급자의 created 시각은 created_at으로 보존한다. 응답·항목 ID는 공급자 응답
+ID에서 만들고, 원래 도구 호출 ID와 네임스페이스·이름 쌍은 유지한다.
+게이트웨이는 응답을 저장하거나 ID 조회를 제공하지 않는다. 알 수 없는 확장
+필드와 다른 프로토콜의 불투명 입력은 거부한다.
 
-공통 PreparedTools는 Messages와 Chat의 반환 도구 선택·횟수와 정체성 복원을
-소유하고, 각 어댑터는 wire/finish 의미를 유지한다. 공급자 바이트는 Value로
-변환하기 전에 중복 JSON key를 거부한다. Custom wrapper는 원래 인자 문자열의
-중복·추가 필드와 등록 문법도 검증한다.
+반환된 도구 이름, 선택과 횟수는 요청과 일치해야 한다. 공급자 JSON의 중복
+키를 검사하며, 사용자 정의 입력의 중복·추가 포장 필드와 잘못된 등록 문법도 거부한다.
 
-Codec·스트림 테스트는 역할·순서·옵션, namespace/custom 이름 선택, 병렬 이력,
-필수 effort·strict schema, 원래 숫자 인자, cache/reasoning 수치, usage 누락,
-토큰 잘림, 미지원 입력과 잘못된 출력을 검사한다. 공통 helper를 바꿔도 Messages
-회귀는 필수다. Native Responses의 원형 JSON/SSE 계약은 유지한다. 공통 dispatch는
-각 변환 요청의 승인된 계획을 한 번 사용하며 완료·drop까지 stream/permit을 소유한다.
+엄격한 출력과 추론 강도는 프로필에 지원을 명시해야 한다. 어댑터는 스키마
+규칙과 추론 강도를 약화하거나 프롬프트로 대체하지 않고 보존한다.
+호스트가 반환 데이터를 검사하며, 실제 공급자·모델의 스키마 지원, 지시 처리와
+출력 품질을 시험해야 한다.
 
-주요 계약: [Chat Completions create](https://developers.openai.com/api/reference/typescript/resources/chat/subresources/completions/methods/create),
-[custom tools](https://developers.openai.com/api/docs/guides/function-calling#custom-tools).
-Fixture는 새로 작성한 합성 데이터이며 참고 구현의 코드·테스트·prompt를 복사하지 않았다.
-
-매 turn 제어값을 지정하는 호스트에는 명시적 effort와 출력 schema가 필요하다.
-Codec은 해당 기능을 프로필이 지원할 때만 native Chat 필드로 전달한다. Effort를
-낮추거나 schema 규칙을 바꾸거나 strict 생성을 prompt로 대체하지 않는다.
-Schema dialect, 결과 준수와 effort 동작은 공급자의 native 계약이며 gateway에
-두 번째 범용 JSON Schema 검증기를 넣지 않는다. 호스트는 결과 데이터를 검증해야
-한다. G12는 실제 고정 Codex·합성 upstream에서 high effort와 strict schema를
-검증하며 소비자 운영 수락은 별도다.
+주요 계약: [Chat Completions](https://developers.openai.com/api/reference/typescript/resources/chat/subresources/completions/methods/create),
+[사용자 정의 도구](https://developers.openai.com/api/docs/guides/function-calling#custom-tools).
 
 <a id="streaming-contract"></a>
 
 ## 스트리밍 계약
 
-SSE framer는 임의 byte·UTF-8 경계를 처리한다. 한 stream은 response ID,
-model, created와 choice index 하나를 고정한다. 도구 조각은 공급자 index별로
-모으며 쪼개진 ID·이름도 처리한다. 최종 도구 index는 연속이어야 한다.
-고정 메타데이터로 이미 연결한 응답 정체성을 바꿀 수 없다.
+디코더는 임의 바이트·UTF-8 경계를 처리한다. 스트림은 응답 ID, 모델,
+created 값과 choice 인덱스 하나를 고정한다. 도구 조각은 공급자의 인덱스별로
+모으며 분할된 ID·이름도 처리한다. 최종 도구 인덱스는 연속이어야 하고,
+이 식별 정보는 응답 안에서 바뀔 수 없다.
 
-Chat 응답은 assistant content와 순서 있는 tool-call 배열을 가진다. 텍스트는
-즉시 보내고 도구는 finish_reason까지 모은다. 그래야 초기 도구 조각 뒤에 온
-텍스트가 이미 내보낸 출력 index나 정체성을 바꾸지 않는다. 전체 응답 codec과
-EventIR이 모든 도구·선택·문법을 검증한 뒤 도구 완료를 내보낸다. 텍스트와 도구
-정체성·인자 바이트는 누적 출력 한도에 포함되며 인자는 IR의 공통 8 MiB 제한도
-따른다. 변환 텍스트 delta는 1 MiB 이하이고 누적 텍스트를 최종 JSON으로 검증할
-때는 UTF-8 경계에서 나눈다.
+텍스트는 즉시 전송한다. 도구는 finish_reason까지 모아 뒤늦은 텍스트가 이미
+내보낸 출력 인덱스를 바꾸지 못하게 한다. 도구 완료 전에 전체 인자, 선택과
+필수 문법을 검사한다. 텍스트와 도구 바이트는 누적 출력 한도에 포함한다.
+누적 인자는 8 MiB, 개별 텍스트 조각은 1 MiB로 제한하며 큰 최종 텍스트는
+UTF-8 경계에서 나눈다.
 
 유효한 finish_reason과 마지막 data: [DONE] 후에만 response.completed/incomplete를
-내보낸다. 마지막 usage 전용 chunk를 지원한다. Usage 누락은 null, 불일치·감소는
-거부한다. 종료 표식 누락, 공급자 오류, 미지 의미 delta, 정체성 변경과 finish
-이후 데이터는 상태를 실패로 고정한다. 잘린 잘못된 도구 JSON은 finish_reason이
-length여도 변환에 실패하며, 고친 인자로 완료·실행하지 않는다.
+내보낸다. 마지막 사용량 전용 조각을 지원한다. 사용량 누락은 null로 남기고,
+불일치하거나 감소하는 수치는 거부한다.
 
-시험은 뒤늦은 텍스트·병렬 도구 stream의 모든 byte 분할, ID·이름·인자의 독립
-조각, 비스트리밍/스트리밍 동등성, 중단 stream, 잘못된 wrapper, 정체성·순서,
-usage 누락, 큰 누적 텍스트와 인자·출력 한도를 포함한다. HTTP 시험은 두
-어댑터의 자격 분리, 요청 전 오류, JSON, 분할 stream, 정제 오류, EOF,
-누적 한도, 취소와 동시 요청 슬롯 반환을 검사한다.
+종료 표식 누락, 공급자 오류, 알 수 없는 의미 조각, 응답 식별자 변경과 종료
+이후 데이터는 스트림을 실패시킨다. 잘린 도구 JSON이 잘못되었다면 finish_reason이
+length여도 실패하며, 실행 가능한 인자 객체로 임의 복구하지 않는다.
 
-[공통 행렬](conformance.md)은 실제 Codex의 Chat 시나리오 13개를 기록한다.
-도구·namespace·custom·병렬 왕복, 혼합 출력 재입력, 후속 텍스트, effort/schema,
-승인 거절, 문법 실패, 전송 단절과 두 취소 모드를 포함한다. 시험 호스트는
-[Messages](messages.md)의 제한된 catalog를 사용하고 선택적 기본값은 끄되
-명시적 turn 제어는 유지한다. [Chat Completions 설정 예제](../../config.chat.example.toml)를 참조한다.
+테스트는 바이트 분할, 병렬 호출, 스트리밍·비스트리밍 값의 일치, 잘린 응답,
+잘못된 사용자 정의 입력, 식별자·순서 오류, 사용량과 출력 한도를 검사한다.
+HTTP 시험은 자격 증명, 전송 전 거부, 취소와 동시 요청 슬롯 반환을 확인한다.
+
+[공통 시험](conformance.md)은 실제 Codex와 모의 공급자로 Chat Completions
+시나리오 13개를 실행한다. 제한된 [Messages 시험 프로필](messages.md)을 사용해
+명시적 추론 강도·스키마 제어, 문법 거부, 승인 거절과 두 취소 방식을 검사한다.
+이 결과는 프로토콜 경로를 검증하며, 운영에는 선택한 실제 모델과 애플리케이션의
+시험이 필요하다.
