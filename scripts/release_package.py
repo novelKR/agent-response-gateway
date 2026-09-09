@@ -82,9 +82,11 @@ def run(args, cwd, env=None, log=None, timeout=1800):
             item = json_value(line)
             if item.get("reason") == "compiler-message" and item["message"].get("level") == "error":
                 diagnostics.append("error: " + item["message"]["message"].splitlines()[0])
+                for child in item["message"].get("children", []):
+                    diagnostics.extend(child["message"].splitlines())
         for line in diagnostics:
-            if line.strip().startswith(("error:", "error[", "Caused by:")) or "(os error " in line:
-                summary = re.sub(r"`[^`]*`|\"[^\"]*\"|'[^']*'", "<detail>", line.strip())
+            if line.strip().startswith(("error:", "error[", "Caused by:")) or "(os error " in line or re.search(r"\bLNK[0-9]{4}\b", line):
+                summary = re.sub(r"`[^`]*`|\"[^\"]*\"|'[^']*'", lambda m: m[0] if re.fullmatch(r"[`\"'][A-Za-z0-9_.-]+[`\"']", m[0]) else "<detail>", line.strip())
                 summary = re.sub(r"\S*[\\/]\S*", "<path>", summary)
                 print("release-package: compiler: " + summary[:500], file=sys.stderr)
     require(result.returncode == 0, "build or verification command failed; inspect ignored local log")
