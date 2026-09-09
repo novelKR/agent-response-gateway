@@ -1,0 +1,62 @@
+name: Reusable Pages deployment
+
+# Deployment-only contract: the caller builds, validates and uploads a Pages
+# artifact in the SAME run, then calls this workflow after its required CI gate.
+# No checkout, dependency installation, build command, PAT or inherited secrets.
+# The Pages site and github-pages environment always belong to the caller repo.
+#
+# Repository bootstrap (maintainer action, not performed by this workflow):
+# - Settings > Pages > Build and deployment > Source: GitHub Actions.
+# - Protect the publication branch and restrict github-pages deployments to it.
+# - Add an environment reviewer when a separate publication approval is needed.
+# - Keep the site's configured base path aligned with the Pages URL.
+#
+# This first consumer keeps the reusable implementation in its own repository.
+# Other repositories can later reference this file at a reviewed full commit SHA,
+# or it can move unchanged to a dedicated public workflows repository. Callers
+# retain ownership of their source, build tools, checks, artifacts and permissions.
+# Do not add a target-repository or cross-run artifact input to this contract.
+
+on:
+  workflow_call:
+    inputs:
+      artifact-name:
+        description: Verified Pages artifact uploaded by the caller in this run
+        type: string
+        required: false
+        default: github-pages
+      publication-branch:
+        description: Branch allowed to publish; also restrict it in the environment
+        type: string
+        required: false
+        default: main
+    outputs:
+      page-url:
+        description: URL reported by the completed Pages deployment
+        value: ${{ jobs.deploy.outputs.page-url }}
+
+permissions:
+  pages: write
+  id-token: write
+
+jobs:
+  deploy:
+    if: >-
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      github.ref == format('refs/heads/{0}', inputs.publication-branch)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    concurrency:
+      group: github-pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    outputs:
+      page-url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy the verified artifact without rebuilding
+        id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
+        with:
+          artifact_name: ${{ inputs.artifact-name }}
