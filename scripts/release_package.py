@@ -383,6 +383,7 @@ def build_candidate(root, target, output, cargo_deny):
     logs = Path(tempfile.mkdtemp(prefix=target + "-logs-", dir=local))
     with tempfile.TemporaryDirectory(prefix="candidate-", dir=local) as temporary:
         temporary = Path(temporary)
+        print("release-package: export committed source", flush=True)
         source_tar = run(["git", "archive", "--format=tar", "--prefix=agent-response-gateway/", commit], root)
         source_path = temporary / "source.tar"
         write_new(source_path, source_tar)
@@ -398,16 +399,22 @@ def build_candidate(root, target, output, cargo_deny):
         version = tomllib.loads(read(source / "Cargo.toml").decode())["package"]["version"]
         require(re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:-[a-zA-Z0-9.-]+)?", version), "invalid package version")
         # Run the committed audit implementation against the exported records and locked cache.
+        print("release-package: verify dependency notices", flush=True)
         run([sys.executable, "-B", source / "scripts/license_audit.py", "bundle", "--cargo-deny", cargo_deny, "--output", temporary / "notices"], source, env, logs / "licenses.log")
         metadata = json_value(run(["cargo", "metadata", "--format-version=1", "--locked", "--offline", "--filter-platform", target], source, env))
+        print("release-package: build native executable", flush=True)
         raw = run(["cargo", "build", "--release", "--locked", "--offline", "--target", target, "--message-format=json"], source, env, logs / "cargo.log")
         built = compiled_packages(raw)
         binary = Path(env["CARGO_TARGET_DIR"]) / target / "release" / TARGETS[target]["executable"]
         binary_bytes = read(binary)
+        print("release-package: execute native smoke", flush=True)
         run([sys.executable, "-B", root / "scripts/package_smoke.py", "--binary", binary, "--state-dir", temporary / "smoke"], source, env, logs / "smoke.log", timeout=60)
+        print("release-package: inspect native linkage", flush=True)
         linkage = dynamic_linkage(binary, target, env)
+        print("release-package: collect toolchain notices", flush=True)
         tool_notices, tool_receipt = toolchain_evidence(sysroot, target, compiler)
         records = json_value(read(source / "licensing/dependencies.json"))
+        print("release-package: bind target inventory", flush=True)
         sbom = make_sbom(metadata, built, records, target, version, commit, sha(binary_bytes), compiler, linkage)
         package_list = run(["cargo", "package", "--list", "--locked", "--offline"], source, env).decode().splitlines()
         require(package_list and all(not set(PurePosixPath(p).parts) & {".private", ".codex", ".local", "target"} for p in package_list), "Cargo package includes reserved files")
@@ -423,6 +430,7 @@ def build_candidate(root, target, output, cargo_deny):
         binary_name = f"agent-response-gateway-{version}-{target}.{TARGETS[target]['archive']}"
         source_name = f"agent-response-gateway-{version}-source.tar.gz"
         sbom_name = f"agent-response-gateway-{version}-{target}.cdx.json"
+        print("release-package: create binary archive", flush=True)
         write_new(output / binary_name, archive_bytes(files, target))
         # Run the actual extracted package, including Windows ZIP path/mode handling.
         extracted = temporary / "extracted package"
@@ -430,6 +438,7 @@ def build_candidate(root, target, output, cargo_deny):
             path = extracted / name
             write_new(path, data)
             path.chmod(mode)
+        print("release-package: execute extracted archive smoke", flush=True)
         run([sys.executable, "-B", root / "scripts/package_smoke.py", "--binary", extracted / "agent-response-gateway/bin" / TARGETS[target]["executable"], "--state-dir", temporary / "extracted-smoke"], source, env, logs / "extracted-smoke.log", timeout=60)
         # Normalize gzip metadata around Git's committed tar bytes, including its commit receipt.
         zipped = io.BytesIO()
@@ -450,6 +459,7 @@ def build_candidate(root, target, output, cargo_deny):
         write_new(output / "candidate.json", encoded(manifest))
         checksums = {p.name:sha(read(p)) for p in sorted(output.iterdir())}
         write_new(output / "SHA256SUMS", "".join(f"{v}  {k}\n" for k,v in sorted(checksums.items())).encode())
+        print("release-package: verify completed candidate", flush=True)
         return verify_candidate(output, commit, target)
 
 
@@ -467,7 +477,12 @@ def main():
     args = parser.parse_args()
     try:
         result = build_candidate(ROOT, args.target, args.output.resolve(), args.cargo_deny.resolve()) if args.command == "build" else verify_candidate(args.directory, args.commit, args.target)
-    except (OSError, ValueError, KeyError, TypeError, PackageError, license_audit.AuditError, check_public_boundary.BoundaryError, tarfile.TarError, zipfile.BadZipFile, subprocess.TimeoutExpired):
+    except PackageError as error:
+        # PackageError messages are static recipe diagnostics, never subprocess output.
+        print("release-package: " + str(error), file=sys.stderr)
+        return 1
+    except (OSError, ValueError, KeyError, TypeError, license_audit.AuditError, check_public_boundary.BoundaryError, tarfile.TarError, zipfile.BadZipFile, subprocess.TimeoutExpired) as error:
+        print("release-package: error type " + type(error).__name__, file=sys.stderr)
         print("release-package: failed; inspect ignored local inputs/logs", file=sys.stderr)
         return 1
     print(json.dumps({"status":"passed", "command":args.command, "source_commit":result["source_commit"], "target":result["target"], "binary_sha256":result["binary_sha256"], "formal_release":"not_approved"}))
