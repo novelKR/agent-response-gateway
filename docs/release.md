@@ -2,7 +2,10 @@
 
 공개 소스와 PR CI는 운영 중이며 G18은 미공개 배포 후보 생성·검증을 제공한다.
 G19는 서명된 후보와 사용자 승인 후 동일 바이트를 공개하는 preview 승격을 제공한다.
-실제 후보 서명 실행, 바이너리 공개, 소비자 수락과 상용 계약 체결은 별도 단계다.
+공개된 [후보 workflow 실행](https://github.com/novelKR/agent-response-gateway/actions/workflows/release-candidate.yml)에서
+선택한 commit·run·attempt의 결과와 출처 증명을 확인한다. 서명된 후보가 있다는
+사실은 최신 main의 릴리스나 바이너리 공개를 뜻하지 않는다. 소비자 생산 운영
+수락과 상용 계약 체결도 별도 단계다.
 현재 후보 생성과 정확한 검증 범위는 [패키징 계약](packaging.md)을 따른다.
 [서명·승격 계약](release-promotion.md)은 최소 권한, 환경 승인, 검증과 복구 절차를 정한다.
 

@@ -26,7 +26,7 @@ a PR using the author's identity.
 ## Required checks
 
 The required jobs are `format`, `rust-linux`, `rust-macos`, `publication`, `licenses`
-and `codex-conformance`.
+and `codex-conformance`, plus the Linux/macOS `package-smoke` matrix.
 `ci-required` succeeds only when every required prerequisite succeeds, including
 after cancellation or failure. No path filter silently omits a required check.
 Register a required check in branch protection after its first successful run.
@@ -34,8 +34,9 @@ Register a required check in branch protection after its first successful run.
 The license job verifies locked evidence, runs all script tests and reproduces
 notice bundles with the pinned development tool. Codex conformance runs the actual
 pinned executable with the gateway and a synthetic upstream. Every scenario is
-reported; any failure blocks the aggregate. Release-package checks remain a later
-work item and their absence is not a pass.
+reported; any failure blocks the aggregate. Package checks build a candidate from
+the committed source and verify archives, corresponding source, notices and the
+target SBOM. Candidate signing and approved release promotion use separate workflows.
 The default workflow uses Rust 1.98.0, Python 3.14, Ubuntu 24.04 x64 and macOS 15
 ARM64. Full history is fetched for publication checks. Actions are pinned by SHA.
 Caches are partitioned by OS, architecture, toolchain and relevant lock files.

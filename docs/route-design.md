@@ -1,13 +1,13 @@
 # G05 — Model routes and capability admission
 
-Status: **explicitly approved on 2026-09-08; implementation tracked by G06**.
+Status: **explicitly approved on 2026-09-08; implemented by G06 and the G09/G12 adapters**.
 This document is the implementation contract for G06 and adapter activation in
 G09/G12. It preserves the existing loopback and stateless transport boundary.
 
 ## Evidence and recommendation
 
-Current HTTP requests select a provider/model and always call `/responses` with
-Bearer authentication. IR capability plans are not used by that path. Actual
+At the G05 design baseline, HTTP requests selected a provider/model and always called
+`/responses` with Bearer authentication. IR capability plans were not used by that path. Actual
 pinned-Codex tests exercise flat function/custom tools and a namespace container.
 The initial request also carries cache/metadata/include fields and hosted-tool
 declarations. Treating every raw request as the current narrower IR subset would
@@ -17,7 +17,7 @@ would hide unsupported semantics.
 **Required, high confidence:** connect declared routes and capabilities at one
 translation boundary, while retaining the distinct native passthrough path.
 A per-call collection of provider special cases is not a maintainable complete
-alternative. The current native-only service remains a valid limited alternative.
+alternative. Retaining the original native-only service was a valid limited alternative.
 
 ## Public configuration additions
 

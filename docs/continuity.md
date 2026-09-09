@@ -96,6 +96,7 @@ are rejected before any new request. No remote compact endpoint is called.
 The public result contains only versions, statuses and request counters.
 
 These tests do not establish real-model summary quality, provider qualification,
-consumer workflow acceptance, production activation or release readiness. G17
-must connect this contract to the consumer's private persistence and control
-paths, including its own permissions, approvals and recovery checks.
+consumer workflow acceptance, production activation or release readiness. Consumers
+connect this contract to their private persistence and control paths, including
+permissions, approvals and recovery checks. G17 tracks that integration separately
+from the reusable contract and from real-provider or production acceptance.
