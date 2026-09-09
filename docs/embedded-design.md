@@ -6,14 +6,13 @@ consumer runtime upgrade, enable service mode or create a release.
 
 ## Evidence, root cause and recommendation
 
-The gateway already accepts a configuration file, binds a numeric loopback address,
-emits one readiness JSON line after registering signal handlers, and supports
-bounded shutdown. `check-config` reports structural validity without resolving a
-provider request. The library also exposes a router. These are useful embedding
-primitives, but the CLI has no versioned machine-readable description of the exact
-resolved routes, defaults, profile/adapter versions and limits used by a child.
-Readiness reports a package version and address, which cannot by themselves bind
-a host's expected effective configuration to the running process.
+Before G13, the gateway accepted a configuration file, bound a numeric loopback
+address, emitted readiness after registering signal handlers, and supported bounded
+shutdown. `check-config` and the library router were useful embedding primitives,
+but the CLI lacked a versioned description of resolved routes, defaults, profiles
+and limits. The original version/address readiness fields could not bind the host's
+expected effective configuration to its child. The implemented interface below
+adds that binding while preserving those existing fields.
 
 **Strongly recommended; high confidence:** add a small versioned, offline manifest
 command and include its configuration digest in readiness. Keep process supervision,
@@ -22,7 +21,7 @@ This centralizes interpretation in the gateway's existing Config/ResolvedRoute
 boundary and avoids a second host implementation of routing/default rules.
 
 A complete conservative local alternative exists: the host can freeze and hash the
-raw TOML bytes plus the executable and use today's readiness line. That rejects
+raw TOML bytes plus the executable and use the original readiness fields. That rejects
 semantically identical reformattings and leaves the host without a standardized
 resolved-route report. The selected M5 contract instead makes that reusable report
 explicit. No gateway process manager or consumer-specific orchestration layer is

@@ -1,14 +1,15 @@
 # agent-response-gateway
 
-Rust로 작성한 독립 Responses 프록시의 초기 기반이다. 등록한 공개 모델명을
+Rust로 작성한 독립 Responses 게이트웨이다. 등록한 공개 모델명을
 공급자의 실제 모델명으로 바꾸고, 별도 공급자 인증으로 JSON 또는 SSE를
 전달한다. 에이전트 런타임과 백엔드 서비스가 같은 HTTP 인터페이스를
 소비할 수 있도록 구성한다.
 
 현재는 **루프백 전용 Responses → Responses 전달과 명시적 프로필의
 Responses → Messages·Chat Completions 변환**을 제공한다. 고정 Codex와 합성 upstream의
-도구·승인 거절·취소 시험을 통과했다. 실제 공급자 모델 qualification,
-소비자 내장·장기 운영·정식 배포 수락은 후속 단계다.
+도구·승인 거절·취소 시험을 통과했다. 내장·연속성·서명 후보 채택의 계약과
+소비자 측 합성 통합 검증도 구현됐다. 실제 공급자 모델 qualification,
+소비자 생산 운영 활성화와 정식 배포는 별도 수락 단계다.
 
 ## 시작하기
 
@@ -78,9 +79,12 @@ native Responses는 도구·구조화 출력·추론 항목을 재구성하지 �
 변환 경로는 선언된 함수·custom·namespace 도구와 텍스트를 변환하며 미지원
 필수 기능을 전송 전에 거부한다. `/v1/models` 등록은 모델 호환성 검증이 아니다.
 
-저장 요청, 이전 response ID와 conversation 기반 상태, 압축, background 실행,
-응답 조회·삭제, 자동 재시도·fallback, WebSocket, OAuth·계정 풀은 미지원이다.
-상세 계약과 제한은 [프로토콜 문서](docs/protocol.md)를 참조한다.
+게이트웨이의 저장 요청, `previous_response_id`와 conversation 기반 서버 상태,
+원격 compact API, background 실행, 응답 조회·삭제, 자동 재시도·fallback,
+WebSocket, OAuth·계정 풀은 미지원이다. 호스트는 자신의 Codex 이력과 저널로
+로컬 압축·재개·복구를 관리할 수 있다. [연속성 계약](docs/continuity.md)은
+검증된 binding과 불확실한 실행의 복구 책임을 설명한다.
+상세 HTTP 계약과 제한은 [프로토콜 문서](docs/protocol.md)를 참조한다.
 
 ## 내부 IR v1
 
@@ -90,7 +94,7 @@ tool JSON·namespace·patch 문법 bridge, 이벤트 상태 검증을 포함한�
 변환 HTTP 경로는 이 계약을 사용하고 native 경로는 원형 전달을 유지한다. 지원 부분집합과 후속 어댑터 경계는
 [IR 계약](docs/ir.md)에 정리했다.
 
-후속 구현의 우선순위·의존성과 완료 기준은 [구현 마일스톤](docs/roadmap.md),
+구현 단계의 우선순위·의존성과 남은 수락 기준은 [구현 마일스톤](docs/roadmap.md),
 PR·커밋·CI 운영 방식은 [GitHub 작업 절차](docs/github-workflow.md)에 정리했다.
 계획과 현재 지원 범위는 구분한다.
 
@@ -110,7 +114,8 @@ cargo-deny 0.20.2와 잠금 파일의 소스를 오프라인으로 읽는다.
 
 테스트는 모의 upstream과 합성 데이터를 사용하며 실제 모델 API 키를 요구하지
 않는다. CI는 Linux와 macOS에서 Rust 1.98.0으로 같은 검사를 실행하도록
-구성했다. 이 구성 파일의 존재는 GitHub에서 CI가 실행되었다는 증거가 아니다.
+구성했다. 실제 결과는 [공개 CI 실행](https://github.com/novelKR/agent-response-gateway/actions/workflows/ci.yml)에서
+해당 commit의 성공 여부를 확인한다. CI 성공은 실제 공급자 검증이나 운영 수락이 아니다.
 
 별도 [Codex 호환성 시험](tests/codex/README.md)은 실제 Codex와 게이트웨이를
 합성 upstream에 연결한다. 임시 시험 기준은 `0.154.0-alpha.6`이며,

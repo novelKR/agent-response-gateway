@@ -58,7 +58,8 @@ hosts own context selection and run/retry budgets; the gateway owns declared
 transport routes and compatibility checks. The current gateway remains stateless.
 The capability/route and persistence designs are separate approval work items.
 
-The G04 harness will record which of these tests actually ran. Binary integrity,
+The harness records which tests actually ran; the [current three-route suite](conformance.md)
+extends the original G04 baseline. Binary integrity,
 schema generation and synthetic archive tests alone are not Codex conformance,
 provider qualification, consumer acceptance or a production release.
 

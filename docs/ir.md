@@ -2,8 +2,9 @@
 
 이 문서는 `ir::VERSION = 1`인 내부 Rust 라이브러리 계약을 정의한다.
 현재 HTTP 서비스의 Responses 전달 경로는 그대로 유지한다. IR은 요청 codec,
-기능 판정, 도구 bridge와 이벤트 상태 검증을 제공하며 실제 공급자 어댑터나
-새 HTTP 엔드포인트를 활성화하지 않는다. 영속 저장 형식도 정의하지 않는다.
+기능 판정, 도구 bridge와 이벤트 상태 검증을 제공하고 Messages·Chat Completions
+변환 어댑터가 이를 사용한다. IR 라이브러리 자체는 네트워크 요청을 실행하거나
+새 HTTP 엔드포인트와 영속 저장 형식을 정의하지 않는다.
 
 ## 설계 목적과 경계
 
@@ -154,7 +155,8 @@ Serialize도 제공하지 않는다. 현재 source-bound 자료를 같은 경로
 `EventValidator`는 응답 하나의 이벤트를 순서대로 검증한다. 이벤트는 시작,
 항목 시작, 콘텐츠 시작·증분·종료, 도구 인자 증분, 항목 종료, 사용량 갱신과
 최종 상태로 구성한다. 입력 문자열은 이미 wire UTF-8 처리가 끝났다고 가정한다.
-실제 SSE 프레이밍, 공급자별 이벤트 파서와 클라이언트 이벤트 encoder는 없다.
+SSE 프레이밍, 공급자별 이벤트 파서와 클라이언트 이벤트 encoder는 각 어댑터의
+책임이며 이 순수 검증기 안에 포함되지 않는다.
 
 | 상태·입력 | 규칙 |
 |---|---|
@@ -180,9 +182,10 @@ binding 변경, wrapper 복원, 교차 이벤트와 모든 문자열 분할 위�
 기존 HTTP 전달 테스트와 함께 수행하며 private 기록이 없는 소스에서도 확인한다.
 
 현재 Messages와 Chat Completions codec·SSE 변환·HTTP 연결은 G12의 실제
-Codex 합성 시험을 통과했다. 실제 공급자 모델 검증,
-상태 저장·압축·복구, tenant 인증과 실제 모델 qualification은 후속 단계다. 라이브러리 계약을 통과한 선언을 운영 수락으로
-간주하지 않는다.
+Codex 합성 시험을 통과했다. 호스트가 소유하는 이력·로컬 압축·복구는 별도의
+[연속성 계약](continuity.md)을 따른다. Gateway의 상태 저장과 tenant 인증은
+미지원이며 실제 공급자 모델 qualification과 소비자 생산 운영 수락은 별도 단계다.
+라이브러리 계약을 통과한 선언을 운영 수락으로 간주하지 않는다.
 
 참고: [OpenAI custom tools](https://developers.openai.com/api/docs/guides/function-calling#custom-tools),
 [Anthropic streaming](https://platform.claude.com/docs/en/build-with-claude/streaming).

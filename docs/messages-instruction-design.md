@@ -1,7 +1,8 @@
 # Messages instruction-role lowering — approval addendum
 
 Status: explicitly approved on 2026-09-08 after detailed review of the semantic
-limits. Implementation is tracked by G07/G08; this PR changes documentation only.
+limits. G07/G08 implement the bridge. This document preserves its approved design
+and acceptance boundaries; the [Messages support contract](messages.md) describes current behavior.
 
 ## Observed boundary
 
@@ -70,5 +71,5 @@ no state migration is needed.
 
 Approval authorizes only this explicit Messages bridge and its disclosed limits.
 It does not approve live provider calls, production activation or role merging in
-other APIs. Until approved, G07/G08 may implement the independent narrow codec and
-tool/stream machinery while G09's default-profile qualification remains blocked.
+other APIs. Before approval, only the independent narrow codec and tool/stream
+machinery could proceed; the observed Codex profile required this explicit bridge.
