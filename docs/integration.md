@@ -4,10 +4,16 @@
 
 [English](integration.md) | [한국어](ko/integration.md)
 
+<Callout>
+
 The gateway is developed and released in an independent repository. Consumers
 select a verified version. This document defines reusable integration contracts,
 not the adoption status of a particular product. Keep consumer identifiers and
 operational records out of public documentation.
+
+</Callout>
+
+<DiagramFigure kind="tool-roundtrip" />
 
 <a id="공통-경계"></a>
 

@@ -19,8 +19,7 @@ from urllib.parse import unquote, urlsplit
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = 'docs/translations.json'
 RESERVED = {'.git', '.private', '.codex', '.local', 'node_modules', 'target'}
-SECTIONS = {'start', 'reference', 'integration', 'architecture', 'delivery', 'project'}
-FIELDS = {'id', 'section', 'order', 'source', 'translation', 'anchors', 'source_sha256', 'translation_sha256'}
+FIELDS = {'id', 'section', 'order', 'route', 'source', 'translation', 'anchors', 'source_sha256', 'translation_sha256'}
 
 
 class DocumentationError(ValueError):
@@ -153,13 +152,18 @@ def load(root):
             and document['schema'] == 'gateway-documentation/v1'
             and document['review_method'] == 'paired-editorial-review; hashes detect drift, not semantic equivalence'
             and isinstance(document['documents'], list), 'Invalid translation manifest')
-    seen_ids, seen_paths = set(), set()
+    seen_ids, seen_paths, seen_routes = set(), set(), set()
     for entry in document['documents']:
         require(set(entry) == FIELDS, 'Invalid document entry')
         require(re.fullmatch(r'[a-z][a-z0-9-]*', entry['id']) is not None
                 and entry['id'] not in seen_ids, 'Duplicate or invalid document ID')
-        require(entry['section'] in SECTIONS and type(entry['order']) is int and entry['order'] >= 0,
+        require(re.fullmatch(r'[a-z][a-z0-9-]*', entry['section']) is not None
+                and type(entry['order']) is int and entry['order'] >= 0,
                 'Invalid navigation metadata')
+        require(isinstance(entry['route'], str)
+                and (entry['route'] == '/' or re.fullmatch(r'/guide/[a-z][a-z0-9-]*', entry['route']))
+                and entry['route'] not in seen_routes, 'Duplicate or invalid site route')
+        seen_routes.add(entry['route'])
         require(isinstance(entry['anchors'], list) and bool(entry['anchors'])
                 and all(isinstance(a, str) and bool(a) for a in entry['anchors'])
                 and len(set(entry['anchors'])) == len(entry['anchors']), 'Invalid preserved anchors')

@@ -71,6 +71,8 @@ python3 examples/client.py --base-url http://127.0.0.1:43127/v1 --model example/
 
 ## 지원 범위
 
+<SupportTable>
+
 | 인터페이스 | 동작 |
 |---|---|
 | `GET /` | 버전·라이선스·설정된 소스 위치 안내 |
@@ -78,6 +80,8 @@ python3 examples/client.py --base-url http://127.0.0.1:43127/v1 --model example/
 | `GET /readyz` | 로컬 준비 상태; 실제 공급자 probe는 하지 않음 |
 | `GET /v1/models` | Bearer 인증 후 설정된 모델명 목록 |
 | `POST /v1/responses` | Bearer 인증 후 모델 치환·공급자 인증 교체·JSON/SSE 전달 |
+
+</SupportTable>
 
 native Responses는 도구·구조화 출력·추론 항목을 재구성하지 않는다. JSON 필드는 모델
 치환과 `store:false` 정규화를 제외하고 보존되지만 JSON 직렬화 바이트가

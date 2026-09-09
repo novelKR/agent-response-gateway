@@ -17,7 +17,8 @@
         "기여와-제3자-권리",
         "버전별-적용-조건",
         "별도-상용-라이선스-정책"
-      ]
+      ],
+      "route": "/guide/commercial-licensing"
     },
     {
       "id": "contributing",
@@ -30,7 +31,8 @@
       "anchors": [
         "contribution-policy",
         "기여-정책"
-      ]
+      ],
+      "route": "/guide/contributing"
     },
     {
       "id": "getting-started",
@@ -38,8 +40,8 @@
       "order": 0,
       "source": "README.md",
       "translation": "README.ko.md",
-      "source_sha256": "96df152fe15606a5b4ecdac30ae73ec0c0a754887d4f18469cc4c5ef289acbee",
-      "translation_sha256": "436da758d5c00a3f388b160e7415c5ae28e8de9267db4c89ff96706b35f4ad45",
+      "source_sha256": "698ae89e15829e3e80d558283b130da7264b0f7a7200f64a9882f29d6676a731",
+      "translation_sha256": "7ef311bcb64004404a256c80c52de67f99f80975f0c4fdf4f37b4eb2b5555596",
       "anchors": [
         "agent-response-gateway",
         "getting-started",
@@ -52,7 +54,8 @@
         "시작하기",
         "지원-범위",
         "통합과-라이선스"
-      ]
+      ],
+      "route": "/guide/getting-started"
     },
     {
       "id": "third-party-notices",
@@ -67,7 +70,8 @@
         "third-party-components-and-provenance",
         "라이선스-본문-출처",
         "제3자-구성요소와-출처"
-      ]
+      ],
+      "route": "/guide/third-party-notices"
     },
     {
       "id": "chat-completions",
@@ -82,7 +86,8 @@
         "chat-completions-어댑터-지원",
         "streaming-contract",
         "스트리밍-계약"
-      ]
+      ],
+      "route": "/guide/chat-completions"
     },
     {
       "id": "codex-contract",
@@ -103,7 +108,8 @@
         "제어-인터페이스와-모델-인터페이스",
         "준비와-검증",
         "필수-수락-기준"
-      ]
+      ],
+      "route": "/guide/codex-contract"
     },
     {
       "id": "conformance",
@@ -116,7 +122,8 @@
       "anchors": [
         "three-route-conformance",
         "세-api-경로-적합성-검증"
-      ]
+      ],
+      "route": "/guide/conformance"
     },
     {
       "id": "continuity-design",
@@ -141,7 +148,8 @@
         "실행-binding과-복구-기록",
         "지원하는-연속-실행-경로",
         "책임과-인터페이스"
-      ]
+      ],
+      "route": "/guide/continuity-design"
     },
     {
       "id": "continuity",
@@ -160,7 +168,8 @@
         "재현-가능한-검증",
         "전이와-복구",
         "호스트가-소유하는-연속성-계약"
-      ]
+      ],
+      "route": "/guide/continuity"
     },
     {
       "id": "documentation",
@@ -168,24 +177,31 @@
       "order": 4,
       "source": "docs/documentation.md",
       "translation": "docs/ko/documentation.md",
-      "source_sha256": "2708cf0704147fb7c41a91b71779ae6b287e33c7ed045d44026203d782dc5531",
-      "translation_sha256": "72eb21f9225a62be6ccabe8397f85810136a0fd646d9c93ce5817e9a3ca12bb5",
+      "source_sha256": "f75a4449a11b53f61a25bd317600b830712bf98600d2f54dc5efb35b33c6cfdd",
+      "translation_sha256": "5ec87eee0320b58839ec33a9c761ac19ee3914d8fe4c0229d7211a1040db3d01",
       "anchors": [
+        "documentation-site-development",
         "independent-local-history",
         "license-evidence",
         "public-documentation-and-local-records",
         "publication-checks",
         "ref-and-local-configuration-scope",
         "ref와-로컬-설정의-검사-범위",
+        "site-verification-and-publication",
         "source-archives",
         "translation-maintenance",
+        "web-notices-and-development-server-constraints",
         "공개-경계-검사",
         "공개-문서와-로컬-기록-관리",
         "독립적인-로컬-이력",
         "라이선스-자료",
+        "문서-사이트-개발",
         "번역-관리",
-        "소스-압축파일"
-      ]
+        "사이트-검증과-공개",
+        "소스-압축파일",
+        "웹-고지와-개발-서버-제약"
+      ],
+      "route": "/guide/documentation"
     },
     {
       "id": "embedded-design",
@@ -214,7 +230,8 @@
         "인증과-접근-범위",
         "준비-통지와-수명",
         "호환성과-연속성"
-      ]
+      ],
+      "route": "/guide/embedded-design"
     },
     {
       "id": "github-workflow",
@@ -222,8 +239,8 @@
       "order": 3,
       "source": "docs/github-workflow.md",
       "translation": "docs/ko/github-workflow.md",
-      "source_sha256": "9ef55332a83d2074fdbd1fc0f2364898ce922be36c020c8b8472ee19978d0676",
-      "translation_sha256": "015187cdae83d8bd7d31ea26e238f9d08fc8642c039e492a4f55ff79b76af792",
+      "source_sha256": "29ed6ee21956ba988897dbfe81f6672c6ebff101b474c058a5eb7c1354318a61",
+      "translation_sha256": "6c60f9662bf7bc6daf7f21fe8ab991a7a402a2102f229c7cdd0fd7c42697e3c7",
       "anchors": [
         "branches-commits-and-reviews",
         "github-delivery-workflow",
@@ -233,7 +250,8 @@
         "릴리스와-의존성-변경",
         "브랜치커밋검토",
         "필수-검사"
-      ]
+      ],
+      "route": "/guide/github-workflow"
     },
     {
       "id": "integration",
@@ -241,8 +259,8 @@
       "order": 0,
       "source": "docs/integration.md",
       "translation": "docs/ko/integration.md",
-      "source_sha256": "555af2fb8fd13ae10eed56bfe60cdad8095aa7b22afe65206732cf58ee49dd8b",
-      "translation_sha256": "ac1d9d11b7321c4bf94247b1e5a82c99431ba8a17ca1b1f2da54a4b1cc5975d1",
+      "source_sha256": "1f1d6969eec01180939aa2b87f2ad079403a2b743d820cf1c104027c9ce102ab",
+      "translation_sha256": "36e8ecf50a3d22e48cc74890050eb8b704ed38ae61f2d59283e9cfc5f051049e",
       "anchors": [
         "calling-from-a-backend-service",
         "consumer-integration-boundaries",
@@ -258,7 +276,8 @@
         "소비자-통합-경계",
         "에이전트-런타임에-내장",
         "후속-수락"
-      ]
+      ],
+      "route": "/guide/integration"
     },
     {
       "id": "ir",
@@ -288,7 +307,8 @@
         "설계-목적과-경계",
         "요청-표현과-responses-codec",
         "확장-필드"
-      ]
+      ],
+      "route": "/guide/ir"
     },
     {
       "id": "messages-instruction-design",
@@ -307,7 +327,8 @@
         "관측된-경계",
         "권고와-정확한-동작",
         "대안과-영향-경계"
-      ]
+      ],
+      "route": "/guide/messages-instruction-design"
     },
     {
       "id": "messages",
@@ -326,7 +347,8 @@
         "tool-and-stream-limits",
         "검증한-합성-codex-프로필",
         "도구스트림-한도"
-      ]
+      ],
+      "route": "/guide/messages"
     },
     {
       "id": "packaging",
@@ -343,7 +365,8 @@
         "검증과-승격-경계",
         "목록-범위와-고지",
         "미공개-배포-후보"
-      ]
+      ],
+      "route": "/guide/packaging"
     },
     {
       "id": "protocol",
@@ -368,7 +391,8 @@
         "오프라인-내장-계약",
         "요청응답",
         "자원과-실패"
-      ]
+      ],
+      "route": "/guide/protocol"
     },
     {
       "id": "release-promotion",
@@ -387,7 +411,8 @@
         "빌드와-서명-경계",
         "서명-후보와-보호된-preview-승격",
         "실패와-복구"
-      ]
+      ],
+      "route": "/guide/release-promotion"
     },
     {
       "id": "release",
@@ -408,7 +433,8 @@
         "배포-준비와-버전-고정",
         "소비자의-채택과-복구",
         "소스와-고지"
-      ]
+      ],
+      "route": "/guide/release"
     },
     {
       "id": "roadmap",
@@ -443,7 +469,8 @@
         "병행-준비와-p2--m7--공개-배포권리소비자-채택",
         "전체-순서",
         "출발점-m0--responses-전달과-ir-기반"
-      ]
+      ],
+      "route": "/guide/roadmap"
     },
     {
       "id": "route-design",
@@ -468,7 +495,8 @@
         "근거와-권고",
         "모델-한도와-책임",
         "실행-흐름과-ir-추가"
-      ]
+      ],
+      "route": "/guide/route-design"
     },
     {
       "id": "work-items",
@@ -481,7 +509,8 @@
       "anchors": [
         "github-work-items",
         "github-작업-단위"
-      ]
+      ],
+      "route": "/guide/work-items"
     },
     {
       "id": "license-tooling",
@@ -504,7 +533,8 @@
         "도구와-자료-준비",
         "라이선스-정책과-고지-기록",
         "판정과-특수-원문"
-      ]
+      ],
+      "route": "/guide/license-tooling"
     },
     {
       "id": "codex-tests",
@@ -525,7 +555,30 @@
         "실제-codex와-합성-upstream",
         "연속성",
         "이전-실패와-임시-기준"
-      ]
+      ],
+      "route": "/guide/codex-tests"
+    },
+    {
+      "id": "overview",
+      "section": "start",
+      "order": 0,
+      "route": "/",
+      "source": "docs/index.md",
+      "translation": "docs/ko/index.md",
+      "anchors": [
+        "a-clear-connection-between-agents-and-models",
+        "find-your-next-step",
+        "integrate-with-clear-responsibilities",
+        "know-the-supported-boundaries",
+        "one-entry-point-explicit-routes",
+        "다음-단계",
+        "에이전트와-모델-사이의-명확한-연결",
+        "책임이-분명한-통합",
+        "하나의-진입점-명시적인-경로",
+        "현재-지원-범위"
+      ],
+      "source_sha256": "f3613d5193ca856e2ff1cce519e2a7ac968588c4c6e738001ccb35b3c8317c4c",
+      "translation_sha256": "58e7c3fdb2add2cc8cd8a59c125b846f972548eaf5105f207a8de912dc8d5f43"
     }
   ]
 }

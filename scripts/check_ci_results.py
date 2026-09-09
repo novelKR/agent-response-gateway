@@ -4,6 +4,8 @@
 import json
 import os
 
+REQUIRED_JOBS = {"format", "rust-linux", "rust-macos", "publication", "licenses", "codex-conformance", "package-smoke", "docs"}
+
 
 def succeeded(raw: str) -> bool:
     try:
@@ -12,7 +14,7 @@ def succeeded(raw: str) -> bool:
         return False
     return (
         isinstance(results, dict)
-        and bool(results)
+        and set(results) == REQUIRED_JOBS
         and all(isinstance(job, dict) and job.get("result") == "success" for job in results.values())
     )
 

@@ -34,7 +34,7 @@ class DocumentationTests(unittest.TestCase):
         self.save()
 
     def entry(self, ident, source, translation):
-        return {'id': ident, 'section': 'start', 'order': 0, 'source': source, 'translation': translation,
+        return {'id': ident, 'section': 'start', 'order': 0, 'route': '/guide/' + ident, 'source': source, 'translation': translation,
             'anchors': sorted(docs.anchors((self.root / source).read_text(encoding='utf-8'))),
             'source_sha256': docs.digest((self.root / source).read_bytes()),
             'translation_sha256': docs.digest((self.root / translation).read_bytes())}

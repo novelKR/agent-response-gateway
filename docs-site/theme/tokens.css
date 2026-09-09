@@ -1,0 +1,96 @@
+/* Palette, scale and semantic aliases: the site's only source of color values. */
+:root {
+  --ds-white: #ffffff;
+  --ds-stone-25: #fbfcfb;
+  --ds-stone-50: #f2f5f3;
+  --ds-stone-100: #e1e7e3;
+  --ds-stone-300: #aab8b0;
+  --ds-stone-500: #65786e;
+  --ds-stone-600: #4b6054;
+  --ds-stone-800: #273b30;
+  --ds-stone-900: #18261f;
+  --ds-stone-950: #101a15;
+  --ds-emerald-50: #eaf7ef;
+  --ds-emerald-400: #71dca0;
+  --ds-emerald-600: #187942;
+  --ds-emerald-800: #145c36;
+  --ds-amber-100: #fff3d8;
+  --ds-amber-400: #f3ca78;
+  --ds-amber-800: #795119;
+  --ds-blue-400: #95c4ff;
+  --ds-blue-700: #235ca5;
+  --ds-purple-400: #d5abff;
+  --ds-purple-700: #8044a7;
+  --ds-space-1: 4px;
+  --ds-space-2: 8px;
+  --ds-space-3: 12px;
+  --ds-space-4: 16px;
+  --ds-space-5: 20px;
+  --ds-space-6: 24px;
+  --ds-space-8: 32px;
+  --ds-space-10: 40px;
+  --ds-space-16: 64px;
+  --ds-font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans KR", sans-serif;
+  --ds-font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --ds-text-small: 14px;
+  --ds-text-body: 16px;
+  --ds-text-lead: 18px;
+  --ds-text-title: clamp(36px, 4.5vw, 62px);
+  --ds-line-body: 1.75;
+  --ds-radius-sm: 6px;
+  --ds-radius-card: 12px;
+  --ds-radius-pill: 99px;
+  --ds-width-content: 780px;
+  --ds-width-site: 1440px;
+  --ds-width-home: 1184px;
+  --ds-width-sidebar: 272px;
+  --ds-width-table: 520px;
+  --ds-page-padding: var(--ds-space-8);
+  --ds-background: var(--ds-white);
+  --ds-surface: var(--ds-stone-25);
+  --ds-surface-raised: var(--ds-stone-50);
+  --ds-text: var(--ds-stone-900);
+  --ds-muted: var(--ds-stone-600);
+  --ds-border: var(--ds-stone-100);
+  --ds-accent: var(--ds-emerald-600);
+  --ds-accent-hover: var(--ds-emerald-800);
+  --ds-accent-soft: var(--ds-emerald-50);
+  --ds-on-accent: var(--ds-white);
+  --ds-focus: var(--ds-accent);
+  --ds-caution: var(--ds-amber-800);
+  --ds-caution-soft: var(--ds-amber-100);
+  --ds-info: var(--ds-blue-700);
+  --ds-code-keyword: var(--ds-purple-700);
+  --ds-card-padding: var(--ds-space-6);
+  --ds-grid-gap: var(--ds-space-4);
+  --ds-code-background: var(--ds-surface-raised);
+  --ds-code-foreground: var(--ds-text);
+  --ds-code-token-constant: var(--ds-info);
+  --ds-code-token-string: var(--ds-accent);
+  --ds-code-token-comment: var(--ds-muted);
+  --ds-code-token-keyword: var(--ds-code-keyword);
+  --ds-code-token-parameter: var(--ds-text);
+  --ds-code-token-function: var(--ds-info);
+  --ds-code-token-string-expression: var(--ds-accent);
+  --ds-code-token-punctuation: var(--ds-muted);
+  --ds-code-token-link: var(--ds-accent);
+}
+.dark {
+  --ds-background: var(--ds-stone-950);
+  --ds-surface: var(--ds-stone-900);
+  --ds-surface-raised: var(--ds-stone-800);
+  --ds-text: var(--ds-stone-50);
+  --ds-muted: var(--ds-stone-300);
+  --ds-border: var(--ds-stone-800);
+  --ds-accent: var(--ds-emerald-400);
+  --ds-accent-hover: var(--ds-white);
+  --ds-accent-soft: var(--ds-stone-800);
+  --ds-on-accent: var(--ds-stone-950);
+  --ds-caution: var(--ds-amber-400);
+  --ds-caution-soft: var(--ds-stone-800);
+  --ds-info: var(--ds-blue-400);
+  --ds-code-keyword: var(--ds-purple-400);
+}
+/* VitePress owns these breakpoints. Keep responsive custom layouts here as well. */
+@media (max-width: 959px) { :root { --ds-page-padding: var(--ds-space-6); } }
+@media (max-width: 639px) { :root { --ds-page-padding: var(--ds-space-5); --ds-card-padding: var(--ds-space-5); } }

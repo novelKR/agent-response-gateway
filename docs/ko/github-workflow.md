@@ -33,8 +33,9 @@ PR을 승인하지 않는다.
 ## 필수 검사
 
 필수 작업은 `format`, `rust-linux`, `rust-macos`, `publication`, `licenses`,
-`codex-conformance`와 Linux/macOS의 `package-smoke` 행렬이다.
-`ci-required`는 취소·실패를 포함해 모든 필수 선행 작업이 성공해야 통과한다.
+`codex-conformance`, `docs`와 Linux/macOS의 `package-smoke` 행렬이다.
+`ci-required`는 명시한 필수 선행 작업 전체가 성공해야 통과한다.
+누락·추가·건너뜀·취소·실패 작업은 집계를 차단한다.
 경로 필터로 필수 검사를 조용히 생략하지 않는다. 첫 성공 실행 이후 해당
 검사를 브랜치 보호에 등록한다.
 
@@ -46,6 +47,10 @@ PR을 승인하지 않는다.
 기본 환경은 Rust 1.98.0, Python 3.14, Ubuntu 24.04 x64와 macOS 15 ARM64다.
 공개 경계 검사는 전체 이력을 받으며 Actions는 SHA로 고정한다. 캐시는 OS,
 아키텍처, 도구 체계와 관련 lockfile에 따라 구분한다.
+
+문서 작업은 Node 24.21.0과 npm 11.19.0으로 검토한 언어 쌍, 정적 산출물,
+로컬 미리보기 경계와 웹 의존성 고지를 검사한다. 검증한 사이트를 검토용으로
+14일간 보관한다. Pages 배포 권한은 없으며 산출물 보관은 공개 승인이 아니다.
 
 PR은 공급자 secret 없이 저장소 읽기 권한으로 실행한다. 신뢰하지 않는 PR
 코드를 쓰기 자격 증명이나 소비자 호스트에서 실행하지 않는다. 런타임 운영 로그,

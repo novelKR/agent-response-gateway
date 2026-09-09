@@ -34,9 +34,9 @@ a PR using the author's identity.
 ## Required checks
 
 The required jobs are `format`, `rust-linux`, `rust-macos`, `publication`, `licenses`
-and `codex-conformance`, plus the Linux/macOS `package-smoke` matrix.
-`ci-required` succeeds only when every required prerequisite succeeds, including
-after cancellation or failure. No path filter silently omits a required check.
+`codex-conformance` and `docs`, plus the Linux/macOS `package-smoke` matrix.
+`ci-required` succeeds only when the complete, explicitly named prerequisite set succeeds.
+Missing, extra, skipped, cancelled and failed jobs block it. No path filter silently omits a required check.
 Register a required check in branch protection after its first successful run.
 
 The license job verifies locked evidence, runs all script tests and reproduces
@@ -48,6 +48,11 @@ target SBOM. Candidate signing and approved release promotion use separate workf
 The default workflow uses Rust 1.98.0, Python 3.14, Ubuntu 24.04 x64 and macOS 15
 ARM64. Full history is fetched for publication checks. Actions are pinned by SHA.
 Caches are partitioned by OS, architecture, toolchain and relevant lock files.
+
+The documentation job uses Node 24.21.0 and npm 11.19.0 to check the reviewed
+language pairs, static output, local preview boundary and web dependency notices.
+It retains the verified site for review for 14 days. It has no Pages deployment
+permission; artifact retention is not publication approval.
 
 PRs run without provider secrets and with read-only repository permissions.
 Do not execute untrusted PR code with write credentials or on a consumer host.
