@@ -1,4 +1,8 @@
+<a id="세-api-경로-적합성-검증"></a>
+
 # Three-route conformance
+
+[English](conformance.md) | [한국어](ko/conformance.md)
 
 G12 qualifies the implementation against a pinned actual Codex executable and
 synthetic loopback upstreams. The default CI run has 35 scenarios: nine native

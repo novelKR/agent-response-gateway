@@ -1,93 +1,117 @@
-# 소비자 통합 경계
+<a id="소비자-통합-경계"></a>
 
-게이트웨이는 독립 저장소에서 개발·릴리스하며 소비자는 검증한 버전을
-선택한다. 이 문서는 범용 연결 계약을 설명하며 특정 제품의 도입 상태를
-나타내지 않는다. 소비자별 식별정보와 운영 기록은 공개 문서에 포함하지 않는다.
+# Consumer integration boundaries
 
-## 공통 경계
+[English](integration.md) | [한국어](ko/integration.md)
 
-게이트웨이는 HTTP 전송, 선언된 모델 경로, 공급자 인증 선택과 API 호환성을
-담당한다. 도구 실행·사용자 승인·업무 데이터·워크플로는 소비자의 책임이다.
-소비자 전용 데이터 타입이나 저장소 경로를 게이트웨이에 넣지 않는다.
+The gateway is developed and released in an independent repository. Consumers
+select a verified version. This document defines reusable integration contracts,
+not the adoption status of a particular product. Keep consumer identifiers and
+operational records out of public documentation.
 
-`/v1/models`는 설정 목록이고 기능 인증서가 아니다. `/readyz`는 로컬 준비
-상태이며 실제 모델 호출·소비자 시험·운영 수락을 대체하지 않는다.
-공개 시험 fixture에는 합성 입력만 사용한다.
+<a id="공통-경계"></a>
 
-현재 실행은 루프백 전용이다. 소비자는 같은 호스트 또는 같은 네트워크
-namespace에서 HTTP 클라이언트로 접근할 수 있다. 서로 다른 Docker
-컨테이너 간 연결과 외부 서비스 제공은 이 버전의 지원 범위 밖이다.
+## Shared responsibilities
 
-## 에이전트 런타임에 내장
+The gateway owns HTTP transport, declared model routes, provider credential
+selection and API compatibility. Consumers own tool execution, user approval,
+business data and workflows. Do not add consumer-specific domain types or
+repository paths to the gateway.
 
-호스트 애플리케이션의 런타임 관리자가 게이트웨이를 시작하고 준비 JSON의
-실제 주소를 에이전트의 전용 공급자 설정에 연결한다. Codex App Server를
-사용하는 경우에도 사용자 개인 설정과 별도의 실행 설정을 유지한다.
-파일·네트워크·도구 접근 권한과 사용자 승인 절차는 호스트가 관리한다.
+`/v1/models` is a configuration list, not a capability certificate. `/readyz`
+reports local readiness, not a live-model call, consumer test or operational
+acceptance. Public fixtures contain synthetic inputs only.
 
-에이전트 실행 파일과 프로토콜 스키마, 게이트웨이 버전·소스 커밋·플랫폼별
-실행 파일 해시를 고정한다. 실제 검증한 조합에 호환성 결과를 연결하고,
-업데이트 실패 시 이전에 검증된 조합으로 복구한다.
+Execution is currently loopback-only. An HTTP consumer can run on the same host
+or in the same network namespace. Communication between separate Docker
+containers and exposing a public service are outside this version's support.
 
-선택한 에이전트 버전으로 구조화 출력, 실제 도구 왕복, 취소·단절,
-모델 선택과 승인 거절을 시험해야 한다. 기존 공급자 전용 인증이나
-검증 절차의 확장은 소비자 측 통합 작업이다. 호스트는 [연속성 계약](continuity.md)에
-따라 Codex 이력·로컬 압축·재개·불확실한 요청의 복구를 소유한다. 이 계약과
-해당 소비자의 실제 실행 경로가 검증된 범위만 장기 실행 가능 경로로 분류한다.
+<a id="에이전트-런타임에-내장"></a>
 
-## 백엔드 서비스에서 호출
+## Embedding in an agent runtime
 
-소비자 측 워크플로 서비스는 실행 순서와 재개를, 자격 증명·외부 호출 계층은
-키 선택과 외부 통신 정책을 관리한다. 게이트웨이 도입만으로 이 책임을
-이전하거나 기존 허용 정책을 우회하지 않는다. 실제 연결 위치와 인증 계약은
-해당 소비자의 호출 경로를 검토한 뒤 결정한다.
+The application's runtime manager starts the gateway and connects the actual
+readiness address to the agent's dedicated provider configuration. A Codex App
+Server host also keeps that configuration separate from the user's personal
+settings. The host owns file, network and tool permissions and user approval.
 
-| 자격 증명 형태 | 현재 범위와 후속 결정 |
+Pin the agent executable and protocol schema, gateway version and source commit,
+and the platform executable hash. Bind compatibility results to the exact verified
+combination. An update failure restores the previously verified combination.
+
+Test structured output, real tool round trips, cancellation/disconnection, model
+selection and approval denial with the selected agent version. Extending existing
+provider authentication or qualification belongs to the consumer integration.
+Hosts own Codex history, local compaction, resume and uncertain-request recovery
+under the [continuity contract](continuity.md). Classify only the verified contract
+and consumer execution path as eligible for long-running work.
+
+<a id="백엔드-서비스에서-호출"></a>
+
+## Calling from a backend service
+
+The consumer workflow service owns execution order and resume. Its credential
+and external-call layers own key selection and egress policy. Adopting the gateway
+does not transfer those duties or bypass existing authorization. Choose the
+integration point and authentication contract after inspecting the consumer's
+actual call path.
+
+| Credential ownership | Current scope and further decisions |
 |---|---|
-| 서비스가 소유하는 공급자 키 | 프로세스 설정으로 등록 가능; 소비자의 외부 호출 허가와 감사 경로를 연결해야 함 |
-| tenant별 공급자 키 | 미구현; tenant 인증·키 선택·권한·과금·감사 계약을 먼저 확정해야 함 |
+| Service-owned provider keys | Can be registered in process configuration; connect the consumer's external-call authorization and audit path |
+| Per-tenant provider keys | Not implemented; first define tenant authentication, key selection, permissions, billing and audit contracts |
 
-현 버전은 요청별 API 키 주입이나 tenant 라우팅을 받지 않는다. 하나의 로컬
-Bearer 토큰과 프로세스별 공급자 설정을 tenant별 보안 경계로 해석하면 안 된다.
-서버 배포를 추가할 때 네트워크 주소, 인증, 키 관리 책임, 외부 통신 정책,
-취소와 오류 전파를 함께 결정한다. 소비자의 기존 배포·환경 관리 체계를 따른다.
+The current version accepts no per-request API-key injection or tenant routing.
+A single local Bearer token and process-wide provider configuration are not a
+per-tenant security boundary. Adding service deployment requires decisions about
+network addresses, authentication, key ownership, egress, cancellation and error
+propagation. Follow the consumer's existing deployment and environment management.
 
-## 후속 수락
+<a id="후속-수락"></a>
 
-일반 HTTP 예제와 모의 공급자 시험은 소비자와 독립된 최소 계약을 검증한다.
-에이전트 호환성과 백엔드 통합 수락은 각각의 실제 호출 경로에서 수행한다.
-공개 릴리스·실제 공급자 시험·소비자 활성화는 별도 검증과 결정 사항이다.
+## Further acceptance
 
-## 경로 선언과 입력 한도
+Generic HTTP examples and mock-provider tests verify the minimal independent
+contract. Agent compatibility and backend acceptance each require their actual
+consumer call paths. A public release, live-provider tests and consumer activation
+remain separate checks and decisions.
 
-호스트는 선언한 API·인증·모델 프로필과 Codex 실행 설정을 함께 검증한다.
-게이트웨이의 요청별 RouteSnapshot은 라우팅 선언이며 저장 이력의 재개 인증이
-아니다. 프로필의 context_window를 호스트 압축 설정에 연결해야 하며 실제 입력
-토큰 판정은 모델별 계수 근거가 필요하다. 출력 한도 검사는 HTTP 전송 전 적용한다.
-Messages와 Chat Completions는 명시적 프로필로 활성화할 수 있으며 G12의
-실제 Codex + 합성 upstream 공통 검증 범위만 확인됐다. [공통 지원표](conformance.md)를
-따르고 실제 모델의 출력·도구·컨텍스트 적합성과 소비자 수락을 별도로 검증한다.
+<a id="경로-선언과-입력-한도"></a>
 
-Messages 지시 bridge는 프로필의 명시적 선택 기능이다. 호스트는 native 역할
-구분과 다른 한계를 알고 qualification해야 하며, 실제 도구 권한이나 사용자
-승인 판단을 모델의 지시 해석으로 대체해서는 안 된다.
+## Declared routes and input limits
 
-변환 경로는 namespace·custom tool의 요청별 매핑과 제한된 스트림
-변환을 제공한다. 호스트는 문법 bridge를 native constrained decoding으로
-간주하지 않아야 한다. 구문 검사와 승인·파일 실행은 별도 책임이며, 현재 검증된
-호스트 프로필과 byte 한도는 [Messages 지원표](messages.md)를 따른다.
+Hosts verify the declared API, authentication and model profile alongside Codex
+settings. A per-request RouteSnapshot is a routing declaration, not authorization
+to resume stored history. Connect the profile's context_window to host compaction
+settings; actual input-token admission needs model-specific counting evidence.
+Output limits apply before HTTP dispatch. Messages and Chat Completions can be
+enabled with explicit profiles; G12 verifies only the actual-Codex/synthetic-upstream
+scope. Follow [conformance](conformance.md) and separately qualify real-model output,
+tools, context behavior and consumer operation.
 
-## 내장 프로세스 manifest
+The Messages instruction bridge is explicit profile opt-in. The host must qualify
+its limits relative to native role separation. Model interpretation of instructions
+does not replace real tool permissions or user approval.
 
-`manifest --config <path>`는 자격 증명과 네트워크에 접근하지 않고
-`gateway-embedded-manifest/v1` JSON을 출력한다. 해석된 경로·프로필·한도와
-환경 변수 참조를 정규화하고 configuration_sha256를 함께 제공한다. 키 값과
-이력은 포함하지 않으며 실제 설정의 주소·식별자는 호스트의 비공개 기록으로
-관리한다. digest는 서명이나 공급자 qualification이 아니다.
+Converted routes provide per-request namespace/custom-tool mappings and bounded
+stream conversion. Hosts must not treat a grammar bridge as native constrained
+decoding. Syntax checking, approval and file execution are separate responsibilities.
+See [Messages support](messages.md) for the verified host profile and byte bounds.
 
-준비 JSON은 기존 event/address/base_url/version에 schema, manifest_schema,
-configuration_sha256를 추가한다. 호스트는 자신이 시작한 검증된 바이너리의
-stdout에서 이를 읽고 사전 manifest와 대조한 뒤 Codex를 시작한다. 원문 TOML이
-검사 후 변경됐다면 준비 digest가 달라져야 한다. 자격 증명 값이 바뀌어도 설정
-참조 digest만으로는 이를 알 수 없으므로 재개에는 별도 credential generation이
-필요하다. 수명·접근 범위·실패·복구는 [승인된 내장 계약](embedded-design.md)을 따른다.
+<a id="내장-프로세스-manifest"></a>
+
+## Embedded process manifest
+
+`manifest --config <path>` emits `gateway-embedded-manifest/v1` JSON without reading
+credentials or accessing the network. It normalizes resolved routes, profiles,
+limits and environment-variable references and includes configuration_sha256.
+No key values or history are included. Hosts retain real configuration addresses
+and identifiers privately. A digest is not a signature or provider qualification.
+
+Readiness adds schema, manifest_schema and configuration_sha256 to event, address,
+base_url and version. Read this from the verified child process's stdout, compare
+it with the offline manifest, and only then start Codex. Changing raw TOML after
+inspection must change readiness when its effective configuration differs.
+Changing credential values cannot be detected from a configuration-reference
+digest alone; resume needs a separate credential generation. Follow the
+[approved embedded contract](embedded-design.md) for lifecycle, access, failure and recovery.

@@ -87,6 +87,17 @@ class LicenseFixtures(unittest.TestCase):
         with self.assertRaisesRegex(audit.AuditError, "globally"):
             audit.load_policy(self.root)
 
+    def test_english_notice_labels_preserve_the_original_notice_bytes(self):
+        original = b"Synthetic notice\r\nCopyright fixture authors\r\n"
+        self.add_package(files={"LICENSE": original})
+        document, blobs = self.stored()
+        rendered = audit.render_notices(document)
+        self.assertTrue(rendered.startswith(b"# Third-party licenses and notices\n"))
+        self.assertIn(b"Declared: `MIT`", rendered)
+        self.assertIn(b"Selected: `MIT`", rendered)
+        self.assertEqual(list(blobs.values()), [original])
+        self.assertEqual((self.root / "licensing/texts" / (audit.digest(original) + ".txt")).read_bytes(), original)
+
     def test_wrong_root_or_license_text_is_rejected(self):
         (self.root / "LICENSE").write_bytes(b"Synthetic modified license")
         with self.assertRaisesRegex(audit.AuditError, "license text"):

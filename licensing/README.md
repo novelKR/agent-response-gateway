@@ -1,36 +1,45 @@
-# 라이선스 정책과 고지 기록
+<a id="라이선스-정책과-고지-기록"></a>
 
-공개 조건은 **AGPL-3.0-only**이며 대체 조건은 권한 있는 권리자와 실제로
-체결한 별도 계약에 따른다. 버전별 적용 조건과 제3자 권리를 구분해 관리한다.
-정책과 기계 검사는
-계약 체결이나 재라이선스 권한을 대신하지 않는다.
+# License policy and notice records
 
-## 관리 자료
+[English](README.md) | [한국어](README.ko.md)
 
-| 자료 | 역할 |
+Public terms are **AGPL-3.0-only**. Alternative terms require an executed separate
+agreement with an authorized rights holder. Manage version-specific terms and
+third-party rights separately. Policies and machine checks do not execute an
+agreement or establish relicensing authority.
+
+<a id="관리-자료"></a>
+
+## Managed evidence
+
+| Record | Purpose |
 |---|---|
-| [policy.json](policy.json) | 공개 버전 정책, 검사 도구 버전, 제3자 허용 목록, 고정된 보완 원문 |
-| [dependencies.json](dependencies.json) | Cargo.lock 전체 패키지의 선언·선택·체크섬·고지 출처 |
-| [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) | 기록에서 생성한 패키지별 고지 안내 |
-| `texts/<sha256>.txt` | 바이트와 줄바꿈을 보존한 실제 고지 원문 |
+| [policy.json](policy.json) | Public version policy, checker version, third-party allowlist and pinned supplemental originals |
+| [dependencies.json](dependencies.json) | Declarations, selections, checksums and notice provenance for every Cargo.lock package |
+| [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) | Package notice guide generated from the records |
+| `texts/<sha256>.txt` | Actual notice originals with bytes and line endings preserved |
 
-원문은 내용 해시로 중복 저장을 줄인다. 각 패키지의 버전과 출처 연결은
-유지하며 과거 원문을 자동 삭제하지 않는다. 정책·선택·원문 변경은 diff에서
-검토한다. 최초 기록은 현재 잠금 파일의 제3자 패키지 184개를 포함한다.
-의존성 갱신 때 수는 달라질 수 있다.
+Content hashes deduplicate original texts while preserving each package's version
+and provenance links. Old originals are not deleted automatically. Review changes
+to policy, selections and originals in the diff. The initial record covers 184
+third-party packages in the current lockfile; dependency updates can change that count.
 
-고지 원문에는 Git의 줄바꿈 정규화와 공백 재서식을 적용하지 않는다. 원문의
-무결성은 공백 수정 대신 체크섬 검사로 확인한다.
+Do not apply Git line-ending normalization or whitespace reformatting to originals.
+Verify their integrity with checksums instead of whitespace edits.
 
-목록은 모든 플랫폼의 빌드·개발·비활성 조건부 의존성까지 포함한다. 모두가
-최종 바이너리에 링크됐다는 뜻은 아니다. 원문에 다른 라이선스 선택지도
-함께 실릴 수 있으므로 패키지별 선택 기록과 함께 읽는다.
+The inventory includes build, development and inactive conditional dependencies
+on every platform. It does not claim every entry is linked into the final binary.
+An original may contain other licensing options; read it together with the
+package-specific selection record.
 
-## 도구와 자료 준비
+<a id="도구와-자료-준비"></a>
 
-Rust 1.98.0, Python 3.11 이상, cargo-deny 0.20.2를 사용한다. 아래 명령의
-`python3`가 해당 버전인지 확인한다. CI에서는 Python 3.14를 사용한다.
-검사 도구는 제품 런타임 의존성이나 배포물에 포함하지 않는다.
+## Prepare tools and sources
+
+Use Rust 1.98.0, Python 3.11 or later, and cargo-deny 0.20.2. Verify that `python3`
+in these commands satisfies the version requirement. CI uses Python 3.14.
+The checker is a development tool, not a product runtime dependency or distribution member.
 
 ```sh
 python3 --version
@@ -40,11 +49,14 @@ cargo install cargo-deny --version 0.20.2 --locked \
 cargo fetch --locked
 ```
 
-위 준비 단계만 네트워크를 사용한다. 검사·갱신·묶음 생성은 오프라인이다.
-다른 Cargo 캐시를 사용하려면 준비와 검사에서 같은 `CARGO_HOME`을 사용한다.
-누락된 버전·원문을 최신 버전이나 일반적인 MIT 문구로 대신하지 않는다.
+Only preparation uses the network. Checking, refreshing and bundling are offline.
+If using another Cargo cache, use the same `CARGO_HOME` for preparation and checking.
+Do not substitute a missing version or original with the latest release or a
+generic MIT text.
 
-## 검사·갱신·묶음 생성
+<a id="검사갱신묶음-생성"></a>
+
+## Check, refresh and bundle
 
 ```sh
 python3 -B scripts/license_audit.py check
@@ -52,55 +64,61 @@ python3 -B scripts/license_audit.py refresh
 python3 -B scripts/license_audit.py bundle --output .local/release/licenses
 ```
 
-- `check`는 추적 파일을 수정하지 않는다. 임시 검사 자료만 `.local/`에 만든다.
-- `refresh`는 검증된 원본과 허용 정책에서 갱신 diff를 만든다. 같은 원본의 기존
-  선택은 유지하고 새 항목은 MIT를 우선하는 정책 순서로 선택한다. 허용되지
-  않는 조건이나 고지 누락은 쓰기 전에 실패한다. 성공은 상용 권한 확보나
-  변경 검토가 끝났다는 뜻이 아니다.
-- `bundle`은 같은 검사를 수행한 뒤 새 디렉터리 또는 빈 디렉터리에 고지·원문·
-  정책·의존성 기록·해시 manifest를 생성한다. 기존 파일은 덮어쓰지 않는다.
-  반복 비교에는 다른 빈 디렉터리를 사용한다.
+- `check` does not change tracked files. It creates temporary audit state under `.local/`.
+- `refresh` produces a reviewable diff from verified originals and the allowed policy.
+  Existing selections for unchanged originals remain; new entries use the policy's
+  preference order, with MIT first. Disallowed terms or missing notices fail before
+  writing. Success is not commercial permission or completed change review.
+- `bundle` performs the same checks, then writes notices, originals, policy,
+  dependency records and a hash manifest into a new or empty directory. It does
+  not overwrite existing files. Use separate empty directories for comparison.
 
-잠금 파일·정책의 해시, 원래 SPDX 식, 선택한 조건, 고지의 출처와 해시가
-어긋나면 실패한다. 생성 결과에 현재 시각·로컬 절대 경로를 넣지 않으므로
-동일한 입력의 묶음은 동일한 바이트를 갖는다. 오류 출력에도 로컬 경로를 넣지 않는다.
+Mismatched lock/policy hashes, original SPDX expressions, selected terms, notice
+provenance or hashes fail. Output contains no current timestamps or local absolute
+paths, so identical inputs produce identical bundle bytes. Errors also omit local paths.
 
-## 판정과 특수 원문
+<a id="판정과-특수-원문"></a>
 
-SPDX 해석은 cargo-deny에 맡긴다. 선택한 허가만 패키지별로 허용하여 원래 식을
-충족하는지 검사한다. `OR`는 선택하며 `AND`는 필요한 조건을 모두 충족한다.
-전역 AGPL 허용, OSI/FSF 전체 허용, `publish = false`에 따른 생략은 사용하지 않는다.
-추가적인 `deny.exceptions.toml` 계열 파일도 허용하지 않는다.
+## Evaluation and special originals
 
-기본 cargo-deny 그래프는 일부 비활성 패키지를 제외한다. 검사기는 오프라인
-Cargo metadata의 모든 잠금 항목을 검사 루트로 지정한 임시 **감사용 그래프**를
-전달하고, 각 항목의 판정이 빠짐없이 반환되었는지 확인한다. 원래 라이선스·
-버전·출처·의존 관계는 보존하며 실제 Cargo 빌드 그래프는 변경하지 않는다.
-도구가 읽는 풀린 소스도 잠금 체크섬이 일치하는 archive와 바이트를 대조한다.
+cargo-deny evaluates SPDX expressions. Each package is allowed only its selected
+permissions, which must satisfy the original expression. `OR` selects an option;
+`AND` requires every applicable condition. There is no global AGPL allowance,
+blanket OSI/FSF allowance or omission based on `publish = false`. Additional
+`deny.exceptions.toml`-style files are not allowed.
 
-현재 출처 검증은 crates.io의 체크섬이 있는 패키지를 지원한다. Git·path·다른
-registry 의존성은 별도 출처 검증 구현이 필요하다. 새로운 라이선스나 공급
-경로를 묵시적으로 허용하지 않는다.
+The default cargo-deny graph excludes some inactive packages. The checker passes
+a temporary **audit graph** rooted at every locked entry from offline Cargo
+metadata and requires an evaluation for every entry. Original licenses, versions,
+sources and dependency relationships are preserved; the actual build graph is
+unchanged. Unpacked source read by the tool is also compared byte for byte with
+its checksum-verified crate archive.
 
-- `ring`: BoringSSL과 once_cell 유래 부분을 포함한 하위 고지를 보존한다.
-- `matchit`: MIT와 `LICENSE.httprouter`의 BSD 조건을 함께 보존한다.
-- Unicode 및 인증서 데이터: 해당 데이터 라이선스와 고지를 보존한다.
-- `r-efi`: `AUTHORS` 원문을 포함하고 MIT 선택을 기록한다.
-- `valuable 0.1.1`: 배포 crate에서 빠진 LICENSE는 VCS 기록이 가리키는 상위
-  커밋에서 보완한다. URL·커밋·패키지 체크섬·원문 해시가 정책에 고정되며
-  검사 시에는 Git에 보존한 원문만 사용한다.
+Provenance verification currently supports crates.io packages with checksums.
+Git, path and other registries need separate provenance implementations. New
+licenses or source channels are not implicitly allowed.
 
-일반 고지는 원본의 LICENSE·LICENCE·COPYING·NOTICE·COPYRIGHT 계열 파일,
-AUTHORS와 명시된 `license-file`에서 수집한다. 특수 의무가 다른 위치에 있으면
-출처를 확인해 보완 기록을 추가해야 한다. 이 발견 규칙은 모든 저작권 관계나
-고지 완전성에 대한 법률 보증이 아니다.
+- `ring`: retain subordinate notices for BoringSSL and once_cell-derived portions.
+- `matchit`: preserve both MIT and the BSD terms in `LICENSE.httprouter`.
+- Unicode and certificate data: retain the applicable data licenses and notices.
+- `r-efi`: preserve the `AUTHORS` original and record the MIT selection.
+- `valuable 0.1.1`: supplement the missing crate LICENSE from the upstream commit
+  identified by its VCS record. The policy pins the URL, commit, crate checksum
+  and original-text hash; checks read only the original retained in Git.
 
-## 공개 경계와 배포
+Normal discovery collects original LICENSE, LICENCE, COPYING, NOTICE, COPYRIGHT,
+AUTHORS and declared `license-file` records. If a special obligation is located
+elsewhere, verify its provenance and add a supplemental record. Discovery is not
+a legal guarantee of every copyright relationship or complete notices.
 
-공개 기록에는 공개된 제3자 출처와 범용 계약만 넣는다. 소비자 정보·계약·
-기여 동의서 등 비공개 증빙은 독립적인 내부 이력으로 관리한다. 공개 빌드와
-CI는 그 자료를 요구하지 않는다.
+<a id="공개-경계와-배포"></a>
 
-고지 묶음은 [공개 경계 검사](../docs/documentation.md) 후 배포 자료에 포함한다.
-Cargo 목록 외에 시스템 라이브러리·컨테이너 패키지·번들 실행 파일은 실제
-산출물별로 조사한다. 자세한 절차는 [배포 안내](../docs/release.md)를 따른다.
+## Publication boundary and distribution
+
+Public records contain public third-party provenance and reusable contracts only.
+Keep consumer information, contracts and contribution consents in independent
+private history. Public builds and CI must not require those records.
+
+Include the notice bundle in distribution after the [publication check](../docs/documentation.md).
+Inspect system libraries, container packages and bundled executables separately
+for the actual artifact, beyond the Cargo list. See the [release guide](../docs/release.md).

@@ -1,4 +1,8 @@
+<a id="messages-어댑터-지원"></a>
+
 # Messages adapter support
+
+[English](messages.md) | [한국어](ko/messages.md)
 
 G07–G12 provide Messages request, JSON response and incremental stream conversion
 behind an explicitly declared Messages route. The pinned actual-Codex/mock and
@@ -54,6 +58,8 @@ Primary wire contracts: [Messages](https://platform.claude.com/docs/en/api/messa
 and [Responses](https://developers.openai.com/api/reference/typescript/resources/responses/methods/create).
 No upstream implementation code or consumer data was copied into the codec/tests.
 
+<a id="도구스트림-한도"></a>
+
 ## Tool and stream limits
 
 The custom/namespace bridges require native function-tool support in the declared
@@ -91,6 +97,8 @@ mapping, duplicate JSON, malformed wrappers, early EOF, error/unknown/order
 failures and aggregate limits. These codec tests complement the actual-Codex checks below and do not establish
 provider qualification. The streaming contract follows the primary
 [Messages streaming documentation](https://platform.claude.com/docs/en/build-with-claude/streaming).
+
+<a id="검증한-합성-codex-프로필"></a>
 
 ## Qualified synthetic Codex profile
 
@@ -150,8 +158,10 @@ long-term continuity and release acceptance remain separate stages. A profile
 configuration or this synthetic success does not certify an operator's model.
 See [the Messages configuration example](../config.messages.example.toml).
 
-Messages와 Chat Completions는 반환된 도구 선택·호출 수·원래 정체성의 검증을
-공유한다. API별 finish 처리와 지시 계층 변환 범위는 각각의 계약을 유지한다.
+Messages and Chat Completions share returned-tool selection, call-count and
+original-identity validation. Each API retains its own finish and instruction-hierarchy contract.
+
+<a id="native-출력-제어"></a>
 
 ## Native output controls
 

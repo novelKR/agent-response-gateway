@@ -1,4 +1,8 @@
+<a id="chat-completions-어댑터-지원"></a>
+
 # Chat Completions adapter support
+
+[English](chat-completions.md) | [한국어](ko/chat-completions.md)
 
 G10–G12 provide request, JSON response, stream and HTTP conversion behind an
 explicit profile. The pinned actual-Codex/mock and HTTP suites pass for the
@@ -68,6 +72,8 @@ the gateway does not introduce a second general JSON Schema validator. The host
 must still validate its resulting data. G12 verifies explicit high effort and
 strict output schema with the actual pinned Codex and a synthetic upstream;
 consumer operational acceptance remains separate.
+
+<a id="스트리밍-계약"></a>
 
 ## Streaming contract
 

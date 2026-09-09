@@ -1,4 +1,8 @@
+<a id="호스트가-소유하는-연속성-계약"></a>
+
 # Host-owned continuity contract
+
+[English](continuity.md) | [한국어](ko/continuity.md)
 
 The approved [G15 design](continuity-design.md) keeps gateway HTTP transport
 stateless. The reusable [Python contract module](../scripts/continuity_contract.py)
@@ -7,6 +11,8 @@ model calls, authentication, workflow approval, or automatic recovery. Python
 hosts may use this optional stdlib module; the Rust gateway has no new runtime
 dependency. Consumer integration and operational acceptance are tracked separately
 by G17.
+
+<a id="검증된-입력과-비공개-저널"></a>
 
 ## Verified inputs and private journal
 
@@ -39,6 +45,8 @@ It cannot qualify a completed turn or resume. Bind the actual bytes after the
 first completed request. The pinned alpha supports `thread/read` metadata with
 `includeTurns: false`; requesting its turn listing reports an unsupported
 operation. No unsupported turn listing is needed to hash the private history file.
+
+<a id="전이와-복구"></a>
 
 ## Transitions and recovery
 
@@ -77,6 +85,8 @@ The host records the final resulting history digest after the control turn.
 Automatic pressure thresholds need consumer acceptance in G17.
 The gateway still rejects remote compact and stored-response endpoints. A new
 runtime/profile needs a fresh demonstration of its resolved compaction behavior.
+
+<a id="재현-가능한-검증"></a>
 
 ## Reproducible validation
 
