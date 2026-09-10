@@ -137,7 +137,7 @@ and Windows x64. Verify the relevant commit in the
 CI success is not real-provider qualification or operational acceptance.
 
 The [Codex conformance suite](tests/codex/README.md) runs the actual
-`0.154.0-alpha.6` test runtime with mock providers. The [runtime guide](docs/codex-contract.md)
+`0.154.0` test runtime with mock providers. The [runtime guide](docs/codex-contract.md)
 explains preparation, and [conformance](docs/conformance.md) lists the scenarios.
 Test the selected real model and application integration before operational use.
 

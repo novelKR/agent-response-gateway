@@ -21,7 +21,7 @@ upstream_model = "replace-with-your-verified-model"
 api = "chat_completions"
 context_window = 32768
 max_output_tokens = 1024
-tested_codex_version = "0.154.0-alpha.6"
+tested_codex_version = "0.154.0"
 
 [capability_profiles.chat-profile.support]
 instructions = "native"

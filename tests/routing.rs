@@ -28,7 +28,7 @@ upstream_model = "actual-model"
 api = "{api}"
 context_window = 32000
 max_output_tokens = 1024
-tested_codex_version = "0.154.0-alpha.6"
+tested_codex_version = "0.154.0"
 [capability_profiles.tested.support]
 instructions = "native"
 max_output_tokens = "native"
@@ -53,10 +53,7 @@ fn legacy_default_and_explicit_auth_and_profile_remain_compatible() {
         route.snapshot.capabilities.support(Feature::Images),
         Support::Unsupported
     );
-    assert_eq!(
-        route.tested_codex_version.as_deref(),
-        Some("0.154.0-alpha.6")
-    );
+    assert_eq!(route.tested_codex_version.as_deref(), Some("0.154.0"));
     assert!(config.resolve_route("missing").is_err());
 }
 
@@ -71,7 +68,7 @@ fn invalid_profiles_fail_startup() {
         valid.replace("context_window = 32000", "context_window = 0"),
         valid.replace("max_output_tokens = 1024", "max_output_tokens = 32001"),
         valid.replace(
-            "tested_codex_version = \"0.154.0-alpha.6\"",
+            "tested_codex_version = \"0.154.0\"",
             "tested_codex_version = \"\"",
         ),
         valid.replace(
