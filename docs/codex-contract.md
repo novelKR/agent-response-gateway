@@ -6,9 +6,9 @@
 
 [English](codex-contract.md) | [한국어](ko/codex-contract.md)
 
-Tests use the official Codex **0.154.0-alpha.6** package for macOS ARM64.
+Tests use the official Codex **0.154.0** package for macOS ARM64.
 `tests/codex/runtime-lock.json` pins its archive URL, size, SHA-256, package members
-and generated stable/experimental schema digests. This is a prerelease test runtime.
+and generated stable/experimental schema digests. This stable release is used as the test runtime.
 
 <a id="준비와-검증"></a>
 
@@ -28,7 +28,7 @@ are not bundled with the gateway. Schema output requires a new directory.
 Preparation does not log in, call a model or change personal Codex settings.
 
 The archive SHA-256 is
-`ae37c70e6c86f1f4248303e084cd03480d8628b74df57649c128730ce4159d50`.
+`427ca74c027049e0cd1a330d611e7f8d1fe0f1eb6a6d85ac16f61bcf2cb4a485`.
 Select the required schema profile; stable and experimental schemas have different
 digests and supported fields.
 
@@ -84,4 +84,4 @@ must preserve the complete tool, approval and cancellation contracts. Updating
 this test lock does not select or install a runtime for another application.
 
 References: [App Server documentation](https://learn.chatgpt.com/docs/app-server),
-[pinned release](https://github.com/openai/codex/releases/tag/rust-v0.154.0-alpha.6).
+[pinned release](https://github.com/openai/codex/releases/tag/rust-v0.154.0).

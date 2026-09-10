@@ -167,7 +167,7 @@ upstream_model="actual-model"
 api="messages"
 context_window=32000
 max_output_tokens=1024
-tested_codex_version="0.154.0-alpha.6"
+tested_codex_version="0.154.0"
 [capability_profiles.mock.support]
 instructions="native"
 instruction_hierarchy="bridged_instruction_envelope"

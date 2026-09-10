@@ -46,8 +46,8 @@
       "order": 0,
       "source": "README.md",
       "translation": "README.ko.md",
-      "source_sha256": "0737bfb4a3619ae552796163c56857397d7ced30b2f00ee191c3a21a11acbefc",
-      "translation_sha256": "f0892cf97a9bf1e91ff207cfbe2e54b6675f581f4366b8043b654f65335b94e6",
+      "source_sha256": "ffcdd67a56d2a3e80415392094966c84dfa3295d6aa8c3516006301378c1e13b",
+      "translation_sha256": "802629dcaa11a66fe26254b23fd582063851fe8267738882cc6e729a0180b6d6",
       "anchors": [
         "agent-response-gateway",
         "getting-started",
@@ -101,8 +101,8 @@
       "order": 4,
       "source": "docs/codex-contract.md",
       "translation": "docs/ko/codex-contract.md",
-      "source_sha256": "761f29d6fe68d57e7cb8c3113cd5d36225d9bdba3618ffbd3d84c97a808a251a",
-      "translation_sha256": "7899cb44175f52421d7a314b01ed02c6e87e35fb343ad79bf78d0f1a6dfb9ddb",
+      "source_sha256": "be32da38ca202e8b7133ed216e921e8a4a8bea988db735096663affbaa66b449",
+      "translation_sha256": "34bd91b286888bf90e3cd9a746b698c6414cab00b24bb0b62ab41991ee8fb31a",
       "anchors": [
         "codex-test-runtime",
         "codex-시험-런타임",
@@ -129,8 +129,8 @@
       "order": 3,
       "source": "docs/conformance.md",
       "translation": "docs/ko/conformance.md",
-      "source_sha256": "e2e9914393f57b056d5bb78495dc04359f19b8610fc38e080c5e9f842c78ba7c",
-      "translation_sha256": "22659b6797c92ce9935030bc04152f9b9dba5b57c0512633c1ac60f99768b91d",
+      "source_sha256": "9e0249c852ad94e48ce16ae04541fb4ec695f5d25773dd467e9b9bc28b218444",
+      "translation_sha256": "b8ff7ad970ab98df6c2e3718ec0be3703c7aec965bfeb153727e8b323e10b67b",
       "anchors": [
         "protocol-coverage",
         "running-the-suite",
@@ -394,8 +394,8 @@
       "order": 1,
       "source": "docs/messages.md",
       "translation": "docs/ko/messages.md",
-      "source_sha256": "4b16c15f8749622b4909523540c4c9493fe8310e54bfc3ff732f71e80c97e499",
-      "translation_sha256": "45228ab154815361e188919d3bc21f4246856c48097e4a1b830ee92cda7e75aa",
+      "source_sha256": "35564a6150ffc664e62f475b919d5417748a2e8519263394ae9a021f198b42a3",
+      "translation_sha256": "71b2b84fde3dea297bbef7c5d70cea02e4ee1b345567cca16081af0edda14a85",
       "anchors": [
         "codex-test-profile",
         "codex-시험-프로필",

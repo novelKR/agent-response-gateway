@@ -6,7 +6,7 @@
 
 적합성 시험은 버전이 고정된 실제 Codex, 게이트웨이와 모의 HTTP 공급자를
 실행한다. Responses 9개, Messages와 Chat Completions 각 13개로 총 35개
-시나리오를 검사한다. 시험 런타임은 macOS ARM64의 0.154.0-alpha.6이며
+시나리오를 검사한다. 시험 런타임은 macOS ARM64의 0.154.0이며
 [런타임 잠금 파일](../../tests/codex/runtime-lock.json)에 고정되어 있다.
 
 <a id="protocol-coverage"></a>
