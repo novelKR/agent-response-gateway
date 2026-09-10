@@ -1,38 +1,38 @@
 {
   "archive": {
-    "sha256": "ae37c70e6c86f1f4248303e084cd03480d8628b74df57649c128730ce4159d50",
-    "size": 112331102,
-    "url": "https://github.com/openai/codex/releases/download/rust-v0.154.0-alpha.6/codex-package-aarch64-apple-darwin.tar.gz"
+    "sha256": "427ca74c027049e0cd1a330d611e7f8d1fe0f1eb6a6d85ac16f61bcf2cb4a485",
+    "size": 112327068,
+    "url": "https://github.com/openai/codex/releases/download/rust-v0.154.0/codex-package-aarch64-apple-darwin.tar.gz"
   },
   "entrypoint": "bin/codex",
   "files": {
     "bin/codex": {
       "executable": true,
-      "sha256": "65575ace08b5af8c371d5258d49bd24d5e6ed65d3e8f7833057c5f5b798f64d2",
-      "size": 222637040
+      "sha256": "4f85982624b3898c8991cb80c0981b2aa71070e3537046c9a95950318a95afcc",
+      "size": 222655232
     },
     "bin/codex-code-mode-host": {
       "executable": true,
-      "sha256": "09ac89e89051cc71622bc6cfc756e13721a424d17c9a10c5f0230c10a94898a4",
-      "size": 62786160
+      "sha256": "426d73aaeb2aeef45e98b5add99e8ef9594a31673d281489bb2cb06b38c27423",
+      "size": 62786144
     },
     "codex-package.json": {
       "executable": false,
-      "sha256": "1946731983e5efa7e8151371305e3e296eb7c833f7cad876c394c6a51e57eaa4",
-      "size": 208
+      "sha256": "6bace96c38debc466a94cd71d48464df1b1dc27a4ac75d8cebbcb2b6a3a6540c",
+      "size": 200
     },
     "codex-path/rg": {
       "executable": true,
-      "sha256": "f630667f50ebea1724ce379990bdd6c2257342851119593c16ee816e58652a89",
+      "sha256": "6bbb665c5a40785e74c7ccf1c2e606efa7e70b09540c1e00787c3f88827e668d",
       "size": 4030432
     },
     "codex-resources/zsh/bin/zsh": {
       "executable": true,
-      "sha256": "5dff93bfd4a08921fceb6fa6c25e855452bbe0a8bda319ca9cda4c6c0b4901ac",
+      "sha256": "25649b16e12a7b1b26686a9553d8a141866ee445319fddb5263d57784f0fd10b",
       "size": 754208
     }
   },
-  "release_url": "https://github.com/openai/codex/releases/tag/rust-v0.154.0-alpha.6",
+  "release_url": "https://github.com/openai/codex/releases/tag/rust-v0.154.0",
   "schema_version": 1,
   "schemas": {
     "experimental": {
@@ -47,5 +47,5 @@
     }
   },
   "target": "aarch64-apple-darwin",
-  "version": "0.154.0-alpha.6"
+  "version": "0.154.0"
 }

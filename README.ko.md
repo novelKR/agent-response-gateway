@@ -131,7 +131,7 @@ cargo-deny 0.20.2와 잠금 파일의 소스를 오프라인으로 읽는다.
 검사와 네이티브 패키지 실행을 수행하도록 구성했다. 실제 결과는 [공개 CI 실행](https://github.com/novelKR/agent-response-gateway/actions/workflows/ci.yml)에서
 해당 commit의 성공 여부를 확인한다. CI 성공은 실제 공급자 검증이나 운영 수락이 아니다.
 
-[Codex 적합성 시험](tests/codex/README.ko.md)은 실제 `0.154.0-alpha.6` 시험
+[Codex 적합성 시험](tests/codex/README.ko.md)은 실제 `0.154.0` 시험
 런타임과 모의 공급자를 사용한다. 준비 방법은 [런타임 안내](docs/ko/codex-contract.md),
 시나리오는 [적합성 검증](docs/ko/conformance.md)을 참조한다.
 운영 전에는 선택한 실제 모델과 애플리케이션 통합을 시험해야 한다.

@@ -6,7 +6,7 @@
 
 The conformance suite runs the actual pinned Codex executable against the gateway
 and mock HTTP providers. It covers 35 scenarios: nine for Responses and thirteen
-each for Messages and Chat Completions. The test runtime is 0.154.0-alpha.6 on
+each for Messages and Chat Completions. The test runtime is 0.154.0 on
 macOS ARM64, pinned in the [runtime lock](../tests/codex/runtime-lock.json).
 
 <a id="프로토콜-지원-범위"></a>

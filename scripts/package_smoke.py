@@ -96,7 +96,7 @@ def smoke(binary, state_dir):
             if api == "messages":
                 text += 'messages_version="2023-06-01"\n'
         for api in ["messages", "chat_completions"]:
-            text += f'[capability_profiles.{api}]\nversion="1"\nprovider="mock"\nupstream_model="synthetic-model"\napi="{api}"\ncontext_window=4096\nmax_output_tokens=128\ntested_codex_version="0.154.0-alpha.6"\n'
+            text += f'[capability_profiles.{api}]\nversion="1"\nprovider="mock"\nupstream_model="synthetic-model"\napi="{api}"\ncontext_window=4096\nmax_output_tokens=128\ntested_codex_version="0.154.0"\n'
         config.write_text(text, encoding="utf-8")
         checked = subprocess.run([str(binary), "check-config", "--config", str(config)], env=env, capture_output=True, timeout=10)
         assert checked.returncode == 0 and json.loads(checked.stdout) == {"status":"valid", "credentials_checked":False, "provider_probe":False}
