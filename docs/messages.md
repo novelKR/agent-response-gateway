@@ -89,7 +89,7 @@ for the provider event format.
 
 ## Codex test profile
 
-The test profile uses `0.154.0-alpha.6` on macOS ARM64 from the
+The test profile uses `0.154.0` on macOS ARM64 from the
 [runtime lock](../tests/codex/runtime-lock.json). Codex's bundled `gpt-5.4` catalog
 entry selects the tool settings; model traffic goes to a mock provider.
 The catalog retains its prompts and other fields with these overrides:

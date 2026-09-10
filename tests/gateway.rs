@@ -813,7 +813,7 @@ upstream_model = "actual-model"
 api = "responses"
 context_window = 32000
 max_output_tokens = 1024
-tested_codex_version = "0.154.0-alpha.6"
+tested_codex_version = "0.154.0"
 "#,
         )
         .unwrap();
