@@ -1,85 +1,65 @@
+<a id="messages-instruction-role-lowering--approval-addendum"></a>
+<a id="messages-지시-메시지-변환"></a>
 <a id="messages-지시-역할-변환--승인-부록"></a>
 
-# Messages instruction-role lowering — approval addendum
+# Messages instruction mapping
 
 [English](messages-instruction-design.md) | [한국어](ko/messages-instruction-design.md)
 
-Status: explicitly approved on 2026-09-08 after detailed review of the semantic
-limits. G07/G08 implement the bridge. This document preserves its approved design
-and acceptance boundaries; the [Messages support contract](messages.md) describes current behavior.
+The Messages adapter can convert a leading sequence of Responses instructions
+into system text when its profile explicitly enables `bridged_instruction_envelope`
+for `instruction_hierarchy`. This preserves instruction text and ordering but
+cannot reproduce separate system/developer priority in the target model.
 
+<a id="observed-boundary"></a>
 <a id="관측된-경계"></a>
+<a id="역할-차이"></a>
 
-## Observed boundary
+## Role differences
 
-The pinned 0.154.0-alpha.6 synthetic Codex text turn sends top-level instructions,
-then a developer message and user messages. The gateway IR retains each original
-role and position. G05 permits only declared feature support and custom-tool JSON
-bridging; it does not authorize merging instruction roles silently.
-
+Responses represents system and developer messages as distinct input roles.
 Messages accepts user/assistant conversation roles and a separate system prompt,
-with no distinct developer-message role. See the [Messages reference](https://platform.claude.com/docs/en/api/messages/create).
-Responses retains [explicit input instruction roles](https://developers.openai.com/api/reference/typescript/resources/responses/methods/create).
-The current route cannot truthfully declare native instruction-hierarchy support.
-A successful mock response would not establish equivalent model behavior.
+without a developer role. The adapter therefore reports this feature as Bridged,
+not Native. See the [Messages reference](https://platform.claude.com/docs/en/api/messages/create)
+and [Responses reference](https://developers.openai.com/api/reference/typescript/resources/responses/methods/create).
 
+<a id="recommendation-and-exact-proposed-behavior"></a>
 <a id="권고와-정확한-동작"></a>
+<a id="변환-규칙"></a>
 
-## Recommendation and exact proposed behavior
+## Conversion rules
 
-**Required for the observed Codex-to-Messages path; high confidence in the wire
-mismatch, moderate confidence in model instruction adherence:** add an opt-in
-`bridged_instruction_envelope` support rule for `instruction_hierarchy`.
+1. Collect only instructions before the conversation content.
+2. Encode each instruction's original role, source position and exact text as
+   JSON data, preserving order and distinguishing protocol-default, system and
+   developer sources.
+3. Prepend a fixed adapter instruction explaining that this data contains
+   application instructions with priority above user content.
+4. Keep user and tool content outside that instruction envelope.
+5. Reject system/developer messages after conversation content instead of moving
+   them to the beginning. Reject a missing bridge declaration before dispatch.
 
-Keep the canonical IR and native Responses path unchanged. Only a Messages route
-explicitly declaring this bridge may lower a leading instruction prefix into
-system text blocks. Encode the original role, source position and exact text as
-JSON data, preceded by a fixed adapter instruction identifying the fields as
-higher-priority application instructions. Preserve prefix order and distinguish
-protocol-default, system and developer provenance. User/tool text never enters
-that envelope. Reject system/developer messages after conversation content;
-promoting a late message into the system prompt would change its position.
+The original Responses path and intermediate representation retain their roles
+and ordering. The conversion applies only to an explicitly configured Messages
+route. Use a Codex profile that disables unsupported hosted search and reasoning
+options; the gateway does not silently remove required features.
 
-This preserves content/provenance and their priority above user text, but cannot
-provide native enforcement of separate system/developer priority. Mark support
-Bridged, never Native, and state that limitation in the enabled profile. No model
-output substitutes for host-side tool permissions or approvals.
-
-The profile must explicitly declare the bridge. Existing profiles/configs retain
-current behavior. A missing rule rejects the request before dispatch. The target
-Codex profile must also disable unsupported hosted tool search and unsupported
-reasoning options; do not strip these fields at the gateway.
-
+<a id="alternatives-and-affected-boundaries"></a>
 <a id="대안과-영향-경계"></a>
+<a id="한계와-검증"></a>
 
-## Alternatives and affected boundaries
+## Limits and validation
 
-1. Keep strict native-role equivalence: ship the narrow Messages codec and reject
-   this Codex profile. This is the complete safe local behavior without approval,
-   but G09 cannot qualify the currently observed default profile.
-2. Use the explicit bridge above: enable the intended path with the documented
-   loss of native role separation and retain independent model/consumer acceptance.
-3. Modify the host/Codex prompt-generation path to produce an API-specific prompt:
-   larger runtime/source maintenance and qualification scope; not proposed here.
+The bridge preserves the source roles as data; it cannot enforce the target
+model's interpretation of their relative priority. Tool permissions and user
+approval remain host responsibilities.
 
-Affected components: capability support enum/validation, Messages request encoder,
-profile documentation and Codex qualification fixtures. No database, authentication
-mechanism, production dependency or native wire behavior changes. Implementation
-cost is small-to-moderate (one lowering rule and focused regression cases);
-maintenance must follow future changes to Codex instruction placement.
+Tests check exact text, role and order preservation, exclusion of user/tool
+content, late-instruction rejection and zero upstream requests when the bridge
+is missing. The pinned Codex suite exercises the path with a mock provider.
+Validate instruction adherence with the actual model before operational use.
 
-Risks: a target model may interpret labelled instructions differently; a later
-instruction prefix layout may become unsupported; claiming exact native hierarchy
-would conceal the limitation. Mitigate with explicit opt-in, role/position/content
-regressions, rejection tests and separate consumer/live-model acceptance.
-
-Validation requires exact content and order retention, user/tool exclusion,
-late-instruction rejection, missing-bridge zero-dispatch, real pinned Codex with
-synthetic upstream, and unchanged native passthrough tests. Mock tests verify wire
-behavior only. Rollback removes the profile declaration and reverts the bridge;
-no state migration is needed.
-
-Approval authorizes only this explicit Messages bridge and its disclosed limits.
-It does not approve live provider calls, production activation or role merging in
-other APIs. Before approval, only the independent narrow codec and tool/stream
-machinery could proceed; the observed Codex profile required this explicit bridge.
+If native system/developer separation is required, select a route that supports
+it. To disable this conversion, remove the bridge declaration; requests requiring
+it will then fail explicitly. See [Messages support](messages.md) for the complete
+profile and conversion limits.

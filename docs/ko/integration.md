@@ -1,18 +1,23 @@
+<a id="application-integration"></a>
 <a id="consumer-integration-boundaries"></a>
+<a id="소비자-통합-경계"></a>
 
-# 소비자 통합 경계
+# 애플리케이션 통합
 
 [English](../integration.md) | [한국어](integration.md)
 
 <Callout>
 
-게이트웨이는 독립 저장소에서 개발·릴리스하며 소비자는 검증한 버전을
-선택한다. 이 문서는 범용 연결 계약을 설명하며 특정 제품의 도입 상태를
-나타내지 않는다. 소비자별 식별정보와 운영 기록은 공개 문서에 포함하지 않는다.
+게이트웨이로 모델 요청을 보내고 애플리케이션에서 도구, 승인과 이력을 관리한다.
+아래 그림은 도구 호출이 애플리케이션으로 돌아오는 흐름을 보여준다.
 
 </Callout>
 
 <DiagramFigure kind="tool-roundtrip" />
+
+구체적인 요청·응답과 도구 결과 예시는 [호출 가이드](usage.md)를 따른다.
+시작, 인증, 동시 실행 한도와 스트리밍 오류는 [문제 해결](troubleshooting.md)에서 확인한다.
+
 
 <a id="shared-responsibilities"></a>
 
@@ -24,11 +29,18 @@
 
 `/v1/models`는 설정 목록이고 기능 인증서가 아니다. `/readyz`는 로컬 준비
 상태이며 실제 모델 호출·소비자 시험·운영 수락을 대체하지 않는다.
-공개 시험 fixture에는 합성 입력만 사용한다.
+공개 시험 시험 데이터에는 합성 입력만 사용한다.
+
+네이티브 패키지 대상은 Linux x64·ARM64, macOS ARM64와 Windows x64다.
+[패키지 형식](packaging.md)을 선택하고 실행 파일을 관리할 때
+[플랫폼별 종료 계약](embedded-design.md#process-lifecycle)을 따른다.
+패키징이 원격 서비스나 설치프로그램 동작을 추가하지는 않는다.
 
 현재 실행은 루프백 전용이다. 소비자는 같은 호스트 또는 같은 네트워크
-namespace에서 HTTP 클라이언트로 접근할 수 있다. 서로 다른 Docker
+네임스페이스에서 HTTP 클라이언트로 접근할 수 있다. 서로 다른 Docker
 컨테이너 간 연결과 외부 서비스 제공은 이 버전의 지원 범위 밖이다.
+
+
 
 <a id="embedding-in-an-agent-runtime"></a>
 
@@ -49,6 +61,8 @@ namespace에서 HTTP 클라이언트로 접근할 수 있다. 서로 다른 Dock
 따라 Codex 이력·로컬 압축·재개·불확실한 요청의 복구를 소유한다. 이 계약과
 해당 소비자의 실제 실행 경로가 검증된 범위만 장기 실행 가능 경로로 분류한다.
 
+
+
 <a id="calling-from-a-backend-service"></a>
 
 ## 백엔드 서비스에서 호출
@@ -61,55 +75,64 @@ namespace에서 HTTP 클라이언트로 접근할 수 있다. 서로 다른 Dock
 | 자격 증명 형태 | 현재 범위와 후속 결정 |
 |---|---|
 | 서비스가 소유하는 공급자 키 | 프로세스 설정으로 등록 가능; 소비자의 외부 호출 허가와 감사 경로를 연결해야 함 |
-| tenant별 공급자 키 | 미구현; tenant 인증·키 선택·권한·과금·감사 계약을 먼저 확정해야 함 |
+| 테넌트별 공급자 키 | 미구현; 테넌트 인증·키 선택·권한·과금·감사 계약을 먼저 확정해야 함 |
 
-현 버전은 요청별 API 키 주입이나 tenant 라우팅을 받지 않는다. 하나의 로컬
-Bearer 토큰과 프로세스별 공급자 설정을 tenant별 보안 경계로 해석하면 안 된다.
+현 버전은 요청별 API 키 주입이나 테넌트 라우팅을 받지 않는다. 하나의 로컬
+Bearer 토큰과 프로세스별 공급자 설정을 테넌트별 보안 경계로 해석하면 안 된다.
 서버 배포를 추가할 때 네트워크 주소, 인증, 키 관리 책임, 외부 통신 정책,
 취소와 오류 전파를 함께 결정한다. 소비자의 기존 배포·환경 관리 체계를 따른다.
 
+
+
 <a id="further-acceptance"></a>
+<a id="integration-verification"></a>
+<a id="후속-수락"></a>
 
-## 후속 수락
+## 통합 검증
 
-일반 HTTP 예제와 모의 공급자 시험은 소비자와 독립된 최소 계약을 검증한다.
-에이전트 호환성과 백엔드 통합 수락은 각각의 실제 호출 경로에서 수행한다.
-공개 릴리스·실제 공급자 시험·소비자 활성화는 별도 검증과 결정 사항이다.
+선택한 에이전트나 백엔드의 실제 호출 경로에서 자격 증명, 모델 선택,
+도구 승인, 취소와 복구를 시험한다. 모의 공급자 시험은 공통 계약을 검사하며,
+운영에는 실제 모델과 애플리케이션의 배포 환경도 검증해야 한다.
+
+
 
 <a id="declared-routes-and-input-limits"></a>
 
 ## 경로 선언과 입력 한도
 
 호스트는 선언한 API·인증·모델 프로필과 Codex 실행 설정을 함께 검증한다.
-게이트웨이의 요청별 RouteSnapshot은 라우팅 선언이며 저장 이력의 재개 인증이
+게이트웨이의 요청별 RouteSnapshot은 확정된 경로 정보이며 저장 이력의 재개 인증이
 아니다. 프로필의 context_window를 호스트 압축 설정에 연결해야 하며 실제 입력
 토큰 판정은 모델별 계수 근거가 필요하다. 출력 한도 검사는 HTTP 전송 전 적용한다.
-Messages와 Chat Completions는 명시적 프로필로 활성화할 수 있으며 G12의
-실제 Codex + 합성 upstream 공통 검증 범위만 확인됐다. [공통 지원표](conformance.md)를
-따르고 실제 모델의 출력·도구·컨텍스트 적합성과 소비자 수락을 별도로 검증한다.
+Messages와 Chat Completions는 명시적 프로필로 활성화할 수 있다.
+[적합성 시험](conformance.md)은 실제 Codex와 모의 공급자로 해당 프로필을 검사한다.
+운영 전에 애플리케이션에서 실제 모델의 출력·도구·컨텍스트 동작을 검증해야 한다.
 
-Messages 지시 bridge는 프로필의 명시적 선택 기능이다. 호스트는 native 역할
-구분과 다른 한계를 알고 qualification해야 하며, 실제 도구 권한이나 사용자
-승인 판단을 모델의 지시 해석으로 대체해서는 안 된다.
+Messages 지시 변환은 프로필에서 명시적으로 선택한다. system과 developer의
+우선순위를 각각 보존하지 못하는 한계를 고려해 실제 모델을 검증해야 한다.
+도구 권한이나 사용자 승인을 모델의 지시 해석으로 대체해서는 안 된다.
 
-변환 경로는 namespace·custom tool의 요청별 매핑과 제한된 스트림
-변환을 제공한다. 호스트는 문법 bridge를 native constrained decoding으로
-간주하지 않아야 한다. 구문 검사와 승인·파일 실행은 별도 책임이며, 현재 검증된
-호스트 프로필과 byte 한도는 [Messages 지원표](messages.md)를 따른다.
+변환 경로는 네임스페이스·사용자 정의 도구의 요청별 매핑과 크기가 제한된
+스트리밍을 제공한다. 문법 검사는 생성된 결과를 확인하는 절차이며 모델이
+문법 안에서만 생성하도록 강제하지는 않는다. 구문 검사와 승인·파일 실행은
+별개다. 호스트 프로필과 바이트 한도는 [Messages 지원표](messages.md)를 따른다.
+
+
 
 <a id="embedded-process-manifest"></a>
+<a id="내장-프로세스-manifest"></a>
 
-## 내장 프로세스 manifest
+## 내장 프로세스 명세
 
 `manifest --config <path>`는 자격 증명과 네트워크에 접근하지 않고
 `gateway-embedded-manifest/v1` JSON을 출력한다. 해석된 경로·프로필·한도와
 환경 변수 참조를 정규화하고 configuration_sha256를 함께 제공한다. 키 값과
 이력은 포함하지 않으며 실제 설정의 주소·식별자는 호스트의 비공개 기록으로
-관리한다. digest는 서명이나 공급자 qualification이 아니다.
+관리한다. 해시는 설정 일치를 확인하며 전자서명이나 공급자 호환성 검증을 대신하지 않는다.
 
-준비 JSON은 기존 event/address/base_url/version에 schema, manifest_schema,
-configuration_sha256를 추가한다. 호스트는 자신이 시작한 검증된 바이너리의
-stdout에서 이를 읽고 사전 manifest와 대조한 뒤 Codex를 시작한다. 검사 후 원문 TOML의
-유효 설정이 변경됐다면 준비 digest가 달라져야 한다. 자격 증명 값이 바뀌어도 설정
-참조 digest만으로는 이를 알 수 없으므로 재개에는 별도 credential generation이
-필요하다. 수명·접근 범위·실패·복구는 [승인된 내장 계약](embedded-design.md)을 따른다.
+준비 JSON은 event/address/base_url/version과 스키마, manifest_schema,
+configuration_sha256를 포함한다. 호스트는 자신이 시작한 검증된 바이너리의
+stdout에서 이를 읽고 사전 명세와 대조한 뒤 Codex를 시작한다. 검사 후 원문 TOML의
+유효 설정이 변경됐다면 준비 해시가 달라져야 한다. 자격 증명 값이 바뀌어도 설정
+참조 해시만으로는 이를 알 수 없으므로 재개에는 별도 자격 증명 세대이
+필요하다. 수명·접근 범위·실패·복구는 [내장 계약](embedded-design.md)을 따른다.

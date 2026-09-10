@@ -4,64 +4,68 @@
 
 [English](conformance.md) | [한국어](ko/conformance.md)
 
-G12 qualifies the implementation against a pinned actual Codex executable and
-synthetic loopback upstreams. The default CI run has 35 scenarios: nine native
-Responses, thirteen Messages and thirteen Chat Completions. It uses the temporary
-0.154.0-alpha.6 / macOS ARM64 artifact in the committed runtime lock. No live
-provider model, consumer workflow or release is qualified by these results.
+The conformance suite runs the actual pinned Codex executable against the gateway
+and mock HTTP providers. It covers 35 scenarios: nine for Responses and thirteen
+each for Messages and Chat Completions. The test runtime is 0.154.0 on
+macOS ARM64, pinned in the [runtime lock](../tests/codex/runtime-lock.json).
 
-| Capability | Native Responses | Messages | Chat Completions |
+<a id="프로토콜-지원-범위"></a>
+
+## Protocol coverage
+
+Responses forwards the original fields within the stateless HTTP contract.
+Converted routes require a profile declaring each supported feature.
+
+| Capability | Responses | Messages | Chat Completions |
 |---|---|---|---|
-| JSON/SSE | Original JSON values and raw SSE | Explicit codec and incremental blocks | Explicit codec, incremental text and bounded tool fragments |
-| Instruction roles | Original fields | Approved leading instruction envelope; late instructions reject | Native role fields/order |
-| Function tools and results | Original wire fields | Native tool_use/tool_result | Function tool_calls/tool messages |
-| Namespace/custom/known patch grammar | Original wire fields | Explicit namespace, JSON wrapper and grammar bridges | Same explicit bridges in the function-wire profile |
-| Strict tools | Forwarded | Declared native strict flag | Declared native strict flag |
-| Strict JSON schema | Original descriptor/rules | Declared native schema rules; source name retained as response descriptor | Declared native descriptor/rules/strict flag |
-| Loose schema or json_object | Forwarded | Reject | Declared native format |
-| Explicit effort | Original value | low/medium/high/xhigh/max only | none/minimal/low/medium/high/xhigh/max only |
-| Reasoning summaries/opaque state/verbosity | Forwarded within stateless policy | Reject | Reject |
-| Token/context limits | Declared output bound when a profile exists | Declared output bound/default | Declared output bound/default |
-| Input token counting | Unqualified | Unqualified | Unqualified |
-| Completion | Provider's terminal semantics | Valid message_stop after consistent stop reason | Valid finish_reason and final [DONE] |
+| JSON/SSE | Original JSON values and SSE bytes | Converted JSON and incremental events | Converted JSON and incremental events |
+| Instruction roles | Original fields | Leading instruction envelope; late instructions rejected | Original role fields and order |
+| Function tools/results | Original fields | tool_use/tool_result | tool_calls/tool messages |
+| Namespaces/custom text/registered patch grammar | Original fields | Declared name mapping, JSON wrapper and grammar validation | Same conversion rules using function-tool fields |
+| Strict tools | Forwarded | Declared strict flag | Declared strict flag |
+| Strict JSON schema | Original format and rules | Declared schema rules; name retained in the Responses descriptor | Declared schema name, rules and strict flag |
+| Loose schema or json_object | Forwarded | Rejected | Declared format |
+| Reasoning effort | Original value | low/medium/high/xhigh/max | none/minimal/low/medium/high/xhigh/max |
+| Reasoning summaries/opaque state/verbosity | Forwarded within stateless restrictions | Rejected | Rejected |
+| Context/output limits | Declared output bound when profiled | Declared output bound/default | Declared output bound/default |
+| Input token counting | Not implemented | Not implemented | Not implemented |
+| Completion | Provider terminal event | Valid message_stop after a consistent stop reason | Valid finish_reason and final [DONE] |
 | Retry/fallback/storage | None | None | None |
 
-Forwarding and a native profile declaration do not prove that a real model
-implements a feature. Equal effort labels or token counters do not establish
-equal compute, cost or quality across providers. Structured output is a native
-provider contract; the host validates its data and the gateway preserves schema
-rules without a second JSON Schema implementation or prompt substitution.
+Provider support and output quality must be tested with the selected model.
+Matching effort labels or token counts do not imply equal compute, cost or quality.
+The host validates structured output; the gateway preserves schema rules without
+replacing them with a prompt or a second general schema validator.
 
-Every route exercises text, a function round trip, a namespace round trip, custom
-patch application/result replay, host approval denial, eventful and heartbeat
-cancellation, transport loss, and explicit high effort plus a strict JSON schema.
-The converted routes also exercise two parallel calls, invalid patch grammar
-before tool execution, a later text turn, and tool/text output followed by tool
-results. Assertions check endpoint, model, authentication, native fields, original
-tool identity/arguments, exact schema values, returned JSON, absence of retries,
-and the 5000 ms interrupt-to-upstream-close bound.
+<a id="시험-항목"></a>
 
-The converted test host uses the explicit catalog/settings documented in
-[Messages](messages.md). Default optional reasoning/verbosity/search capabilities
-are disabled, while the output-control scenario supplies required effort and
-schema per turn. This distinguishes a basic tool profile from hosts that always
-require these controls. The original catalog prompts are derived from the pinned
-runtime, retained unchanged, and not copied into public fixtures.
+## Test coverage
 
-Shared HTTP regressions run for both adapters: JSON conversion, authentication
-header isolation, admission before upstream access, arbitrary byte splits,
-incremental output, sanitized errors, missing completion, aggregate limits,
-heartbeat disconnect and capacity release. Pure codecs additionally test
-malformed JSON/wrappers, semantic extensions, output order and identity, UTF-8,
-partial tool arguments, grammar checks and message history metadata.
+All routes test text, function and namespace round trips, custom patch application,
+approval denial, explicit effort/strict output, transport failure and cancellation.
+Cancellation covers both active output and heartbeat-only streams, with upstream
+closure required within 5000 ms of the interrupt.
 
-Run the full matrix with `python3 -B tests/codex/conformance.py` after the pinned
-runtime is prepared and the current gateway binary is built. `--api` and
-`--scenario` select narrower diagnosis; their success does not replace the full
-default CI run. Output contains only synthetic counts, outcomes, host-profile
-digest and timing metrics. It contains no request/response bodies or credentials.
+Converted routes also test parallel tools, grammar failure before execution,
+follow-up text and mixed tool/text results. Checks include route and model selection,
+credential isolation, tool identities and arguments, response values and no retry.
+HTTP and codec tests additionally cover malformed input, arbitrary byte/UTF-8 splits,
+truncation, output limits and release of request capacity.
 
-Provider qualification needs an explicit model, credentials and cost budget.
-Consumer startup/approval/cancellation and long-running continuity require their
-separate acceptance paths. The [embedded](embedded-design.md) and
-[continuity](continuity-design.md) contracts retain those boundaries.
+The test host uses the restricted catalog described in [Messages](messages.md):
+optional reasoning, verbosity and search defaults are disabled, while explicit
+per-turn output controls are tested separately.
+
+<a id="시험-실행"></a>
+
+## Running the suite
+
+Prepare the pinned runtime and build the gateway as described in the
+[test guide](../tests/codex/README.md), then run
+`python3 -B tests/codex/conformance.py`. Use `--api` and `--scenario` for a narrower
+local check; CI runs the complete set. Results include counts, statuses, profile
+digest and timings without request/response bodies or credentials.
+
+These tests establish protocol compatibility with mock providers. Before production
+use, test the actual model, application permissions and recovery under the
+[embedding](embedded-design.md) and [continuity](continuity-design.md) contracts.

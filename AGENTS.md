@@ -48,6 +48,9 @@ configuration, tests, and documentation before editing. Preserve unrelated work.
 
 ## Public documentation and local repositories
 
+- Public documentation explains current behavior, requirements and limits using
+  descriptive feature names. Keep milestone IDs, closed-work summaries and approval
+  narratives in development records. Explain technical terms where readers need them.
 - Public documentation contains reusable product contracts, not private consumer
   names, repository URLs, local paths, topology, or operational records.
 - `.private/` is reserved for an optional independent local Git repository. The
@@ -63,8 +66,9 @@ configuration, tests, and documentation before editing. Preserve unrelated work.
 ## Licensing and release
 
 - Public project code is AGPL-3.0-only. Preserve `LICENSE` and third-party notices.
-- `COMMERCIAL-LICENSING.md` describes a future separately negotiated license; it
-  grants no alternative permission by itself.
+- The project uses AGPL-3.0-only and a separately negotiated commercial license.
+  Commercial permissions require an applicable written agreement; the policy
+  document itself is not a license grant.
 - Do not merge external code contributions until the rights holder and sufficient
   contribution/relicensing terms have been established.
 - Do not copy code, tests, prompts, manuscripts, credentials, or Git history from

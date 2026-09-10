@@ -19,8 +19,8 @@
 ## 하나의 진입점. 명시적인 경로.
 
 클라이언트는 Responses를 유지하면서 선언한 업스트림 API를 선택합니다.
-네이티브 전달은 응답 본문을 보존하고, 변환 경로는 문서화한 호환성 프로파일을
-적용합니다.
+Responses 원형 전달은 응답 본문을 보존하고, 변환 경로는 문서화한 지원 기능
+프로필을 적용합니다.
 
 <CardGrid kind="api" />
 
@@ -53,9 +53,9 @@ cargo run --locked -- check-config --config config.local.toml
 
 | 기능 | 현재 계약 |
 |---|---|
-| JSON과 SSE | 네이티브 전달과 명시적인 프로파일에 따른 API 변환 |
+| JSON과 SSE | Responses 원형 전달과 명시한 프로필에 따른 API 변환 |
 | 자격 증명 | 로컬 Bearer 인증과 별도의 공급자 자격 증명 |
-| 도구와 승인 | 소비자가 실행하고 승인 |
+| 도구와 승인 | 애플리케이션이 실행하고 승인 |
 | 연속성 | 호스트가 소유하는 이력, 로컬 압축과 복구 |
 | 원격 상태 | 게이트웨이 저장소, `previous_response_id`와 원격 compact API는 미지원 |
 
@@ -63,8 +63,8 @@ cargo run --locked -- check-config --config config.local.toml
 
 <Callout variant="note">
 
-합성 테스트와 고정 Codex 적합성 검증은 반복 가능한 근거를 제공합니다.
-실제 공급자 qualification, 운영 활성화와 정식 릴리스는 별도의 수락 단계입니다.
+프로토콜 시험은 모의 공급자를 사용합니다. 운영 전에는 선택한 실제 모델과
+애플리케이션의 권한·복구를 검증하세요.
 
 </Callout>
 

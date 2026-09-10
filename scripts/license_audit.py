@@ -498,7 +498,7 @@ def main():
     args = parser.parse_args()
     try:
         require(args.command == "bundle" or args.output is None, "output is only valid for bundle")
-        executable = (args.cargo_deny or args.root / ".local/tools/bin/cargo-deny").resolve()
+        executable = (args.cargo_deny or args.root / ".local/tools/bin" / ("cargo-deny.exe" if os.name == "nt" else "cargo-deny")).resolve()
         output = args.output or args.root / ".local/release/licenses"
         count, texts = audit(args.root, args.command, executable, output)
         suffix = "; review generated diff; no commercial rights granted" if args.command == "refresh" else ""

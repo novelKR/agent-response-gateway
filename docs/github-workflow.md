@@ -4,14 +4,14 @@
 
 [English](github-workflow.md) | [한국어](ko/github-workflow.md)
 
-The [roadmap](roadmap.md) defines M0–M7. GitHub milestones and work-item issues
-track implementation separately from validation, qualification and adoption.
+Use issues to define scoped changes and pull requests to review them. This guide
+describes branch management, required checks and release approvals.
 
 <a id="브랜치커밋검토"></a>
 
 ## Branches, commits and reviews
 
-Use a separate worktree and a `codex/m<N>-<purpose>` branch for each bounded PR.
+Use a separate worktree and a `codex/<purpose>` branch for each bounded PR.
 Keep existing user changes and independent local repositories intact. A PR has
 one reviewable purpose and one to three logical commits; implementation and its
 regression tests belong together. Merge commits preserve the individual history.
@@ -33,8 +33,9 @@ a PR using the author's identity.
 
 ## Required checks
 
-The required jobs are `format`, `rust-linux`, `rust-macos`, `publication`, `licenses`
-`codex-conformance` and `docs`, plus the Linux/macOS `package-smoke` matrix.
+The required jobs are `targets`, `format`, `rust`, `publication`, `licenses`,
+`codex-conformance`, `docs` and `package-smoke`. Both native matrices use all four
+platforms from the [common target definition](../scripts/release_targets.py).
 `ci-required` succeeds only when the complete, explicitly named prerequisite set succeeds.
 Missing, extra, skipped, cancelled and failed jobs block it. No path filter silently omits a required check.
 Register a required check in branch protection after its first successful run.
@@ -45,14 +46,30 @@ pinned executable with the gateway and a synthetic upstream. Every scenario is
 reported; any failure blocks the aggregate. Package checks build a candidate from
 the committed source and verify archives, corresponding source, notices and the
 target SBOM. Candidate signing and approved release promotion use separate workflows.
-The default workflow uses Rust 1.98.0, Python 3.14, Ubuntu 24.04 x64 and macOS 15
-ARM64. Full history is fetched for publication checks. Actions are pinned by SHA.
+The workflow uses Rust 1.98.0 and Python 3.14 on Ubuntu 24.04 x64/ARM64, macOS 15
+ARM64 and Windows 2025 x64. Each native CLI smoke also checks configuration,
+readiness, local authentication, three synthetic routes and graceful shutdown. Full history is fetched for publication checks. Actions are pinned by SHA.
 Caches are partitioned by OS, architecture, toolchain and relevant lock files.
 
 The documentation job uses Node 24.21.0 and npm 11.19.0 to check the reviewed
 language pairs, static output, local preview boundary and web dependency notices.
 It retains the verified site for review for 14 days. It has no Pages deployment
 permission; artifact retention is not publication approval.
+
+On main push or manual main CI, the same checked site is packaged for Pages.
+After ci-required succeeds, the deployment job calls the public
+[docs-actions workflow](https://github.com/novelKR/docs-actions) at the full commit
+recorded in the [consumer lock](../.github/docs-pages-deploy.lock.json).
+Only that job receives pages: write and id-token: write; the caller owns its
+Pages site and github-pages environment. Configure Pages to use GitHub Actions
+and restrict that environment to main before publication. Add required reviewers
+there when a separate publication approval is needed. PRs do not deploy.
+
+Adopt central updates through a reviewed PR that changes the workflow SHA, lock
+and non-executing test snapshot together after central contracts CI succeeds.
+Build tools and document validation remain in this repository. Verify the actual
+site URL and served build-manifest.json after deployment; a central CI success
+alone does not establish a live site.
 
 PRs run without provider secrets and with read-only repository permissions.
 Do not execute untrusted PR code with write credentials or on a consumer host.
@@ -68,8 +85,9 @@ Dependency and action updates arrive as separate Dependabot PRs. Review the
 resolved lockfile and the required license evidence; an automated update is not
 approval of new dependencies or licensing terms.
 
-Candidate builds and final release are distinct. A protected release approval
-promotes the already verified binary digest without rebuilding it. Verify source,
+Tag candidate success automatically publishes a complete Pre-release. A protected
+release approval then promotes the same Release and verified files without a
+rebuild. Candidate, publication and formal promotion use separate workflows. Verify source,
 notices and provenance before adoption, and retain the preceding verified binary,
 configuration and compatible state. See [release procedures](release.md).
 

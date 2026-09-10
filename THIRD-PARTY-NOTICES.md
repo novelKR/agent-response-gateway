@@ -4,8 +4,8 @@
 
 [English](THIRD-PARTY-NOTICES.md) | [한국어](THIRD-PARTY-NOTICES.ko.md)
 
-New project source is AGPL-3.0-only. Rust dependencies have their own licenses;
-the project license does not replace their original permissions or notices.
+The public project source uses AGPL-3.0-only. Rust dependencies retain their own
+licenses and notices under both the public and commercial licensing options.
 
 `Cargo.toml` records direct dependencies and `Cargo.lock` records resolved versions.
 This document is a guide to the evidence. The [dependency record](licensing/dependencies.json)

@@ -1,0 +1,54 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Extracted from agent-response-gateway on 2026-09-10; see PROVENANCE.json.
+name: Reusable Pages deployment
+
+# Contract v1: deploy the caller's verified Pages artifact from the SAME run.
+# The caller owns its site, protected github-pages environment and permissions.
+# No source checkout, build, arbitrary commands, inherited secrets or PAT.
+# No target repository, cross-run artifact, preview or environment override.
+# Restrict github-pages to the publication branch in EACH caller repository.
+# Central changes are adopted only through reviewed full-SHA caller updates.
+
+on:
+  workflow_call:
+    inputs:
+      artifact-name:
+        description: Verified Pages artifact uploaded by the caller in this run
+        type: string
+        required: false
+        default: github-pages
+      publication-branch:
+        description: Branch allowed to publish; also restrict it in the environment
+        type: string
+        required: false
+        default: main
+    outputs:
+      page-url:
+        description: URL reported by the completed Pages deployment
+        value: ${{ jobs.deploy.outputs.page-url }}
+
+permissions:
+  pages: write
+  id-token: write
+
+jobs:
+  deploy:
+    if: >-
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      github.ref == format('refs/heads/{0}', inputs.publication-branch)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    concurrency:
+      group: github-pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    outputs:
+      page-url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy the verified artifact without rebuilding
+        id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
+        with:
+          artifact_name: ${{ inputs.artifact-name }}

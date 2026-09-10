@@ -7,7 +7,9 @@ export const labels = {
   en: {
     docs: 'Documentation', api: 'API reference', project: 'Project',
     stage: 'In development', note: 'Implementation note', caution: 'Limit',
-    preview: 'Working tree preview', source: 'Source', language: 'Page language',
+    preview: 'Working tree preview', source: 'Source',
+    copyPage: 'Copy Page', copyMarkdown: 'Copy this page as Markdown',
+    copying: 'Copying…', copied: 'Copied', failed: 'Could not copy. Check clipboard permission and try again.',
     notices: 'Web dependency notices', table: 'Supported behavior',
     gateway: 'Responses gateway', consumer: 'Your application', upstream: 'Declared upstream',
     transport: 'Transport · routes · credentials', tools: 'Tools · approvals · history',
@@ -20,7 +22,9 @@ export const labels = {
   ko: {
     docs: '문서', api: 'API 레퍼런스', project: '프로젝트',
     stage: '개발 중', note: '구현 참고', caution: '제한 사항',
-    preview: '작업 트리 미리보기', source: '소스', language: '페이지 언어',
+    preview: '작업 트리 미리보기', source: '소스',
+    copyPage: '페이지 복사', copyMarkdown: '이 페이지를 Markdown으로 복사',
+    copying: '복사 중…', copied: '복사됨', failed: '복사하지 못했습니다. 클립보드 권한을 확인한 뒤 다시 시도해 주세요.',
     notices: '웹 의존성 고지', table: '지원 범위',
     gateway: 'Responses 게이트웨이', consumer: '애플리케이션', upstream: '선언한 업스트림',
     transport: '전송 · 경로 · 자격 증명', tools: '도구 · 승인 · 이력',

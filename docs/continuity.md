@@ -4,13 +4,11 @@
 
 [English](continuity.md) | [한국어](ko/continuity.md)
 
-The approved [G15 design](continuity-design.md) keeps gateway HTTP transport
-stateless. The reusable [Python contract module](../scripts/continuity_contract.py)
-validates private host records and returns new revisions. It performs no I/O,
-model calls, authentication, workflow approval, or automatic recovery. Python
-hosts may use this optional stdlib module; the Rust gateway has no new runtime
-dependency. Consumer integration and operational acceptance are tracked separately
-by G17.
+The optional [Python continuity module](../scripts/continuity_contract.py) validates
+host-owned run records and returns new revisions. It uses the standard library
+and performs no I/O or model calls. The host owns persistence, authentication,
+approval and recovery; the Rust gateway remains stateless.
+See the [history and resume design](continuity-design.md) for the overall flow.
 
 <a id="검증된-입력과-비공개-저널"></a>
 
@@ -82,7 +80,7 @@ the summary through an ordinary Responses request and owns replacement history.
 This policy allows explicit host compaction and Codex-triggered local compaction;
 it does not claim every internal compaction is a separate host control request.
 The host records the final resulting history digest after the control turn.
-Automatic pressure thresholds need consumer acceptance in G17.
+Validate automatic compaction thresholds with the application and selected model.
 The gateway still rejects remote compact and stored-response endpoints. A new
 runtime/profile needs a fresh demonstration of its resolved compaction behavior.
 
@@ -105,8 +103,6 @@ upstream request. The completed tool executes once; six changed origin bindings
 are rejected before any new request. No remote compact endpoint is called.
 The public result contains only versions, statuses and request counters.
 
-These tests do not establish real-model summary quality, provider qualification,
-consumer workflow acceptance, production activation or release readiness. Consumers
-connect this contract to their private persistence and control paths, including
-permissions, approvals and recovery checks. G17 tracks that integration separately
-from the reusable contract and from real-provider or production acceptance.
+Connect the module to the application's private journal, permissions, approvals
+and recovery controls. Test real-model summaries and crash recovery with the
+intended workload before production use.

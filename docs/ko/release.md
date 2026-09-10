@@ -4,14 +4,11 @@
 
 [English](../release.md) | [한국어](release.md)
 
-공개 소스와 PR CI는 운영 중이며 G18은 미공개 배포 후보 생성·검증을 제공한다.
-G19는 서명된 후보와 사용자 승인 후 동일 바이트를 공개하는 preview 승격을 제공한다.
-공개된 [후보 workflow 실행](https://github.com/novelKR/agent-response-gateway/actions/workflows/release-candidate.yml)에서
-선택한 commit·run·attempt의 결과와 출처 증명을 확인한다. 서명된 후보가 있다는
-사실은 최신 main의 릴리스나 바이너리 공개를 뜻하지 않는다. 소비자 생산 운영
-수락과 상용 계약 체결도 별도 단계다.
-현재 후보 생성과 정확한 검증 범위는 [패키징 계약](packaging.md)을 따른다.
-[서명·승격 계약](release-promotion.md)은 최소 권한, 환경 승인, 검증과 복구 절차를 정한다.
+배포물은 특정 소스 버전, 실행 파일, 설정, 고지와 검증된 빌드 출처를 연결한다.
+[후보](packaging.md)를 만들고 [워크플로 결과](https://github.com/novelKR/agent-response-gateway/actions/workflows/release-candidate.yml)를
+확인한 뒤 [서명·배포 절차](release-promotion.md)를 따른다. 태그 빌드 성공 시
+Pre-release를 자동 공개하고 승인 후 같은 파일을 정식 Release로 승급한다.
+[플랫폼 표](packaging.md)에서 네이티브 대상과 압축 형식을 선택한다.
 
 <a id="unit-of-verification"></a>
 
@@ -34,17 +31,15 @@ cargo build --release --locked
 Python은 3.11 이상을 사용하며, 라이선스 검사의 고정 도구와 원본 캐시는
 [라이선스 관리 안내](../../licensing/README.ko.md)에 따라 먼저 준비한다.
 
-Linux·macOS CI workflow는 공개 가능한 fixture만 사용하며 공급자 secret을
-요구하지 않는다. 호스팅된 CI가 실제 실행되기 전에는 성공으로 표시하지 않는다.
-현재 checkout action은 2026-09-08 확인한 v4 태그의 커밋
-`11d5960a326750d5838078e36cf38b85af677262`로 고정한다.
+Linux x64·ARM64, macOS ARM64와 Windows x64 워크플로는 공급자 자격 증명 없이 공개 가능한 시험 데이터를 사용한다.
+Action 버전은 [CI 워크플로](../../.github/workflows/ci.yml)에 고정한다.
 
 <a id="source-and-notices"></a>
 
 ## 소스와 고지
 
-AGPL의 Corresponding Source에는 실제 배포 버전을 빌드·설치·수정하는 데
-필요한 소스와 관련 스크립트 등을 검토해 포함한다. [공식 AGPLv3](https://www.gnu.org/licenses/agpl-3.0.html)의
+AGPL로 배포할 때는 해당 버전을 빌드·설치·수정하는 데 필요한 소스와
+스크립트를 대응 소스(Corresponding Source)에 포함한다. [공식 AGPLv3](https://www.gnu.org/licenses/agpl-3.0.html)의
 조건과 실제 배포 형태에 따라 확인한다. 실행 파일만 공개하거나 최신 브랜치
 URL만 표시해 충분하다고 가정하지 않는다.
 
@@ -64,10 +59,10 @@ python3 -B scripts/archive_notices.py .local/release/licenses .local/release/lic
 python3 -B scripts/check_public_boundary.py --archive .local/release/license-notices.tar
 ```
 
-출력 디렉터리는 새 경로 또는 빈 경로여야 한다. 묶음의 manifest는 잠금 파일·
+출력 디렉터리는 새 경로 또는 빈 경로여야 한다. 묶음의 명세는 잠금 파일·
 정책·패키지 기록·고지 파일의 해시를 포함한다. 동일한 입력으로 다른 빈 경로에
-생성한 묶음이 일치하는지 확인한다. 공개 소스 archive와 함께 배포 자료에 포함한다.
-고지 archive는 위 전용 도구로 호스트 소유자·시간·확장 메타데이터를 제거하며,
+생성한 묶음이 일치하는지 확인한다. 공개 소스 압축파일과 함께 배포 자료에 포함한다.
+고지 압축파일은 위 전용 도구로 호스트 소유자·시간·확장 메타데이터를 제거하며,
 기존 파일을 덮어쓰지 않는다. 고지 원문의 바이트는 변경하지 않는다.
 
 이 목록은 Cargo.lock 전체를 보수적으로 포함한다. 실제 바이너리에 포함된
@@ -75,13 +70,13 @@ python3 -B scripts/check_public_boundary.py --archive .local/release/license-not
 링크, 컨테이너 패키지, 번들 실행 파일과 그 의존성은 실제 배포 산출물별로
 추가 조사한다. 이 단계와 전체 법률 검토가 끝났다고 자동으로 표시하지 않는다.
 
-권리자·기여 조건·별도 계약 권한을 확정한 뒤 외부 코드 기여 정책을 연다.
-상용 계약에서도 제3자 구성요소의 기존 조건을 보존한다.
+[기여 정책](../../CONTRIBUTING.ko.md)에 따라 기여 권한을 확인한다.
+공개 배포는 AGPL을, 계약 대상 상용 배포는 [별도 계약](../../COMMERCIAL-LICENSING.ko.md)을
+따른다. 양쪽 모두 제3자 조건을 지켜야 한다.
 
-현재 `0.1.0`은 미출시 개발 버전이다. 대상별 package-smoke CI와 후보 파일은
-정식 배포 승인이나 실제 공급자 qualification을 뜻하지 않는다. 공개·대체 조건 및 미확정 상태는
-[버전별 라이선스 정책](../../COMMERCIAL-LICENSING.ko.md)에 기록한다. 검사 통과와
-별도 계약 체결·권리 확보·상용 배포 가능 판정은 구분한다.
+명세 버전은 `0.1.0`이다. 일치하는 버전 태그를 만드는 것은 별도 배포 작업이다.
+설정 PR이 통과해도 태그나 Release를 만들지는 않는다. 보호된 승급은 다운로드
+파일을 바꾸지 않고 릴리스 상태만 변경한다.
 
 <a id="consumer-adoption-and-recovery"></a>
 
@@ -89,7 +84,7 @@ python3 -B scripts/check_public_boundary.py --archive .local/release/license-not
 
 소비자는 특정 릴리스·해시를 선택하고 기동 전에 확인한다. 실행 시 최신
 브랜치나 미검증 바이너리를 자동으로 가져오지 않는다. 준비 JSON과 HTTP
-계약을 통해 실행하며 Codex·tenant 등 소비자별 내부 상태를 게이트웨이로
+계약을 통해 실행하며 Codex·테넌트 등 소비자별 내부 상태를 게이트웨이로
 옮기지 않는다.
 
 에이전트 호스트는 런타임과 게이트웨이의 검증된 조합을 선택한다. 백엔드
@@ -101,7 +96,7 @@ python3 -B scripts/check_public_boundary.py --archive .local/release/license-not
 ## 공개 소스 배포물
 
 로컬 작업 디렉터리 전체를 압축하지 않는다. 검토한 공개 커밋의 추적 파일로
-소스 archive를 만들고, [문서 관리](documentation.md)의 검사로 내부 경로와
+소스 압축파일을 만들고, [문서 관리](documentation.md)의 검사로 내부 경로와
 지원하지 않는 링크·파일 유형이 없는지 확인한다. Cargo 패키지도
 `cargo package --list --allow-dirty`로 실제 포함 목록을 확인한다.
 `.gitignore`와 Cargo의 제외 규칙은 검사나 실제 배포 목록 확인을 대체하지 않는다.

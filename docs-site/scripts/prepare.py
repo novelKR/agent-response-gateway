@@ -70,7 +70,7 @@ def rewrite(text, source, routes, repository, commit):
             output.append(line)
         elif marker is None:
             if line.startswith('[English]'):
-                continue  # The generated page toolbar retains the same-page language pair.
+                continue  # The site header provides same-page language switching.
             segments = re.split(r'(`+[^`\n]*`+)', line)
             output.append(''.join(segment if index % 2 else
                 re.sub(r'(\[[^]\n]*\])\(([^\s)]+)(\s+"[^"]*")?\)', link, segment)
@@ -78,6 +78,16 @@ def rewrite(text, source, routes, repository, commit):
         else:
             output.append(line)
     return ''.join(output)
+
+
+def render_page(page, original, routes, repository, commit):
+    text = rewrite(original, page['source'], routes, repository, commit)
+    frontmatter = {'title': page['title'], 'description': page['description'],
+        'docId': page['id'], 'sourcePath': page['source'], 'docLocale': page['locale'],
+        'copyMarkdown': original}
+    if page['id'] == 'overview':
+        frontmatter.update(layout='page', pageClass='product-page')
+    return '---\n' + '\n'.join(f'{k}: {json.dumps(v, ensure_ascii=False)}' for k, v in frontmatter.items()) + '\n---\n\n' + text
 
 
 def prepare(root=ROOT):
@@ -99,13 +109,7 @@ def prepare(root=ROOT):
         path = source_dir / (relative + '.md')
         path.parent.mkdir(parents=True, exist_ok=True)
         text = docs.source_path(root, page['source']).read_text(encoding='utf-8')
-        text = rewrite(text, page['source'], routes, navigation['repository'], commit)
-        frontmatter = {'title': page['title'], 'description': page['description'],
-            'docId': page['id'], 'sourcePath': page['source'], 'docLocale': page['locale']}
-        if page['id'] == 'overview':
-            frontmatter.update(layout='page', pageClass='product-page')
-        path.write_text('---\n' + '\n'.join(f'{k}: {json.dumps(v, ensure_ascii=False)}' for k, v in frontmatter.items())
-            + '\n---\n\n' + text, encoding='utf-8')
+        path.write_text(render_page(page, text, routes, navigation['repository'], commit), encoding='utf-8')
     for locale, settings in navigation['locales'].items():
         for group in navigation['groups']:
             path = source_dir / (settings['prefix'].strip('/') + '/guide/sections/' + group['id'] + '.md').lstrip('/')

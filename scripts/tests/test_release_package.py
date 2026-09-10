@@ -2,9 +2,12 @@ import io
 import json
 from pathlib import Path
 import sys
+import stat
 import tarfile
 import tempfile
 import unittest
+from unittest.mock import patch
+import zipfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import release_package as package
@@ -40,22 +43,24 @@ def sbom(meta=None, artifacts=None, licenses=None):
 def source_archive():
     raw = io.BytesIO()
     with tarfile.open(fileobj=raw, mode="w:gz", format=tarfile.PAX_FORMAT, pax_headers={"comment":COMMIT}) as archive:
-        for name, data in {"LICENSE":b"synthetic source license", "scripts/release_package.py":b"synthetic builder", "scripts/package_smoke.py":b"synthetic smoke"}.items():
+        for name, data in {"LICENSE":b"synthetic source license", "scripts/release_package.py":b"synthetic builder", "scripts/package_smoke.py":b"synthetic smoke", "scripts/release_targets.py":b"synthetic targets"}.items():
             item = tarfile.TarInfo("agent-response-gateway/" + name)
             item.mode, item.size = 0o644, len(data)
             archive.addfile(item, io.BytesIO(data))
     return raw.getvalue()
 
 
-def fixture(directory, files=None):
-    files = files or {"agent-response-gateway/bin/agent-response-gateway":(b"synthetic executable",0o755), "agent-response-gateway/LICENSE":(b"synthetic license",0o644)}
-    binary = files["agent-response-gateway/bin/agent-response-gateway"][0]
+def fixture(directory, files=None, target=TARGET):
+    executable = "agent-response-gateway/bin/" + package.TARGETS[target]["executable"]
+    files = files or {executable:(b"synthetic executable",0o755), "agent-response-gateway/LICENSE":(b"synthetic license",0o644)}
+    binary = files[executable][0]
     bom = sbom()
     bom["metadata"]["component"]["hashes"] = [{"alg":"SHA-256","content":package.sha(binary)}]
-    assets = {"binary.tar.gz":package.tar_bytes(files),"source.tar.gz":source_archive(),"sbom.json":package.encoded(bom)}
+    binary_name = "binary." + package.TARGETS[target]["archive"]
+    assets = {binary_name:package.archive_bytes(files, target),"source.tar.gz":source_archive(),"sbom.json":package.encoded(bom)}
     for name,data in assets.items():
         package.write_new(directory/name, data)
-    manifest = {"schema":package.SCHEMA,"target":TARGET,"source_commit":COMMIT,"assets":{n:package.sha(v) for n,v in assets.items()},"binary_archive":"binary.tar.gz","source_archive":"source.tar.gz","sbom":"sbom.json","binary_sha256":package.sha(binary),"package_files":{n:{"sha256":package.sha(v),"mode":m} for n,(v,m) in files.items()}, "packaging_tools":{"release_package.py":package.sha(b"synthetic builder"),"package_smoke.py":package.sha(b"synthetic smoke")}}
+    manifest = {"schema":package.SCHEMA,"target":target,"source_commit":COMMIT,"assets":{n:package.sha(v) for n,v in assets.items()},"binary_archive":binary_name,"source_archive":"source.tar.gz","sbom":"sbom.json","binary_sha256":package.sha(binary),"package_files":{n:{"sha256":package.sha(v),"mode":m} for n,(v,m) in files.items()}, "packaging_tools":{"release_package.py":package.sha(b"synthetic builder"),"package_smoke.py":package.sha(b"synthetic smoke"),"release_targets.py":package.sha(b"synthetic targets")}}
     package.write_new(directory/"candidate.json", package.encoded(manifest))
     hashes = {p.name:package.sha(package.read(p)) for p in directory.iterdir()}
     package.write_new(directory/"SHA256SUMS", "".join(f"{v}  {n}\n" for n,v in sorted(hashes.items())).encode())
@@ -124,6 +129,68 @@ class ReleasePackageTests(unittest.TestCase):
                 stream.write(b"tampered")
             with self.assertRaises(package.PackageError):
                 package.verify_candidate(directory)
+
+    def test_all_native_targets_bind_the_expected_packaged_executable(self):
+        self.assertEqual(len(package.TARGETS), 4)
+        for target in package.TARGETS:
+            with self.subTest(target=target), tempfile.TemporaryDirectory() as temporary:
+                directory = Path(temporary)
+                fixture(directory, target=target)
+                package.verify_candidate(directory, COMMIT, target)
+
+    def test_zip_determinism_and_safe_paths_preserve_exact_notice_bytes(self):
+        files = {"a/notice.txt":(b"original\r\nnotice\r\n",0o644), "a/bin.exe":(b"synthetic executable",0o755)}
+        raw = package.zip_bytes(files)
+        self.assertEqual(raw, package.zip_bytes(dict(reversed(list(files.items())))))
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary)/"package.zip"; path.write_bytes(raw)
+            self.assertEqual(package.archive_files(path), files)
+        for name in ["../escape", "C:/absolute", "a/stream:secret", "a/NUL.txt", "a/trailing.", "a/trailing ", "a\x00hidden", "a\\b"]:
+            with self.subTest(name=name), self.assertRaises(package.PackageError):
+                package.zip_bytes({name:(b"x",0o644)})
+
+    def test_zip_rejects_duplicates_links_path_conflicts_metadata_and_size_limits(self):
+        for change in ["case", "link", "parent", "extra", "size"]:
+            with self.subTest(change=change), tempfile.TemporaryDirectory() as temporary:
+                path = Path(temporary)/"bad.zip"
+                with zipfile.ZipFile(path, "w") as archive:
+                    for name in (["a", "A"] if change == "case" else ["a", "a/b"] if change == "parent" else ["a"]):
+                        item = zipfile.ZipInfo(name, (1980,1,1,0,0,0)); item.create_system = 3
+                        item.external_attr = ((stat.S_IFLNK if change == "link" else stat.S_IFREG) | 0o644) << 16
+                        item.compress_type = zipfile.ZIP_DEFLATED
+                        if change == "extra":
+                            item.extra = b"\x01\x00\x00\x00"
+                        archive.writestr(item, b"synthetic")
+                with patch.object(package, "MAX_FILE", 1 if change == "size" else package.MAX_FILE), self.assertRaises(package.PackageError):
+                    package.archive_files(path)
+
+    def test_windows_build_selects_native_msvc_before_git_link_and_filters_setup_output(self):
+        env = {"PATH":"synthetic-git-bin", "COMSPEC":"cmd.exe", "PROGRAMFILES(X86)":"C:/Program Files (x86)"}
+        configured = "Path=synthetic-sdk-path\r\nINCLUDE=synthetic-headers\r\nLIB=synthetic-libraries\r\nVCToolsInstallDir=C:/VS/VC/Tools/MSVC/14.50/\r\nVSCMD_ARG_TGT_ARCH=x64\r\nVSCMD_ARG_HOST_ARCH=x64\r\nGH_TOKEN=do-not-inherit\r\nRUSTFLAGS=do-not-inherit\r\n"
+        with tempfile.TemporaryDirectory(prefix="source with spaces ") as temporary:
+            for arch in ["x64", "x86"]:
+                with self.subTest(arch=arch), patch.object(package, "run", side_effect=[b"C:/Program Files/VS\r\n", configured.replace("TGT_ARCH=x64", "TGT_ARCH=" + arch).encode("utf-16-le")]) as run, patch.object(Path, "is_file", return_value=True):
+                    if arch != "x64":
+                        with self.assertRaises(package.PackageError):
+                            package.windows_environment(env, Path(temporary)/"source")
+                        continue
+                    result = package.windows_environment(env, Path(temporary)/"source")
+                    self.assertTrue(result["PATH"].startswith(str(Path("C:/VS/VC/Tools/MSVC/14.50/bin/Hostx64/x64")) + package.os.pathsep))
+                    self.assertEqual(result["LIB"], "synthetic-libraries")
+                    self.assertNotIn("GH_TOKEN", result)
+                    self.assertNotIn("RUSTFLAGS", result)
+                    self.assertEqual(run.call_args_list[1].args[0], ["cmd.exe", "/d", "/u", "/c", "environment.cmd"])
+                    self.assertEqual(run.call_args_list[1].args[2]["ARG_MSVC_SETUP"], str(Path("C:/Program Files/VS/VC/Auxiliary/Build/vcvars64.bat")))
+
+    def test_pe_inspection_uses_installed_dumpbin_and_records_external_dlls(self):
+        raw = [b"Microsoft (R) COFF/PE Dumper Version 14.50.1\n8664 machine (x64)\n20B magic # (PE32+)\n", b"  KERNEL32.dll\n  VCRUNTIME140.dll\n"]
+        with patch.object(package, "run", side_effect=raw) as run:
+            value = package.dynamic_linkage(Path("gateway.exe"), "x86_64-pc-windows-msvc", {"VCTOOLSINSTALLDIR":"C:/VS/VC/Tools/MSVC/14.50"})
+            self.assertEqual(value["libraries"], ["kernel32.dll", "vcruntime140.dll"])
+            self.assertEqual(value["inspection_tool"]["version"], "14.50.1")
+            self.assertIn("/HEADERS", run.call_args_list[0].args[0])
+            self.assertIn("/DEPENDENTS", run.call_args_list[1].args[0])
+            self.assertEqual(run.call_args_list[0].args[0][0], Path("C:/VS/VC/Tools/MSVC/14.50/bin/Hostx64/x64/dumpbin.exe"))
 
     def test_macos_minimum_version_excludes_dylib_versions(self):
         raw = "cmd LC_BUILD_VERSION\nminos 11.0\nsdk 15.5\ntools 1\ntool LD\nversion 1267.0\ncmd LC_SOURCE_VERSION\nversion 0.0\ncmd LC_ID_DYLIB\nversion 1267.0"

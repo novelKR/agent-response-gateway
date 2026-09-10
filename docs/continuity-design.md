@@ -1,34 +1,29 @@
+<a id="g15--continuity-with-host-owned-history"></a>
 <a id="g15--호스트-이력에-기반한-연속성"></a>
+<a id="이력압축재개"></a>
 
-# G15 — Continuity with host-owned history
+# History, compaction and resume
 
 [English](continuity-design.md) | [한국어](ko/continuity-design.md)
 
-Status: **explicitly approved on 2026-09-08; implementation and acceptance tracked by G16/G17**.
+Codex and its host keep conversation history and recovery records. The gateway
+handles stateless model requests; it does not store responses or provide a remote
+compaction endpoint.
 
+<a id="evidence-and-recommendation"></a>
 <a id="근거와-권고"></a>
+<a id="로컬-압축"></a>
 
-## Evidence and recommendation
+## Local compaction
 
-The gateway currently rejects stored-response IDs and remote compact endpoints.
-That does not by itself require a gateway database for long-running Codex work.
-The pinned Codex selects local compaction when the configured provider declares
-remote compaction unsupported. A synthetic control-plane probe completed an
-initial turn, `thread/compact/start`, and a following turn through three ordinary
-`/v1/responses` calls; no gateway compact endpoint was needed.
+With a provider profile that declares remote compaction unsupported, the pinned
+Codex uses local compaction. It sends a summarization request through the ordinary
+`/v1/responses` endpoint and updates its own history. The host invokes
+`thread/compact/start` and decides when another turn can begin.
 
-The same three-call local-compaction probe also passed with the separately
-approved temporary 0.154.0-alpha.6 test baseline.
-
-Source: [pinned compaction task selection](https://github.com/openai/codex/blob/rust-v0.153.4/codex-rs/core/src/tasks/compact.rs).
-This is evidence for the tested custom-provider profile, not every model/profile
-or a proof that a real model produces a sufficient summary.
-
-**Strongly recommended, high confidence for ownership:** retain Codex/host-owned
-history and the gateway's stateless transport. First qualify local compaction and
-complete-history replay. A new gateway history database, provider-ID emulation or
-encrypted summary envelope is not required by this observed path and is excluded
-from the initial implementation.
+This path is covered by mock-provider tests. The actual model's summary quality
+and the application's ability to continue from that summary require validation
+with the intended workload.
 
 <a id="책임과-인터페이스"></a>
 
@@ -36,122 +31,88 @@ from the initial implementation.
 
 | Owner | Responsibility |
 |---|---|
-| Codex | Thread history, local compaction, tool result context, resume control protocol |
-| Host runtime | Verified executable/settings, run binding, cancellation, recovery and explicit model switching |
-| Gateway | Frozen request route, provider credential selection, protocol conversion and stateless errors |
-| Consumer | Workflow checkpoints, approvals, domain meaning and operational acceptance |
+| Codex | Conversation history, local compaction, tool-result context and resume control |
+| Host runtime | Verified executables/settings, run binding, cancellation, recovery and explicit model changes |
+| Gateway | Fixed request route, provider credentials, protocol conversion and stateless errors |
+| Application workflow | Checkpoints, user approval and domain decisions |
 
-Use existing `thread/start`, `thread/resume`, `thread/compact/start`, `turn/start`
-and `turn/interrupt` control interfaces. No gateway storage, response lookup or
-compact HTTP endpoint is enabled by this proposal. Unsupported stateful requests
-continue to fail rather than being forwarded to a nonexistent provider ID.
+Use `thread/start`, `thread/resume`, `thread/compact/start`, `turn/start` and
+`turn/interrupt`. Stored-response references and remote compaction requests remain
+unsupported at the gateway.
 
 <a id="실행-binding과-복구-기록"></a>
+<a id="실행-연결-정보와-복구-기록"></a>
 
 ## Run binding and recovery record
 
-The host stores a private, versioned `gateway-run-binding/v1` record alongside its
-existing execution record, containing:
+A run binding is the record of the exact runtime, route, credentials and history
+that may be used together. The host stores a private `gateway-run-binding/v1`
+record containing:
 
-- Codex version, executable digest and declared state compatibility.
-- Gateway version/digest and the exact effective route configuration digest.
-- Resolved provider, actual model, API, capability profile and adapter versions.
-- Credential realm and generation reference; never the raw key in the record.
+- Codex version, executable digest and state compatibility.
+- Gateway version/digest and effective configuration digest.
+- Provider, actual model, API, capability profile and adapter versions.
+- Credential realm and generation reference, without the raw key.
 - Thread identity, private history reference, last completed turn and recovery state.
-- Context/output limits, compaction policy and the run's retry/request budget.
+- Context/output limits, compaction policy and request/retry budget.
 
-Write a new record atomically after a completed transition. Keep the previous
-record and compatible history backup for recovery. Do not rewrite completed
-execution evidence or infer workflow approval from a model response.
-
-Before resume, verify the executable, state compatibility, route/profile and
-credential generation. The host must obtain the credential generation from its
-authoritative credential owner; reusing an environment-variable name alone is
-insufficient. If that binding cannot be established, reject same-context resume.
-Do not silently resolve an old alias using changed configuration.
+After a completed transition, save the new record atomically and retain the
+previous compatible record/history for recovery. Before resume, verify these
+bindings against the current executables, configuration and credential manager.
+Reusing the same environment-variable name is not proof that the credential is
+unchanged. Reject an unverified binding instead of silently resolving an old alias
+with new settings.
 
 <a id="지원하는-연속-실행-경로"></a>
 
 ## Supported continuation paths
 
-1. **Same process and route:** Codex sends the complete current context and tool
-   results. The gateway translates only the declared supported stateless subset.
-2. **Local compaction:** the host uses a verified provider profile whose resolved
-   remote-compaction capability is Unsupported. Codex owns the summarization
-   request and replacement history. The gateway handles the ordinary Responses
-   call without pretending the summary is native encrypted state.
-3. **Process restart:** restore a compatible Codex home/history and the matching
-   run binding, resume the recorded thread, and verify the resumed model/provider
-   before starting another turn. Do not replay already-completed tools.
-4. **Explicit model change:** require a host transition, select a newly verified
-   route, and create a fresh context from portable messages and completed tool
-   results. Record omitted opaque state and the new binding. Preserve approvals
-   and workflow checkpoints in their existing owner.
+1. **Same process and route:** send the complete current context and tool results
+   through the route's supported stateless request format.
+2. **Local compaction:** let Codex generate the summary and replace its history.
+   The summary is ordinary content, not provider-encrypted state.
+3. **Process restart:** restore compatible Codex settings/history and the recorded
+   run binding. Verify the resumed model/provider before starting another turn.
+   Do not rerun completed tools.
+4. **Explicit model change:** select a verified route and start a fresh context
+   from portable messages and completed tool results. Record omitted opaque state
+   and the new binding; retain workflow checkpoints and approvals separately.
 
-A provider profile that requests remote compaction is not eligible for this local
-compaction contract. It remains unsupported until a separate adapter is designed
-and approved. A new Codex version must demonstrate which path it actually uses;
-do not rely on a provider's display name or on old observed behavior.
+A profile requiring remote compaction cannot use this local-compaction contract.
+Verify the selected Codex version's effective behavior when changing runtimes.
 
+<a id="opaque-state-cancellation-and-uncertainty"></a>
+<a id="불투명-상태와-결과-불명"></a>
 <a id="불투명-상태취소불확실성"></a>
 
-## Opaque state, cancellation and uncertainty
+## Opaque state and uncertain outcomes
 
-Preserve native opaque state only within a verified identical origin binding.
-Cross-protocol opaque replay remains an error. Reasoning summaries are ordinary
-portable content only when explicitly represented as such; they are not a
-substitute for signed or encrypted provider state. No new cryptographic envelope
-or persistent key-management mechanism is introduced here.
+Opaque provider state is data the gateway does not interpret, such as encrypted
+reasoning. Preserve it only within its verified origin binding. Cross-protocol
+reuse is rejected; a text summary cannot substitute for signed or encrypted state.
 
-Cancellation must pass the G04 idle/heartbeat case as well as active-event streams.
-An interrupted control turn alone is insufficient. The observed 0.153.4 defect
-is addressed through a separately reviewed runtime baseline, not fabricated
-events or a hidden gateway timeout workaround.
+Cancellation tests must cover both active-event streams and streams sending only
+heartbeat comments. Stopping the control turn must also close its upstream model
+connection within the tested bound.
 
-After a send-before-response disconnect, record outcome Unknown. Do not replay a
-request automatically merely because no final event was observed. The host owns
-the retry budget and recovery decision; the gateway continues to make one
-upstream attempt. Compaction is not triggered while tool results or approvals are
-pending in the host's workflow.
+If a request was sent but its response is unknown, record the outcome as Unknown.
+The host decides recovery and any retry within its budget; the gateway makes one
+upstream attempt. Do not compact while tool results or approvals are pending.
+The executable checks and journal format are defined in the [continuity contract](continuity.md).
 
-The [host contract implementation](continuity.md) defines executable record
-validation and synthetic conformance. Consumer persistence and operational
-acceptance remain separate.
-
+<a id="g16g17-acceptance-and-migration"></a>
 <a id="g16g17-수락과-마이그레이션"></a>
+<a id="검증과-복구"></a>
 
-## G16/G17 acceptance and migration
+## Validation and recovery
 
-- Add reusable, synthetic continuation tests for tool result replay, explicit
-  compaction, resume after restart and exact route/profile mismatch rejection.
-- Verify a required sentinel and completed tool result survive compaction and
-  restart; this does not certify real-model summarization or literary quality.
-- Verify that a changed credential generation, binary/state compatibility or
-  route configuration blocks resume before any provider request.
-- Verify explicit switching records state loss, starts a new context and does
-  not execute completed tools or inherit unapproved operations.
-- Verify cancellation and unknown-outcome behavior across process restart.
-- Consumer operational acceptance and live model qualification remain separate
-  from mock tests and GitHub checks.
+Test tool-result replay, compaction, restart, route/profile mismatches, credential
+changes, model switching, cancellation and uncertain outcomes. Confirm that required
+context and completed tool results survive compaction and restart without duplicate
+execution or inherited unapproved actions.
 
-Existing gateway requests and configuration remain compatible. The new private
-host record is opt-in for gateway-backed runs; existing records without a binding
-are not silently upgraded into verified resume records. Their owner may establish
-a binding through a reviewed migration, or start a fresh context. Rollback restores
-the previous verified executable/settings/history combination; never apply older
-code blindly to a newer incompatible state directory.
-
-Expected benefit: reuse the existing history owner and avoid duplicate state
-stores and response-ID namespaces. Cost: moderate host integration and recovery
-tests, with small generic gateway contract changes only if G05 requires them.
-Risks: summary quality, credential-generation availability and runtime state
-compatibility. These are explicit acceptance gates, not defaults assumed true.
-
-Alternative: gateway-owned state and translated native compaction could support
-additional clients, but would require an approved storage format, encryption/key
-lifecycle, authenticated origin binding and migrations. Defer that larger change
-until a demonstrated client requirement cannot use this host-owned path.
-
-Approval accepts the ownership and recovery contract above. It does not approve
-consumer activation, commercial rights, a runtime prerelease promotion, a new
-database or production deployment.
+A record without a verified binding cannot be resumed as trusted history. Establish
+its binding through a checked migration or start fresh. Recovery restores a verified
+executable/settings/history combination; do not run older code against incompatible
+newer state. Validate model summaries and host recovery with the intended workload
+before production use.

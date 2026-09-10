@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import secrets
+import signal
 import subprocess
 import sys
 import threading
@@ -55,12 +56,20 @@ class Upstream(BaseHTTPRequestHandler):
             self.send_error(500)
 
 
+def request_shutdown(process):
+    # CTRL_BREAK targets only the process group created by this fixture.
+    if os.name == "nt":
+        process.send_signal(signal.CTRL_BREAK_EVENT)
+    else:
+        process.terminate()
+
+
 def stop(process):
     if process.poll() is None:
-        process.terminate()
         try:
+            request_shutdown(process)
             process.wait(timeout=5)
-        except subprocess.TimeoutExpired:
+        except (OSError, subprocess.TimeoutExpired):
             process.kill()
             process.wait(timeout=5)
     if process.stdout:
@@ -87,11 +96,13 @@ def smoke(binary, state_dir):
             if api == "messages":
                 text += 'messages_version="2023-06-01"\n'
         for api in ["messages", "chat_completions"]:
-            text += f'[capability_profiles.{api}]\nversion="1"\nprovider="mock"\nupstream_model="synthetic-model"\napi="{api}"\ncontext_window=4096\nmax_output_tokens=128\ntested_codex_version="0.154.0-alpha.6"\n'
-        config.write_text(text)
+            text += f'[capability_profiles.{api}]\nversion="1"\nprovider="mock"\nupstream_model="synthetic-model"\napi="{api}"\ncontext_window=4096\nmax_output_tokens=128\ntested_codex_version="0.154.0"\n'
+        config.write_text(text, encoding="utf-8")
+        checked = subprocess.run([str(binary), "check-config", "--config", str(config)], env=env, capture_output=True, timeout=10)
+        assert checked.returncode == 0 and json.loads(checked.stdout) == {"status":"valid", "credentials_checked":False, "provider_probe":False}
         manifest = embedded_contract.inspect_manifest(binary, config, env)
         token = secrets.token_urlsafe(32)
-        process = subprocess.Popen([str(binary), "serve", "--config", str(config)], env={**env,"ARG_LOCAL_TOKEN":token,"ARG_MOCK_KEY":"synthetic-upstream-key"}, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+        process = subprocess.Popen([str(binary), "serve", "--config", str(config)], env={**env,"ARG_LOCAL_TOKEN":token,"ARG_MOCK_KEY":"synthetic-upstream-key"}, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0)
         cleanup.callback(stop, process)
         ready = embedded_contract.read_ready(process, manifest)
         client = build_opener(ProxyHandler({}))
@@ -108,7 +119,7 @@ def smoke(binary, state_dir):
                 output = json.load(response)
             assert output["status"] == "completed" and output["output"][0]["content"][0]["text"] == "synthetic-output"
         assert not server.failed and len(server.requests) == 3
-        process.terminate()
+        request_shutdown(process)
         assert process.wait(timeout=5) == 0
     return {"status":"passed", "routes":3, "authentication":"passed", "manifest_ready_binding":"passed", "shutdown":"passed", "provider_probe":False}
 
