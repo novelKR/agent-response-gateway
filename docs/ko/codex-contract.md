@@ -6,9 +6,9 @@
 
 [English](../codex-contract.md) | [한국어](codex-contract.md)
 
-시험은 공식 Codex **0.154.0-alpha.6** macOS ARM64 패키지를 사용한다.
+시험은 공식 Codex **0.154.0** macOS ARM64 패키지를 사용한다.
 `tests/codex/runtime-lock.json`에 압축파일 URL, 크기, SHA-256, 패키지 구성원과
-생성된 stable/experimental 스키마의 해시를 고정한다. 이 런타임은 시험판이다.
+생성된 stable/experimental 스키마의 해시를 고정한다. 정식 릴리스를 시험 런타임으로 사용한다.
 
 <a id="preparation-and-verification"></a>
 
@@ -28,7 +28,7 @@ python3.14 -B scripts/codex_runtime.py schema --profile experimental
 준비 과정은 로그인, 모델 호출이나 개인 Codex 설정 변경을 수행하지 않는다.
 
 압축파일의 SHA-256은
-`ae37c70e6c86f1f4248303e084cd03480d8628b74df57649c128730ce4159d50`이다.
+`427ca74c027049e0cd1a330d611e7f8d1fe0f1eb6a6d85ac16f61bcf2cb4a485`이다.
 필요한 스키마 프로필을 선택한다. stable과 experimental은 해시와 지원 필드가 다르다.
 
 <a id="control-and-model-interfaces"></a>
@@ -82,4 +82,4 @@ Heartbeat만 전송하는 스트림의 취소는 필수 회귀 시험이다. 런
 다른 애플리케이션의 런타임을 선택하거나 설치하지는 않는다.
 
 참고: [App Server 문서](https://learn.chatgpt.com/docs/app-server),
-[고정 릴리스](https://github.com/openai/codex/releases/tag/rust-v0.154.0-alpha.6).
+[고정 릴리스](https://github.com/openai/codex/releases/tag/rust-v0.154.0).
