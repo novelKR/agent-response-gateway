@@ -56,6 +56,21 @@ language pairs, static output, local preview boundary and web dependency notices
 It retains the verified site for review for 14 days. It has no Pages deployment
 permission; artifact retention is not publication approval.
 
+On main push or manual main CI, the same checked site is packaged for Pages.
+After ci-required succeeds, the deployment job calls the public
+[docs-actions workflow](https://github.com/novelKR/docs-actions) at the full commit
+recorded in the [consumer lock](../.github/docs-pages-deploy.lock.json).
+Only that job receives pages: write and id-token: write; the caller owns its
+Pages site and github-pages environment. Configure Pages to use GitHub Actions
+and restrict that environment to main before publication. Add required reviewers
+there when a separate publication approval is needed. PRs do not deploy.
+
+Adopt central updates through a reviewed PR that changes the workflow SHA, lock
+and non-executing test snapshot together after central contracts CI succeeds.
+Build tools and document validation remain in this repository. Verify the actual
+site URL and served build-manifest.json after deployment; a central CI success
+alone does not establish a live site.
+
 PRs run without provider secrets and with read-only repository permissions.
 Do not execute untrusted PR code with write credentials or on a consumer host.
 Keep runtime execution logs, private content and provider payloads out of public
