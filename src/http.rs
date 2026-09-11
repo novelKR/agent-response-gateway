@@ -15,7 +15,7 @@ use serde_json::json;
 use subtle::ConstantTimeEq;
 use tokio::sync::Semaphore;
 
-use crate::{Config, ConfigError, Secrets, error::ApiError, proxy};
+use crate::{Config, ConfigError, Secrets, error::ApiError, extensions::ObserverSink, proxy};
 
 pub(crate) struct GatewayState {
     pub config: Config,
@@ -28,6 +28,15 @@ pub(crate) struct GatewayState {
 pub(crate) struct RequestId(pub String);
 
 pub fn router(config: Config, secrets: Secrets) -> Result<Router, ConfigError> {
+    router_with_observers(config, secrets, None)
+}
+
+/// Optional numeric metadata delivery; observers cannot change admission or transport.
+pub fn router_with_observers(
+    config: Config,
+    secrets: Secrets,
+    observers: Option<ObserverSink>,
+) -> Result<Router, ConfigError> {
     config.validate()?;
     secrets.validate(&config)?;
     let client = reqwest::Client::builder()
@@ -66,7 +75,7 @@ pub fn router(config: Config, secrets: Secrets) -> Result<Router, ConfigError> {
             )
         })
         .with_state(state)
-        .layer(middleware::from_fn(audit)))
+        .layer(middleware::from_fn_with_state(observers, audit)))
 }
 
 async fn authenticate(
@@ -100,7 +109,11 @@ async fn authenticate(
     next.run(request).await
 }
 
-async fn audit(mut request: Request, next: Next) -> Response {
+async fn audit(
+    State(observers): State<Option<ObserverSink>>,
+    mut request: Request,
+    next: Next,
+) -> Response {
     let id = uuid::Uuid::new_v4().to_string();
     let started = Instant::now();
     // Do not log URI, headers, body, errors, or user-supplied request IDs.
@@ -113,7 +126,12 @@ async fn audit(mut request: Request, next: Next) -> Response {
     response
         .headers_mut()
         .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
-    tracing::info!(request_id = %id, status = response.status().as_u16(), headers_ms = started.elapsed().as_millis() as u64, "response_headers");
+    let headers_ms = started.elapsed().as_millis().min(u64::MAX as u128) as u64;
+    tracing::info!(request_id = %id, status = response.status().as_u16(), headers_ms, "response_headers");
+    if let Some(observers) = observers {
+        // Header timing is not proof of successful inference or completed streaming.
+        observers.observe_headers(response.status().as_u16(), headers_ms);
+    }
     response
 }
 
