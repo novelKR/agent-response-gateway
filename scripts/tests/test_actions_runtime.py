@@ -6,6 +6,8 @@ upstream action.yml and bundled dependencies when updating a pin, then inspect
 hosted logs. Artifact and deployment authorization contracts remain separate.
 """
 from pathlib import Path
+import hashlib
+import json
 import re
 import unittest
 
@@ -58,6 +60,23 @@ class ActionsRuntimeTests(unittest.TestCase):
                     if 'uses: actions/download-artifact@' in block:
                         self.assertIn('skip-decompress: false', block)
                         self.assertIn('digest-mismatch: error', block)
+
+    def test_reviewed_pages_snapshot_rejects_the_replaced_runtime_pin(self):
+        # Verify the retained consumer snapshot; existence/runtime of a new
+        # upstream SHA still requires review and hosted checks.
+        lock = json.loads((ROOT / '.github/docs-pages-deploy.lock.json').read_bytes())
+        snapshot = (ROOT / lock['fixture']).read_bytes()
+        actions = re.findall(r'uses:\s+(actions/deploy-pages)@([^\s]+)', snapshot.decode())
+        self.assertEqual(len(actions), 1)
+        self.assertRegex(actions[0][1], r'^[a-f0-9]{40}$')
+        self.assertNotEqual(actions[0][1], 'd6db90164ac5ed86f2b6aed7e0febac5b3c0c03e')
+        self.assertEqual(hashlib.sha256(snapshot).hexdigest(), lock['workflow_sha256'])
+        notice = ROOT / 'scripts/tests/fixtures/docs-actions-LICENSE.txt'
+        self.assertEqual(hashlib.sha256(notice.read_bytes()).hexdigest(),
+                         'a16963eff65be1e04e4309e762a0185f83e5d126e77cd72fbe8f78c1be2b266f')
+        evidence = (ROOT / 'scripts/tests/fixtures/docs-actions-reusable.yml.license').read_text()
+        self.assertIn('SPDX-License-Identifier: MIT', evidence)
+        self.assertIn(lock['commit'], evidence)
 
     def test_documentation_build_node_version_is_not_changed_by_action_upgrade(self):
         ci = self.workflows['ci.yml']
