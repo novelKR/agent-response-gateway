@@ -9,9 +9,10 @@
 
 [English](interactions-design.md) | [한국어](ko/interactions-design.md)
 
-The experimental runtime has an opt-in Interactions route and durable SQLite
+The runtime has an opt-in Interactions route and durable SQLite
 continuation. It requires host-created sessions and separate protection/control
-credentials. Same-thread continuation after Codex local compaction is not supported.
+credentials. After local compaction, the host transfers checked portable context
+to a new Codex thread and explicitly activates a new continuation epoch.
 The provider contract is pinned in the
 [wire lock](../tests/interactions/wire-lock.json). The [opaque probe](../tests/codex/opaque_continuation.py)
 tests the pinned Codex using synthetic Responses providers, not Gemini or encryption.
@@ -41,9 +42,12 @@ The host creates sessions and registers local compaction through a separately
 authenticated loopback control interface. Epoch transitions require checked portable
 history and completed tool results; they must not claim preservation of lost provider
 state. Codex 0.154.0 reinserts developer instructions after the compacted history.
-The instruction bridge rejects such mid-conversation instructions, so epoch controls
-alone do not provide a qualified compaction workflow. New sessions are never inferred
-from missing database records.
+The instruction bridge rejects such mid-conversation instructions. The host retains
+the original thread, verifies the summary and completed tool results, and places them
+in one portable user message in a fresh thread. Its canonical message digest is
+committed to the new epoch. The gateway requires this message exactly once, accepts
+the fresh thread's leading instructions, and authenticates the complete input prefix
+on subsequent turns. New sessions are never inferred from missing database records.
 
 ## Compatibility and acceptance
 

@@ -128,7 +128,15 @@ def run(binary,gateway_binary, resume_only=False):
         base.require(bool(compacted),'compaction record missing')
         portable=compacted[-1].get('replacement_history')
         base.require(isinstance(portable,list) and portable,'portable compaction history missing')
-        transition('compact_commit',portable);turn('after_compact')
+        base.require(continuity.SENTINEL in json.dumps(portable) and continuity.TOOL_RESULT in json.dumps(portable),'portable summary lost required state')
+        base.require(all(v.get('type')=='message' and v.get('role') in {'user','assistant'} for v in portable),'nonportable compaction item')
+        portable_text=json.dumps({'schema':'gateway-portable-context/v1','history':portable,'completed_tools':[{'call_id':'continuity-tool-1','result':continuity.TOOL_RESULT}]},sort_keys=True,separators=(',',':'))
+        portable=[{'type':'message','role':'user','content':[{'type':'input_text','text':portable_text}]}]
+        old_tid=tid
+        tid=rpc.call('thread/start',{**settings,'ephemeral':False})['thread']['id']
+        base.require(tid!=old_tid and history.exists(),'host transition did not preserve prior thread')
+        transition('compact_commit',portable)
+        state.phase='after_compact';rpc.call('turn/start',{'threadId':tid,'input':[{'type':'text','text':portable_text}]});finish(rpc)
         close();rpc=start();rpc.call('thread/resume',{**settings,'threadId':tid});turn('restart_compact')
         # Missing execution authority must block, even though Codex retained valid ciphertext.
         close()
@@ -137,13 +145,22 @@ def run(binary,gateway_binary, resume_only=False):
             conn.execute('DELETE FROM records WHERE id=?',(current['head'],))
         rpc=start();rpc.call('thread/resume',{**settings,'threadId':tid});before=state.requests;turn('missing_record','failed')
         base.require(state.requests==before,'missing execution record triggered inference')
+        # A crashed pending attempt is not proof of completion, even for real Codex.
+        close()
+        with sqlite3.connect(db) as conn:
+            current=json.loads(conn.execute('SELECT value FROM sessions WHERE id=?',(session['id'],)).fetchone()[0])
+            conn.execute("INSERT INTO attempts VALUES(?,?,?,?,'pending',?)",('resp_synthetic_pending',session['id'],current['epoch'],'synthetic-pending',16777216))
+            current['status']='pending';current['revision']+=1
+            conn.execute('UPDATE sessions SET value=? WHERE id=?',(json.dumps(current),session['id']))
+        rpc=start();rpc.call('thread/resume',{**settings,'threadId':tid});turn('pending_attempt','failed')
+        base.require(state.requests==before,'pending attempt triggered inference')
         # Host explicitly abandons prior provider context and starts a portable new thread/epoch.
         portable=[{'type':'message','role':'user','content':[{'type':'input_text','text':continuity.SENTINEL+' '+continuity.TOOL_RESULT}]}]
         transition('recover',portable)
         tid=rpc.call('thread/start',{**settings,'ephemeral':False})['thread']['id']
         state.phase='recover';rpc.call('turn/start',{'threadId':tid,'input':[{'type':'text','text':continuity.SENTINEL+' '+continuity.TOOL_RESULT}]});finish(rpc)
         base.require(not state.errors,'mock provider validation failed')
-        return {'schema':'gateway-interactions-continuity/v1','status':'passed','upstream_requests':state.requests,'tool_executions':1,'restart':True,'payload_repair':True,'compaction_restart':True,'missing_record_blocked':True,'explicit_recovery':True,'provider_qualification':False}
+        return {'schema':'gateway-interactions-continuity/v1','status':'passed','upstream_requests':state.requests,'tool_executions':1,'restart':True,'payload_repair':True,'compaction_restart':True,'missing_record_blocked':True,'pending_attempt_blocked':True,'explicit_recovery':True,'provider_qualification':False}
 
 
 def main():

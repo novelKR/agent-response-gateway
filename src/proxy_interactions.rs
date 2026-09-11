@@ -178,12 +178,29 @@ async fn history(
     if previous != session.head {
         return Err(rejected());
     }
-    if let Some(expected) = &session.portable_sha256 {
-        // Host commits the exact portable prefix. New user input may follow it.
-        let matched = (1..=clean.len()).any(|end| {
-            continuation::digest(&normalized(&json!(&clean[..end]))).is_ok_and(|h| &h == expected)
-        });
-        if !matched {
+    if session.head.is_none()
+        && let Some(expected) = &session.portable_sha256
+    {
+        // A host-approved epoch starts a fresh Codex thread. Codex may prepend its
+        // current instruction/environment messages; the portable user message
+        // must occur exactly once and cannot import executable or provider state.
+        if clean.iter().any(|item| {
+            !matches!(
+                item.get("role").and_then(Value::as_str),
+                Some("system" | "developer" | "user")
+            ) || item.get("type").is_some_and(|v| v != "message")
+        }) {
+            return Err(rejected());
+        }
+        let matches = clean
+            .iter()
+            .filter(|item| {
+                item.get("role").and_then(Value::as_str) == Some("user")
+                    && continuation::digest(&normalized(&json!([item])))
+                        .is_ok_and(|hash| &hash == expected)
+            })
+            .count();
+        if matches != 1 {
             return Err(rejected());
         }
     }

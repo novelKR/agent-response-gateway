@@ -85,13 +85,23 @@ def frames(steps,number):
 def respond(state,body):
     import conformance as base
     state.requests+=1
-    base.require(state.requests<=2,'unexpected Interactions retry')
+    base.require(state.requests<=(3 if state.name=='multi_tool_turns' else 2),'unexpected Interactions retry')
     base.require(body.get('store') is False and body.get('background') is False and body.get('model')=='synthetic-model','Interactions wire policy differs')
     base.require(body.get('stream') is True,'Interactions streaming required')
     if state.name=='output_controls':
         base.require(body['generation_config'].get('thinking_level')=='high','thinking level changed')
         base.require(body.get('response_format',{}).get('schema')==base.CONTROL_SCHEMA,'output schema changed')
     input_steps=body['input']
+    if state.name=='multi_tool_turns':
+        if state.requests>1:
+            expected={'call_round_1'} if state.requests==2 else {'call_round_1','call_round_2'}
+            base.require({s['call_id'] for s in input_steps if s.get('type')=='function_result'}==expected,'multiple-turn results lost')
+            base.require(any(s.get('type')=='thought' for s in input_steps),'multiple-turn thought lost')
+            state.result_seen=True
+        blocks=([{'type':'function_call','id':f'call_round_{state.requests}','name':'gateway_echo','arguments':{'text':'synthetic'}}]
+                if state.requests<3 else [{'type':'model_output','content':[{'type':'text','text':'Synthetic complete.'}]}])
+        return frames([{'type':'thought','signature':f'synthetic-signature-{state.requests}'}]+blocks,state.requests)
+
     if state.requests==2:
         base.require(any(s.get('type')=='thought' and s.get('signature')=='synthetic-signature-1' for s in input_steps),'provider thought not replayed')
         if state.name!='text_followup':

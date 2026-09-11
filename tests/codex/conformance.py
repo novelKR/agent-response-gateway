@@ -202,7 +202,7 @@ def converted_response(state, body):
             outputs = [b for m in body["messages"] for b in m["content"] if b["type"] == "tool_result"]
             expected = {"call_fixture_a", "call_fixture_b"} if state.name == "parallel_tools" else {"call_fixture"}
             require({o["tool_use_id"] for o in outputs} == expected and len(outputs) == len(expected), "Messages tool result identity changed")
-            if state.name in {"function_tool", "namespace_tool", "parallel_tools", "mixed_tool_text"}:
+            if state.name in {"function_tool", "namespace_tool", "parallel_tools", "mixed_tool_text", "multi_tool_turns"}:
                 require(all("synthetic-result" in o["content"] for o in outputs), "Messages tool results changed")
         if state.name == "mixed_tool_text":
             assistant = [m for m in body["messages"] if m["role"] == "assistant" and any(b.get("type") == "tool_use" for b in m["content"])]
@@ -211,7 +211,7 @@ def converted_response(state, body):
                 require([b["type"] for b in assistant[0]["content"]] == ["tool_use", "text"], "Messages block order changed on replay")
         state.result_seen = True
         return converted_frames(state, [{"type":"text","text":"Synthetic complete."}])
-    if state.name in {"function_tool", "namespace_tool", "parallel_tools", "mixed_tool_text"}:
+    if state.name in {"function_tool", "namespace_tool", "parallel_tools", "mixed_tool_text", "multi_tool_turns"}:
         if state.name == "namespace_tool":
             candidates = []
             for tool in body["tools"]:
@@ -513,7 +513,7 @@ def run_scenario(name, binary, gateway_binary, api="responses"):
             if method == "item/completed" and message["params"]["item"].get("type") == "agentMessage":
                 final_text = message["params"]["item"].get("text")
             if method == "item/tool/call":
-                require(name in {"function_tool", "namespace_tool", "parallel_tools", "mixed_tool_text"}, "unexpected dynamic tool invocation")
+                require(name in {"function_tool", "namespace_tool", "parallel_tools", "mixed_tool_text", "multi_tool_turns"}, "unexpected dynamic tool invocation")
                 require(message["params"]["tool"] == echo["name"] and message["params"]["arguments"] == {"text": "synthetic"}, "dynamic tool identity or arguments changed")
                 require(message["params"].get("namespace") == ("fixture" if name == "namespace_tool" else None), "dynamic tool namespace changed")
                 calls += 1
@@ -539,6 +539,8 @@ def run_scenario(name, binary, gateway_binary, api="responses"):
             require(json.loads(final_text) == {"answer":"synthetic"} and state.requests == 1, "explicit schema output did not reach Codex")
         elif name in {"function_tool", "namespace_tool", "mixed_tool_text"}:
             require(calls == 1 and state.result_seen and state.requests == 2, "function tool round trip incomplete")
+        elif name == "multi_tool_turns":
+            require(calls == 2 and state.result_seen and state.requests == 3, "multiple tool turns incomplete")
         elif name == "parallel_tools":
             require(calls == 2 and state.result_seen and state.requests == 2, "parallel tool round trip incomplete")
         elif name == "text_followup":
@@ -574,7 +576,7 @@ def main():
     parser.add_argument("--gateway-bin", type=Path, default=ROOT / "target/debug/agent-response-gateway")
     parser.add_argument("--codex-bundle", type=Path, default=runtime.BUNDLE)
     parser.add_argument("--api", choices=("responses", "messages", "chat_completions", "gemini_interactions"), action="append")
-    parser.add_argument("--scenario", choices=("text", "function_tool", "namespace_tool", "custom_patch", "approval_denial", "cancellation", "cancellation_heartbeat", "transport_failure", "parallel_tools", "grammar_failure", "text_followup", "output_controls", "mixed_tool_text"), action="append")
+    parser.add_argument("--scenario", choices=("text", "function_tool", "namespace_tool", "custom_patch", "approval_denial", "cancellation", "cancellation_heartbeat", "transport_failure", "parallel_tools", "grammar_failure", "text_followup", "output_controls", "mixed_tool_text", "multi_tool_turns"), action="append")
     args = parser.parse_args()
     lock = json.loads(runtime.LOCK.read_text())
     binary = runtime.verify_bundle(args.codex_bundle, lock)
@@ -583,6 +585,8 @@ def main():
         scenarios = args.scenario or ["text", "function_tool", "namespace_tool", "custom_patch", "approval_denial", "cancellation", "cancellation_heartbeat", "transport_failure", "output_controls"]
         if args.scenario is None and api != "responses":
             scenarios += ["parallel_tools", "grammar_failure", "text_followup", "mixed_tool_text"]
+        if args.scenario is None and api == "gemini_interactions":
+            scenarios += ["multi_tool_turns"]
         for name in scenarios:
             try:
                 require(api != "responses" or name not in {"parallel_tools", "grammar_failure", "text_followup", "mixed_tool_text"}, "scenario requires converted API")

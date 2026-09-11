@@ -806,8 +806,8 @@
       "order": 30,
       "source": "docs/interactions-design.md",
       "translation": "docs/ko/interactions-design.md",
-      "source_sha256": "ed3ba0692f42bf65fe5b69a19a48583429647fb4df5d55c802f31e75c25fe821",
-      "translation_sha256": "da40e3435c125cbb93e53c986b6c51935d72ef14836a5b6d4d2712bfbf67d202",
+      "source_sha256": "e8eb309f19dc86bb0c96a40c8c02423b943e577b8dd073ca9922f92b01b881ad",
+      "translation_sha256": "0a58ef3ee0d78742d9be51073f98abc73a49f9e05b30136fcb867035e01ca246",
       "anchors": [
         "compatibility-and-acceptance",
         "data-and-execution-ownership",
