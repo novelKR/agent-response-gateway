@@ -223,8 +223,9 @@ jobs:
           python -B scripts/release_package.py build --target "$PACKAGE_TARGET" --output .local/package-candidate
           python -B scripts/release_package.py verify .local/package-candidate --commit "$GITHUB_SHA" --target "$PACKAGE_TARGET"
       - name: Retain only verified public candidate files
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
+          archive: true
           name: package-${{ matrix.target }}
           path: .local/package-candidate/*
           if-no-files-found: error
@@ -242,7 +243,7 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.14'
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '24.21.0'
           cache: npm
@@ -259,8 +260,9 @@ jobs:
           github.ref == 'refs/heads/main'
         run: python3 -B scripts/check_docs_publication.py --commit "$GITHUB_SHA"
       - name: Retain the verified static site for review
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
+          archive: true
           name: docs-site
           path: .local/docs-site/dist/
           if-no-files-found: error
@@ -269,7 +271,7 @@ jobs:
         if: >-
           (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
           github.ref == 'refs/heads/main'
-        uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           name: github-pages
           path: .local/docs-site/dist/
