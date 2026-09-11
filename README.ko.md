@@ -157,3 +157,8 @@ AGPL로 배포할 때는 [배포 절차](docs/ko/release.md)에 따라 해당 �
 
 범위는 [개발 방향](docs/ko/roadmap.md), 기여 검사는
 [개발 절차](docs/ko/github-workflow.md)를 참조한다.
+
+Linux/macOS에서는 선택형 [네이티브 관측 확장](docs/ko/extensions.md)을 설치하고
+명시적으로 활성화할 수 있다. 숫자형 HTTP 메타데이터만 받는다. 신뢰·수명 관리와
+후속 계정 Pool의 경계는 [확장 구조](docs/ko/extensions-design.md)를 참조한다.
+OAuth/계정 Pool은 계속 미지원이다.
