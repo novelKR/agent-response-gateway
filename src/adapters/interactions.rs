@@ -335,18 +335,16 @@ impl PreparedInteractions {
         known_fields(
             &value,
             &[
-                "id",
-                "object",
-                "model",
-                "status",
-                "steps",
-                "created",
-                "updated",
-                "usage",
-                "service_tier",
+                "id", "object", "model", "status", "steps", "created", "updated", "usage",
             ],
         )?;
-        if string(&value, "model")? != self.model || string(&value, "object")? != "interaction" {
+        if value
+            .get("model")
+            .is_some_and(|v| v.as_str() != Some(self.model.as_str()))
+            || value
+                .get("object")
+                .is_some_and(|v| v.as_str() != Some("interaction"))
+        {
             return Err(unsupported());
         }
         ItemId::new(string(&value, "id")?)?;

@@ -256,7 +256,7 @@ pub(crate) async fn responses(
     let input_len = input.len();
     let input_sha256 = continuation::digest(&normalized(&json!(input))).map_err(|_| rejected())?;
     let input_digest = continuation::digest(&payload).map_err(|_| rejected())?;
-    let admitted = route.admit(payload).map_err(|_| {
+    let admitted = route.admit_verified(payload, &replay).map_err(|_| {
         ApiError::new(
             StatusCode::BAD_REQUEST,
             "unsupported_request",

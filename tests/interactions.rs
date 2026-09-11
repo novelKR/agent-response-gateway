@@ -293,3 +293,73 @@ fn json_and_sse_reconstruct_identical_provider_steps_and_public_output() {
     assert_eq!(actual.response["usage"], expected.response["usage"]);
     assert_eq!(actual.provider_status, expected.provider_status);
 }
+
+#[test]
+fn colliding_namespace_names_restore_original_tool_identities() {
+    let mut r = request();
+    r["tools"] = json!([
+        {"type":"namespace","name":"left","tools":[{"type":"function","name":"echo","parameters":{"type":"object","properties":{}}}]},
+        {"type":"namespace","name":"right","tools":[{"type":"function","name":"echo","parameters":{"type":"object","properties":{}}}]}
+    ]);
+    let p = prepare(r).unwrap();
+    let tools = p.payload["tools"].as_array().unwrap();
+    assert_ne!(tools[0]["name"], tools[1]["name"]);
+    let steps=tools.iter().enumerate().map(|(i,t)| json!({"type":"function_call","id":format!("call_{i}"),"name":t["name"],"arguments":{}})).collect::<Vec<_>>();
+    let decoded = p
+        .decode(response(json!(steps), "requires_action"), "resp_namespaces")
+        .unwrap();
+    let mut namespaces = decoded.response["output"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|item| {
+            assert_eq!(item["name"], "echo");
+            item["namespace"].as_str().unwrap()
+        })
+        .collect::<Vec<_>>();
+    namespaces.sort_unstable();
+    assert_eq!(namespaces, ["left", "right"]);
+}
+
+#[test]
+fn v1_partial_stream_metadata_and_cumulative_usage_are_supported() {
+    let p = prepare(request()).unwrap();
+    let mut s = p.stream(16384, "resp_partial".into());
+    s.event(frame(
+        "interaction.created",
+        json!({"interaction":{"id":"provider-id","status":"in_progress"}}),
+    ))
+    .unwrap();
+    s.event(frame(
+        "step.start",
+        json!({"index":0,"step":{"type":"model_output"}}),
+    ))
+    .unwrap();
+    s.event(frame("step.delta",json!({"index":0,"delta":{"type":"text","text":"synthetic"},"metadata":{"total_usage":{"total_input_tokens":10,"total_output_tokens":2,"total_thought_tokens":1,"total_tokens":13}}}))).unwrap();
+    s.event(frame("step.stop",json!({"index":0,"step_usage":{"total_output_tokens":2},"usage":{"total_input_tokens":10,"total_output_tokens":3,"total_thought_tokens":1,"total_tokens":14}}))).unwrap();
+    s.event(frame(
+        "interaction.status_update",
+        json!({"interaction_id":"provider-id","status":"completed"}),
+    ))
+    .unwrap();
+    s.event(frame(
+        "interaction.completed",
+        json!({"interaction":{"id":"provider-id","status":"completed"}}),
+    ))
+    .unwrap();
+    s.event(agent_response_gateway::adapters::sse::SseEvent {
+        event: "done".into(),
+        data: "[DONE]".into(),
+    })
+    .unwrap();
+    assert_eq!(s.finish().unwrap().response["usage"]["output_tokens"], 4);
+    let mut r = response(
+        json!([{"type":"thought","signature":"synthetic"}]),
+        "completed",
+    );
+    r.as_object_mut().unwrap().remove("object");
+    r.as_object_mut().unwrap().remove("model");
+    assert!(p.decode(r.clone(), "resp_optional").is_ok());
+    r["service_tier"] = json!("invented");
+    assert!(p.decode(r, "resp_unknown").is_err());
+}

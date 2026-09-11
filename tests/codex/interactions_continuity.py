@@ -41,7 +41,13 @@ class State:
         if self.phase in {'after_compact','recover'}:
             base.require(not any(s.get('type')=='thought' for s in self.last),'old signature survived epoch reset')
         if self.requests==1:
-            blocks=[{'type':'function_call','id':'continuity-tool-1','name':'gateway_echo','arguments':{'text':continuity.SENTINEL}}]
+            candidates=[]
+            for tool in body['tools']:
+                try:description=json.loads(tool.get('description',''))
+                except (ValueError,TypeError):continue
+                if isinstance(description,dict) and description.get('namespace')=='fixture':candidates.append(tool)
+            base.require(len(candidates)==1,'namespace tool missing')
+            blocks=[{'type':'function_call','id':'continuity-tool-1','name':candidates[0]['name'],'arguments':{'text':continuity.SENTINEL}}]
         else:blocks=[{'type':'model_output','content':[{'type':'text','text':continuity.SENTINEL+' '+continuity.TOOL_RESULT}]}]
         return ih.frames([{'type':'thought','signature':f'synthetic-signature-{self.requests}'}]+blocks,self.requests)
 
@@ -103,8 +109,8 @@ def run(binary,gateway_binary, resume_only=False):
         def transition(kind,portable=None):
             current=ih.control(url,control_token,'/__continuation/sessions/'+session['id'])
             return ih.control(url,control_token,'/__continuation/sessions/'+session['id']+'/transitions',{'revision':current['revision'],'kind':kind,'portable_sha256':None if portable is None else canonical(portable),'decision_reference':'synthetic-host-decision','pending_tools':False,'pending_approvals':False})
-        tool={'type':'function','name':'gateway_echo','description':'Synthetic tool','inputSchema':{'type':'object','properties':{'text':{'type':'string'}},'required':['text'],'additionalProperties':False}}
-        settings={'model':'gpt-5.4','modelProvider':'gateway','cwd':str(workspace),'sandbox':'read-only','approvalPolicy':'on-request','approvalsReviewer':'user','allowProviderModelFallback':False,'dynamicTools':[tool]}
+        tool={'type':'function','name':'echo','description':'Synthetic tool','inputSchema':{'type':'object','properties':{'text':{'type':'string'}},'required':['text'],'additionalProperties':False}}
+        settings={'model':'gpt-5.4','modelProvider':'gateway','cwd':str(workspace),'sandbox':'read-only','approvalPolicy':'on-request','approvalsReviewer':'user','allowProviderModelFallback':False,'dynamicTools':[{'type':'namespace','name':'fixture','description':'Synthetic namespace','tools':[tool]}]}
         rpc=start();tid=rpc.call('thread/start',{**settings,'ephemeral':False})['thread']['id']
         def turn(phase,expected='completed'):
             state.phase=phase;rpc.call('turn/start',{'threadId':tid,'input':[{'type':'text','text':continuity.SENTINEL+' '+phase}]})

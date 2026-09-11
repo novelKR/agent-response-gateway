@@ -7,7 +7,7 @@ use crate::{
     config::UpstreamAuth,
     ir::{
         ApiProtocol, IrError,
-        capability::{CapabilityProfile, TranslationPlan, plan_translation},
+        capability::{CapabilityProfile, TranslationPlan, plan_translation_with_history},
         continuity::{ContinuityBinding, RouteSnapshot},
         request::RequestIR,
         responses,
@@ -83,7 +83,17 @@ impl Config {
 
 impl ResolvedRoute {
     /// Admit an HTTP payload after shared stateless normalization.
-    pub fn admit(&self, mut payload: Map<String, Value>) -> Result<AdmittedRequest, IrError> {
+    pub fn admit(&self, payload: Map<String, Value>) -> Result<AdmittedRequest, IrError> {
+        self.admit_verified(
+            payload,
+            &crate::ir::continuity::VerifiedProviderHistory::default(),
+        )
+    }
+    pub(crate) fn admit_verified(
+        &self,
+        mut payload: Map<String, Value>,
+        history: &crate::ir::continuity::VerifiedProviderHistory,
+    ) -> Result<AdmittedRequest, IrError> {
         if let Some(limit) = self.snapshot.max_output_tokens
             && let Some(value) = payload.get("max_output_tokens")
         {
@@ -127,7 +137,7 @@ impl ResolvedRoute {
             route: self.snapshot.clone(),
             scope: "stateless-request".into(),
         };
-        let plan = plan_translation(&request, &target)?;
+        let plan = plan_translation_with_history(&request, &target, history)?;
         Ok(AdmittedRequest::Translated {
             request: Box::new(request),
             plan: Box::new(plan),
