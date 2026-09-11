@@ -68,11 +68,19 @@ def terminate(child):
 
 
 def read_ready(child):
+    # Read the descriptor incrementally: buffered readline can outlive the readiness deadline.
+    deadline = time.monotonic() + 6
+    raw = bytearray()
     with selectors.DefaultSelector() as selector:
         selector.register(child.stdout, selectors.EVENT_READ)
-        require(bool(selector.select(timeout=6)), 'Gateway readiness timed out')
-        raw = child.stdout.readline(65_537)
-        require(len(raw) <= 65_536 and raw.endswith(b'\n'), 'Invalid readiness frame')
+        while not raw.endswith(b'\n'):
+            remaining = deadline - time.monotonic()
+            require(remaining > 0 and bool(selector.select(timeout=remaining)), 'Gateway readiness timed out')
+            chunk = os.read(child.stdout.fileno(), min(4096, 65_537 - len(raw)))
+            require(bool(chunk), 'Gateway exited before readiness')
+            raw.extend(chunk)
+            require(len(raw) <= 65_536, 'Invalid readiness frame')
+        require(raw.count(b'\n') == 1, 'Unexpected additional readiness output')
         return json.loads(raw)
 
 
@@ -95,8 +103,14 @@ def request(base, path, *, payload=None, auth=False):
         return error.code, error.read()
 
 
+# Only fixed, source-defined phase labels enter failure reports; never exception messages.
+PHASE = 'initialization'
+
+
 def run(binary, observer):
+    global PHASE
     manager.target()
+    Upstream.calls = 0
     parent = Path(__file__).resolve().parents[1] / '.local'
     parent.mkdir(exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='extensions-smoke-', dir=parent) as temporary:
@@ -109,7 +123,9 @@ def run(binary, observer):
             package = root / 'package'
             # Project license is packaged as real evidence; no credential or private fixture is read.
             license_file = Path(__file__).resolve().parents[1] / 'LICENSE'
+            PHASE = 'package-preparation'
             sha = manager.package_binary(observer, license_file, package, 'metadata-counter', '0.1.0')
+            PHASE = 'installation-and-activation'
             manager.install(store, package, sha)
             manager.enable(store, 'metadata-counter', '0.1.0', sha, manager.PERMISSIONS)
             lock = store / 'active.json'
@@ -130,6 +146,7 @@ def run(binary, observer):
                         'Unexpected CLI outcome')
                 return result
 
+            PHASE = 'offline-inspection'
             plain = command('manifest', common).stdout
             extended = json.loads(command('manifest', options).stdout)
             require(extended['schema'] == 'gateway-extended-manifest/v1', 'Wrong extended manifest schema')
@@ -140,6 +157,7 @@ def run(binary, observer):
 
             child = subprocess.Popen([str(binary), 'serve', *options], env=environment,
                                      stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+            PHASE = 'runtime-and-native-forwarding'
             observer_pid = None
             try:
                 ready = read_ready(child)
@@ -158,6 +176,7 @@ def run(binary, observer):
                 require(set(observed) == {'schema', 'process_id', 'observed', 'status_counts'}, 'Unexpected observer state fields')
                 require(observed['status_counts']['401'] == 1, 'Observer did not receive numeric HTTP status')
                 observer_pid = observed['process_id']
+                PHASE = 'ownership-and-frozen-activation'
                 command('serve', options, expected=1)  # One supervisor owns this store.
                 manager.disable(store, 'metadata-counter')
                 before = read_counts(counts)['observed']
@@ -172,6 +191,7 @@ def run(binary, observer):
                     pass
                 else:
                     raise RuntimeError('Direct observer process was not reaped')
+            PHASE = 'disabled-runtime'
             before = counts.read_bytes()
             child = subprocess.Popen([str(binary), 'serve', *options], env=environment,
                                      stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
@@ -183,6 +203,7 @@ def run(binary, observer):
             require(counts.read_bytes() == before, 'Disabled observer executed')
             manager.enable(store, 'metadata-counter', '0.1.0', sha, manager.PERMISSIONS)
             for fault in (signal.SIGTERM, signal.SIGSTOP):
+                PHASE = 'observer-exit' if fault == signal.SIGTERM else 'observer-stall'
                 old_count = read_counts(counts)['observed']
                 child = subprocess.Popen([str(binary), 'serve', *options], env=environment,
                                          stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
@@ -207,6 +228,7 @@ def run(binary, observer):
                             'Observer failure disabled ordinary routes')
                 finally:
                     terminate(child)
+            PHASE = 'tampered-package'
             executable = manager.installed_dir(store, 'metadata-counter', '0.1.0', sha) / 'extension'
             executable.chmod(0o700)
             executable.write_bytes(b'tampered-synthetic-executable')
@@ -229,7 +251,7 @@ def main():
         print('Extension smoke passed: offline lifecycle, native forwarding, isolation and shutdown')
         return 0
     except (OSError, ValueError, RuntimeError, subprocess.SubprocessError, KeyError):
-        print('Extension smoke failed; no fixture bodies or credentials are emitted')
+        print('Extension smoke failed in ' + PHASE + '; no fixture bodies or credentials are emitted')
         return 1
 
 

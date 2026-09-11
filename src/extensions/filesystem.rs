@@ -1,12 +1,12 @@
 //! Private-store checks. Same-user hostile mutation is outside the native-extension trust model.
+use super::invalid;
+use crate::ConfigError;
 use std::{
     fs::{File, Metadata, OpenOptions},
     io::Read,
     os::unix::fs::{MetadataExt, OpenOptionsExt},
     path::{Component, Path},
 };
-use crate::ConfigError;
-use super::invalid;
 
 pub(super) fn no_links(path: &Path) -> Result<(), ConfigError> {
     if !path.is_absolute() || path.components().any(|c| matches!(c, Component::ParentDir)) {
@@ -40,7 +40,11 @@ pub(super) fn open(path: &Path, owner: u32, write: bool) -> Result<File, ConfigE
     no_links(path)?;
     let before = std::fs::symlink_metadata(path).map_err(|_| invalid())?;
     regular(&before, owner)?;
-    let file = OpenOptions::new().read(true).write(write).open(path).map_err(|_| invalid())?;
+    let file = OpenOptions::new()
+        .read(true)
+        .write(write)
+        .open(path)
+        .map_err(|_| invalid())?;
     let after = file.metadata().map_err(|_| invalid())?;
     regular(&after, owner)?;
     if (before.dev(), before.ino()) != (after.dev(), after.ino()) {
@@ -55,7 +59,9 @@ pub(super) fn read(path: &Path, maximum: u64, owner: u32) -> Result<Vec<u8>, Con
         return Err(invalid());
     }
     let mut raw = Vec::new();
-    file.take(maximum + 1).read_to_end(&mut raw).map_err(|_| invalid())?;
+    file.take(maximum + 1)
+        .read_to_end(&mut raw)
+        .map_err(|_| invalid())?;
     if raw.len() as u64 > maximum {
         return Err(invalid());
     }
@@ -65,12 +71,20 @@ pub(super) fn read(path: &Path, maximum: u64, owner: u32) -> Result<Vec<u8>, Con
 pub(super) fn runtime_lock(root: &Path, owner: u32) -> Result<File, ConfigError> {
     let path = root.join(".runtime.lock");
     no_links(&path)?;
-    match OpenOptions::new().read(true).write(true).create_new(true).mode(0o600).open(&path) {
+    match OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(&path)
+    {
         Ok(file) => drop(file),
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
         Err(_) => return Err(invalid()),
     }
     let file = open(&path, owner, true)?;
-    file.try_lock().map_err(|_| ConfigError("Extension store is already supervised or cannot be locked".into()))?;
+    file.try_lock().map_err(|_| {
+        ConfigError("Extension store is already supervised or cannot be locked".into())
+    })?;
     Ok(file)
 }

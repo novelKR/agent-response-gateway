@@ -85,15 +85,18 @@ def private_dir(path, *, create=False):
     return path
 
 
-def read_file(path, maximum, *, private=False):
+def read_file(path, maximum, *, private=False, allow_build_hardlinks=False):
     path = no_links(path)
     before = path.lstat()
-    require(stat.S_ISREG(before.st_mode) and before.st_nlink == 1, 'Expected an unlinked regular file')
+    require(stat.S_ISREG(before.st_mode) and (allow_build_hardlinks or before.st_nlink == 1),
+            'Expected a regular file with an allowed link count')
     flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK
     fd = os.open(path, flags)
     with os.fdopen(fd, 'rb') as stream:
         info = os.fstat(stream.fileno())
         require((info.st_dev, info.st_ino) == (before.st_dev, before.st_ino), 'File changed during inspection')
+        require(stat.S_ISREG(info.st_mode) and (allow_build_hardlinks or info.st_nlink == 1),
+                'Opened file has an invalid type or link count')
         if private:
             require(info.st_uid == os.getuid() and info.st_mode & 0o077 == 0, 'Extension files must be private and user-owned')
         require(info.st_size <= maximum, 'Extension file exceeds its size limit')
@@ -287,7 +290,9 @@ def package_binary(binary, license_file, output, package_id, package_version):
     """Build a flat local package from explicitly supplied bytes; never execute them."""
     host = target()
     require(identifier(package_id) and version(package_version), 'Invalid package identity')
-    binary_bytes = read_file(binary, MAX_BINARY)
+    # Cargo may hard-link its explicit build output. Copy those bytes, never that inode.
+    # Package inspection, installation and runtime verification still reject hard links.
+    binary_bytes = read_file(binary, MAX_BINARY, allow_build_hardlinks=True)
     license_bytes = read_file(license_file, MAX_NOTICE)
     output = no_links(output)
     require(not output.exists(), 'Package output already exists')

@@ -73,7 +73,10 @@ fn valid_version(value: &str) -> bool {
 }
 
 fn valid_hash(value: &str) -> bool {
-    value.len() == 64 && value.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+    value.len() == 64
+        && value
+            .bytes()
+            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
 }
 
 fn permissions(values: &[String]) -> bool {
@@ -218,19 +221,27 @@ impl ExtensionPlan {
                 let name = item.map_err(|_| invalid())?.file_name();
                 names.insert(name.into_string().map_err(|_| invalid())?);
             }
-            let mut expected: std::collections::BTreeSet<_> = package.files.keys().cloned().collect();
+            let mut expected: std::collections::BTreeSet<_> =
+                package.files.keys().cloned().collect();
             expected.insert("extension.json".into());
             if names != expected {
                 return Err(invalid());
             }
             for (name, expected) in &package.files {
-                let maximum = if name == "extension" { MAX_BINARY } else { MAX_NOTICE };
+                let maximum = if name == "extension" {
+                    MAX_BINARY
+                } else {
+                    MAX_NOTICE
+                };
                 if hash(&filesystem::read(&directory.join(name), maximum, owner)?) != *expected {
                     return Err(invalid());
                 }
             }
             filesystem::private_dir(
-                &root.join("state").join(&entry.id).join(&entry.package_sha256),
+                &root
+                    .join("state")
+                    .join(&entry.id)
+                    .join(&entry.package_sha256),
                 Some(owner),
             )?;
             packages.push(package);
@@ -238,7 +249,14 @@ impl ExtensionPlan {
         let configuration = json!({"schema":"gateway-extension-configuration/v1", "store":root,
             "activation":activation, "packages":packages});
         let configuration_sha256 = hash(&canonical(&configuration)?);
-        Ok(Self { root, activation, packages, configuration, configuration_sha256, owner })
+        Ok(Self {
+            root,
+            activation,
+            packages,
+            configuration,
+            configuration_sha256,
+            owner,
+        })
     }
 
     #[cfg(not(unix))]
@@ -257,8 +275,10 @@ impl ExtensionPlan {
     pub fn manifest(&self, base_manifest: &Value) -> Result<Value, ConfigError> {
         let configuration = json!({"gateway":base_manifest,"extensions":self.configuration});
         let execution_sha256 = hash(&canonical(&configuration)?);
-        Ok(json!({"schema":EXTENDED_MANIFEST_SCHEMA, "configuration":configuration,
-            "execution_sha256":execution_sha256}))
+        Ok(
+            json!({"schema":EXTENDED_MANIFEST_SCHEMA, "configuration":configuration,
+            "execution_sha256":execution_sha256}),
+        )
     }
 }
 
@@ -279,7 +299,11 @@ mod tests {
 
     #[test]
     fn lock_is_strict_and_canonical() {
-        let activation = Activation { schema: LOCK_SCHEMA.into(), generation: 1, extensions: vec![] };
+        let activation = Activation {
+            schema: LOCK_SCHEMA.into(),
+            generation: 1,
+            extensions: vec![],
+        };
         let mut raw = canonical(&activation).unwrap();
         raw.push(b'\n');
         let decoded: Activation = decode(&raw).unwrap();
@@ -291,14 +315,24 @@ mod tests {
 
     #[test]
     fn unknown_roles_and_duplicate_bindings_fail() {
-        let entry = EnabledExtension { id:"observer".into(), version:"0.1.0".into(),
-            package_sha256:"a".repeat(64), grants:PERMISSIONS.iter().map(|v| (*v).into()).collect() };
-        let mut activation = Activation { schema:LOCK_SCHEMA.into(), generation:1, extensions:vec![entry.clone()] };
+        let entry = EnabledExtension {
+            id: "observer".into(),
+            version: "0.1.0".into(),
+            package_sha256: "a".repeat(64),
+            grants: PERMISSIONS.iter().map(|v| (*v).into()).collect(),
+        };
+        let mut activation = Activation {
+            schema: LOCK_SCHEMA.into(),
+            generation: 1,
+            extensions: vec![entry.clone()],
+        };
         activation.validate().unwrap();
         activation.extensions.push(entry);
         assert!(activation.validate().is_err());
         activation.extensions.pop();
-        activation.extensions[0].grants.push("read_credentials".into());
+        activation.extensions[0]
+            .grants
+            .push("read_credentials".into());
         assert!(activation.validate().is_err());
     }
 }

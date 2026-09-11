@@ -5,14 +5,14 @@ use std::sync::{
     mpsc::{SyncSender, TrySendError},
 };
 
-use serde::Serialize;
 #[cfg(unix)]
 use serde::Deserialize;
+use serde::Serialize;
 
-use crate::ConfigError;
 use super::ExtensionPlan;
 #[cfg(unix)]
 use super::OBSERVER_PROTOCOL;
+use crate::ConfigError;
 
 #[derive(Clone, Serialize)]
 struct Observation {
@@ -86,12 +86,24 @@ impl ExtensionRuntime {
             _store_lock: Some(lock),
         };
         for (entry, package) in plan.activation.extensions.iter().zip(&plan.packages) {
-            let executable = plan.root.join("packages").join(&entry.id)
-                .join(&entry.version).join(&entry.package_sha256).join("extension");
-            let state = plan.root.join("state").join(&entry.id).join(&entry.package_sha256);
+            let executable = plan
+                .root
+                .join("packages")
+                .join(&entry.id)
+                .join(&entry.version)
+                .join(&entry.package_sha256)
+                .join("extension");
+            let state = plan
+                .root
+                .join("state")
+                .join(&entry.id)
+                .join(&entry.package_sha256);
             // Recheck immediately before spawn; installed content must not be mutated in place.
-            if super::hash(&super::filesystem::read(&executable, super::MAX_BINARY, plan.owner)?)
-                != package.files["extension"]
+            if super::hash(&super::filesystem::read(
+                &executable,
+                super::MAX_BINARY,
+                plan.owner,
+            )?) != package.files["extension"]
             {
                 return Err(super::invalid());
             }
@@ -105,7 +117,9 @@ impl ExtensionRuntime {
 
     #[cfg(not(unix))]
     pub fn start(_plan: &ExtensionPlan) -> Result<Self, ConfigError> {
-        Err(ConfigError("Native extension supervision is unsupported on this platform".into()))
+        Err(ConfigError(
+            "Native extension supervision is unsupported on this platform".into(),
+        ))
     }
 
     pub fn sink(&self) -> ObserverSink {
@@ -120,13 +134,17 @@ impl Drop for ExtensionRuntime {
             worker.stop.store(true, Ordering::Relaxed);
         }
         self.workers.clear();
-        tracing::info!(dropped_observations = self.sink.dropped_observations(), "extension_observers_stopped");
+        tracing::info!(
+            dropped_observations = self.sink.dropped_observations(),
+            "extension_observers_stopped"
+        );
     }
 }
 
 #[cfg(unix)]
 mod unix {
     use super::*;
+    use serde_json::json;
     use std::{
         io::{self, BufRead, BufReader, Write},
         os::{fd::OwnedFd, unix::net::UnixStream},
@@ -135,7 +153,6 @@ mod unix {
         sync::mpsc::{self, RecvTimeoutError},
         time::{Duration, Instant},
     };
-    use serde_json::json;
 
     const FRAME_LIMIT: usize = 4096;
     const QUEUE_LIMIT: usize = 64;
@@ -151,7 +168,8 @@ mod unix {
     }
 
     fn remaining(deadline: Instant) -> io::Result<Duration> {
-        deadline.checked_duration_since(Instant::now())
+        deadline
+            .checked_duration_since(Instant::now())
             .filter(|value| !value.is_zero())
             .ok_or_else(|| io::Error::from(io::ErrorKind::TimedOut))
     }
@@ -159,7 +177,9 @@ mod unix {
     fn read_frame(reader: &mut BufReader<UnixStream>, deadline: Instant) -> io::Result<Reply> {
         let mut frame = Vec::new();
         loop {
-            reader.get_ref().set_read_timeout(Some(remaining(deadline)?))?;
+            reader
+                .get_ref()
+                .set_read_timeout(Some(remaining(deadline)?))?;
             let available = reader.fill_buf()?;
             if available.is_empty() {
                 return Err(io::ErrorKind::UnexpectedEof.into());
@@ -172,7 +192,8 @@ mod unix {
             frame.extend_from_slice(&available[..length]);
             reader.consume(length);
             if newline.is_some() {
-                return serde_json::from_slice(&frame).map_err(|_| io::ErrorKind::InvalidData.into());
+                return serde_json::from_slice(&frame)
+                    .map_err(|_| io::ErrorKind::InvalidData.into());
             }
         }
     }
@@ -190,9 +211,15 @@ mod unix {
         Ok(())
     }
 
-    pub(super) fn spawn(executable: &Path, state: &Path) -> Result<(SyncSender<Observation>, Worker), ConfigError> {
+    pub(super) fn spawn(
+        executable: &Path,
+        state: &Path,
+    ) -> Result<(SyncSender<Observation>, Worker), ConfigError> {
         let (parent, child_socket) = UnixStream::pair().map_err(|_| super::super::invalid())?;
-        let child_input: OwnedFd = child_socket.try_clone().map_err(|_| super::super::invalid())?.into();
+        let child_input: OwnedFd = child_socket
+            .try_clone()
+            .map_err(|_| super::super::invalid())?
+            .into();
         let child_output: OwnedFd = child_socket.into();
         // Socket-backed stdio permits deadlines on reads AND writes without unbounded IO threads.
         let child = Command::new(executable)
@@ -207,7 +234,11 @@ mod unix {
         let mut reader = BufReader::new(parent);
         match read_frame(&mut reader, Instant::now() + STARTUP_TIMEOUT) {
             Ok(Reply::Ready { protocol }) if protocol == OBSERVER_PROTOCOL => {}
-            _ => return Err(ConfigError("Observer startup protocol failed or timed out".into())),
+            _ => {
+                return Err(ConfigError(
+                    "Observer startup protocol failed or timed out".into(),
+                ));
+            }
         }
         let (sender, receiver) = mpsc::sync_channel::<Observation>(QUEUE_LIMIT);
         let stop = Arc::new(AtomicBool::new(false));
@@ -236,7 +267,13 @@ mod unix {
             }
             // Neither queued observations nor failed calls are replayed or retried.
         }).map_err(|_| ConfigError("Cannot start observer supervisor".into()))?;
-        Ok((sender, Worker { stop, handle: Some(handle) }))
+        Ok((
+            sender,
+            Worker {
+                stop,
+                handle: Some(handle),
+            },
+        ))
     }
 
     #[cfg(test)]
@@ -246,7 +283,9 @@ mod unix {
         #[test]
         fn frame_parser_bounds_and_rejects_callbacks() {
             let (left, mut right) = UnixStream::pair().unwrap();
-            right.write_all(b"{\"type\":\"get_credentials\"}\n").unwrap();
+            right
+                .write_all(b"{\"type\":\"get_credentials\"}\n")
+                .unwrap();
             assert!(read_frame(&mut BufReader::new(left), Instant::now() + EVENT_TIMEOUT).is_err());
             let (left, mut right) = UnixStream::pair().unwrap();
             right.write_all(&vec![b'x'; FRAME_LIMIT + 1]).unwrap();
@@ -257,7 +296,13 @@ mod unix {
         fn frame_deadline_includes_partial_messages() {
             let (left, _right) = UnixStream::pair().unwrap();
             let started = Instant::now();
-            assert!(read_frame(&mut BufReader::new(left), started + Duration::from_millis(30)).is_err());
+            assert!(
+                read_frame(
+                    &mut BufReader::new(left),
+                    started + Duration::from_millis(30)
+                )
+                .is_err()
+            );
             assert!(started.elapsed() < Duration::from_secs(2));
         }
     }
@@ -269,7 +314,10 @@ mod tests {
     #[test]
     fn queue_is_bounded_and_contains_only_numeric_metadata() {
         let (sender, receiver) = std::sync::mpsc::sync_channel(1);
-        let sink = ObserverSink { senders:vec![sender], ..ObserverSink::default() };
+        let sink = ObserverSink {
+            senders: vec![sender],
+            ..ObserverSink::default()
+        };
         sink.observe_headers(200, 3);
         sink.observe_headers(503, 5);
         sink.observe_headers(999, 7);

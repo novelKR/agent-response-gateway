@@ -6,7 +6,9 @@ use std::{
 
 use agent_response_gateway::{
     Config, ConfigError, Secrets,
-    extensions::{EXTENDED_MANIFEST_SCHEMA, EXTENDED_READY_SCHEMA, ExtensionPlan, ExtensionRuntime},
+    extensions::{
+        EXTENDED_MANIFEST_SCHEMA, EXTENDED_READY_SCHEMA, ExtensionPlan, ExtensionRuntime,
+    },
     manifest::{MANIFEST_SCHEMA, READY_SCHEMA},
 };
 use clap::{Parser, Subcommand};
@@ -65,20 +67,36 @@ async fn main() -> std::process::ExitCode {
 
 async fn run(cli: Cli) -> Result<(), ConfigError> {
     let (path, extensions_lock) = match &cli.command {
-        Command::Serve { config, extensions_lock }
-        | Command::CheckConfig { config, extensions_lock }
-        | Command::Manifest { config, extensions_lock } => (config, extensions_lock),
+        Command::Serve {
+            config,
+            extensions_lock,
+        }
+        | Command::CheckConfig {
+            config,
+            extensions_lock,
+        }
+        | Command::Manifest {
+            config,
+            extensions_lock,
+        } => (config, extensions_lock),
     };
     let raw = std::fs::read_to_string(path)
         .map_err(|_| ConfigError("Cannot read configuration file".into()))?;
     let config = Config::parse(&raw)?;
-    let extensions = extensions_lock.as_deref().map(ExtensionPlan::load).transpose()?;
+    let extensions = extensions_lock
+        .as_deref()
+        .map(ExtensionPlan::load)
+        .transpose()?;
     let manifest = config.manifest()?;
     let base_manifest = serde_json::to_value(&manifest).expect("manifest JSON");
-    let extended_manifest = extensions.as_ref().map(|plan| plan.manifest(&base_manifest)).transpose()?;
+    let extended_manifest = extensions
+        .as_ref()
+        .map(|plan| plan.manifest(&base_manifest))
+        .transpose()?;
     match cli.command {
         Command::CheckConfig { .. } => {
-            let mut report = json!({"status": "valid", "credentials_checked": false, "provider_probe": false});
+            let mut report =
+                json!({"status": "valid", "credentials_checked": false, "provider_probe": false});
             if let Some(plan) = &extensions {
                 report["extensions_checked"] = json!(true);
                 report["extensions_executed"] = json!(false);
@@ -91,7 +109,10 @@ async fn run(cli: Cli) -> Result<(), ConfigError> {
             if let Some(extended) = &extended_manifest {
                 println!("{extended}");
             } else {
-                println!("{}", serde_json::to_string(&manifest).expect("manifest JSON"));
+                println!(
+                    "{}",
+                    serde_json::to_string(&manifest).expect("manifest JSON")
+                );
             }
             return Ok(());
         }
@@ -108,9 +129,14 @@ async fn run(cli: Cli) -> Result<(), ConfigError> {
         .map_err(|_| ConfigError("Cannot determine listener address".into()))?;
     // Register handlers before announcing readiness to a supervising process.
     let shutdown = shutdown_signal()?;
-    let extension_runtime = extensions.as_ref().map(ExtensionRuntime::start).transpose()?;
+    let extension_runtime = extensions
+        .as_ref()
+        .map(ExtensionRuntime::start)
+        .transpose()?;
     let router = agent_response_gateway::router_with_observers(
-        config, secrets, extension_runtime.as_ref().map(ExtensionRuntime::sink),
+        config,
+        secrets,
+        extension_runtime.as_ref().map(ExtensionRuntime::sink),
     )?;
     let mut readiness = json!({"event":"ready", "address":bound.to_string(), "base_url":format!("http://{bound}/v1"), "version":env!("CARGO_PKG_VERSION"),
         "schema":READY_SCHEMA,"manifest_schema":MANIFEST_SCHEMA,"configuration_sha256":manifest.configuration_sha256()});
