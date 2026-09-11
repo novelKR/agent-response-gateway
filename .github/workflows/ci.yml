@@ -77,7 +77,7 @@ jobs:
       - name: Exercise extension installation, supervision and isolation
         if: runner.os != 'Windows'
         run: python -B scripts/extension_smoke.py --binary target/debug/agent-response-gateway --observer target/debug/examples/metadata_observer
-      - name: Exercise native CLI, three protocols and graceful shutdown
+      - name: Exercise native CLI, four protocols, durable restart and graceful shutdown
         env:
           GATEWAY_EXECUTABLE: ${{ matrix.executable }}
         run: python -B scripts/package_smoke.py --binary "target/debug/$GATEWAY_EXECUTABLE" --state-dir .local/native-cli-smoke

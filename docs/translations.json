@@ -46,8 +46,8 @@
       "order": 0,
       "source": "README.md",
       "translation": "README.ko.md",
-      "source_sha256": "40fa8403334eaf703169c7417d7a3b070e813cbbbf6e920139859b9278b8676d",
-      "translation_sha256": "29e62027305e2dd59536753f3129109e13be926a69f4d89272012a9d8712b806",
+      "source_sha256": "8e5c05edbc3c97cc6ebd7575c53654c48e1f46731d4349740ae97e88d78fb478",
+      "translation_sha256": "d776a0874b793c9f580e273f6a8909235941b3591ebabccb92861c0bca741301",
       "anchors": [
         "agent-response-gateway",
         "getting-started",
@@ -129,9 +129,10 @@
       "order": 3,
       "source": "docs/conformance.md",
       "translation": "docs/ko/conformance.md",
-      "source_sha256": "9e0249c852ad94e48ce16ae04541fb4ec695f5d25773dd467e9b9bc28b218444",
-      "translation_sha256": "b8ff7ad970ab98df6c2e3718ec0be3703c7aec965bfeb153727e8b323e10b67b",
+      "source_sha256": "c3da97bfc4d1327797752c9a76d9c2c49da91f2c1cb7748fdc209562c5127349",
+      "translation_sha256": "c3fdb32d311d66fe88e35957279f7b60e0352d367b08f7cfbbef208c6e8562de",
       "anchors": [
+        "protocol-conformance",
         "protocol-coverage",
         "running-the-suite",
         "test-coverage",
@@ -139,6 +140,7 @@
         "세-api-경로-적합성-검증",
         "시험-실행",
         "시험-항목",
+        "프로토콜-적합성-검증",
         "프로토콜-지원-범위"
       ],
       "route": "/guide/conformance"
@@ -302,8 +304,8 @@
       "order": 0,
       "source": "docs/integration.md",
       "translation": "docs/ko/integration.md",
-      "source_sha256": "4ad64eaa18151c73472a6ee9b01f2a92efc45355ecd235a044e8e357fe481b4c",
-      "translation_sha256": "dd96b52c81bb9bf15e0232162b03cbb18b896e1017768d840d2cc28a6d1a7bb9",
+      "source_sha256": "c522a72080a0066e9af14a49578f845e476c03127fcdfb32f59a171a03530e82",
+      "translation_sha256": "8a55ba7c4bb5ce4944fb67b3d0d8cf39244e3b6ca6f8f697029a78d7b3cd8126",
       "anchors": [
         "application-integration",
         "calling-from-a-backend-service",
@@ -418,8 +420,8 @@
       "order": 1,
       "source": "docs/packaging.md",
       "translation": "docs/ko/packaging.md",
-      "source_sha256": "afc16766dce6c55216103366af0732567216257b3808e67eb41e85be4c7676ec",
-      "translation_sha256": "b2c4bfaa9337332640f041832605f66ee861ee4926a46655f511505ce0d26d17",
+      "source_sha256": "007dd1f988e9cf09443a52c8caad0188300e775f79908a27ea894bae09b51723",
+      "translation_sha256": "09a8a0cc6b07e1b67bdb748232d21410761d35ef35f02e3e5002c53dc0f6f167",
       "anchors": [
         "inventory-scope-and-notices",
         "unpublished-release-candidates",
@@ -436,8 +438,8 @@
       "order": 0,
       "source": "docs/protocol.md",
       "translation": "docs/ko/protocol.md",
-      "source_sha256": "67f49f9e5e00a8c303eee29894b3ec8b38f6520afbd054f63c9e3acbb30f6ee2",
-      "translation_sha256": "02444d1e26f262932ee9bed8177976c097989f5b4236d47705e11f242e0da6ea",
+      "source_sha256": "92ca5788236ed4169a0a63ec224e310b408559061c76a71b711bcd414ba05607",
+      "translation_sha256": "46197087ecb0eeceebb259124f19676b3915a7549d0226f96ad841080f506e57",
       "anchors": [
         "configuration-and-authentication",
         "declared-routes-and-capability-profiles",
@@ -820,6 +822,28 @@
         "호환성과-수락"
       ],
       "route": "/guide/interactions-design"
+    },
+    {
+      "id": "interactions",
+      "section": "integration",
+      "order": 20,
+      "source": "docs/interactions.md",
+      "translation": "docs/ko/interactions.md",
+      "source_sha256": "4698510e933d0b549b60f9f5b0bcac097cab8ba05b18481f57a10dba4a4a713a",
+      "translation_sha256": "2a240402a78d7d01d8f7cac4c4f180840a662c01e789b937925673b01d7b50f1",
+      "anchors": [
+        "backup-and-failure-recovery",
+        "configuration",
+        "gemini-interactions-host-integration",
+        "gemini-interactions-호스트-연동",
+        "host-control-and-resume",
+        "support-and-usage",
+        "백업과-실패-복구",
+        "설정",
+        "지원-범위와-사용량",
+        "호스트-제어와-재개"
+      ],
+      "route": "/guide/interactions"
     }
   ]
 }

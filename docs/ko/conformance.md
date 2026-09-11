@@ -1,12 +1,16 @@
 <a id="three-route-conformance"></a>
 
-# 세 API 경로 적합성 검증
+<a id="세-api-경로-적합성-검증"></a>
+<a id="protocol-conformance"></a>
+
+# 프로토콜 적합성 검증
 
 [English](../conformance.md) | [한국어](conformance.md)
 
 적합성 시험은 버전이 고정된 실제 Codex, 게이트웨이와 모의 HTTP 공급자를
 실행한다. Responses 9개, Messages와 Chat Completions 각 13개로 총 35개
-시나리오를 검사한다. 시험 런타임은 macOS ARM64의 0.154.0이며
+기존 시나리오를 검사한다. Interactions는 14개 시나리오와 별도의 호스트
+continuation/실패 시험을 추가한다. 시험 런타임은 macOS ARM64의 0.154.0이며
 [런타임 잠금 파일](../../tests/codex/runtime-lock.json)에 고정되어 있다.
 
 <a id="protocol-coverage"></a>
@@ -14,7 +18,9 @@
 ## 프로토콜 지원 범위
 
 Responses는 상태를 저장하지 않는 HTTP 계약 안에서 원래 필드를 전달한다.
-변환 경로는 사용하는 기능을 프로필에 명시해야 한다.
+변환 경로는 사용하는 기능을 프로필에 명시해야 한다. 아래 표는 기존 세 경로를
+설명하며, 지시·저장·스키마 경계가 다른 [Interactions 지원 표](interactions.md)는
+별도로 확인한다.
 
 | 기능 | Responses | Messages | Chat Completions |
 |---|---|---|---|
@@ -62,6 +68,12 @@ Responses는 상태를 저장하지 않는 HTTP 계약 안에서 원래 필드�
 준비한 뒤 `python3 -B tests/codex/conformance.py`를 실행한다.
 `--api`와 `--scenario`로 로컬 검사 범위를 좁힐 수 있으며 CI는 전체를 실행한다.
 결과에는 횟수·상태·프로필 해시·시간만 담고 요청·응답 본문이나 자격 증명은 넣지 않는다.
+
+Interactions는 같은 명령에 `--api gemini_interactions`를 지정하고,
+`python3 -B tests/codex/interactions_http.py`와
+`python3 -B tests/codex/interactions_continuity.py`도 실행한다. required CI는 opaque
+probe, 재시작, payload 유실 복원, 실행 기록 유실·pending 차단, 명시적 복구,
+새 Codex 작업으로의 호스트 관리 압축과 이후 재시작도 검사한다.
 
 이 시험은 모의 공급자를 사용한 프로토콜 호환성을 확인한다. 운영 전에는
 [내장](embedded-design.md)과 [연속성](continuity-design.md) 계약에 따라

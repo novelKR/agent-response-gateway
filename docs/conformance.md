@@ -1,12 +1,16 @@
 <a id="세-api-경로-적합성-검증"></a>
 
-# Three-route conformance
+<a id="three-route-conformance"></a>
+<a id="프로토콜-적합성-검증"></a>
+
+# Protocol conformance
 
 [English](conformance.md) | [한국어](ko/conformance.md)
 
 The conformance suite runs the actual pinned Codex executable against the gateway
-and mock HTTP providers. It covers 35 scenarios: nine for Responses and thirteen
-each for Messages and Chat Completions. The test runtime is 0.154.0 on
+and mock HTTP providers. The original suite covers 35 scenarios: nine for Responses
+and thirteen each for Messages and Chat Completions. Interactions adds 14 scenarios
+and a separate host continuation/failure suite. The test runtime is 0.154.0 on
 macOS ARM64, pinned in the [runtime lock](../tests/codex/runtime-lock.json).
 
 <a id="프로토콜-지원-범위"></a>
@@ -14,7 +18,9 @@ macOS ARM64, pinned in the [runtime lock](../tests/codex/runtime-lock.json).
 ## Protocol coverage
 
 Responses forwards the original fields within the stateless HTTP contract.
-Converted routes require a profile declaring each supported feature.
+Converted routes require a profile declaring each supported feature. This table
+describes the original three routes; the [Interactions matrix](interactions.md)
+describes its instruction, storage and schema boundaries.
 
 | Capability | Responses | Messages | Chat Completions |
 |---|---|---|---|
@@ -65,6 +71,12 @@ Prepare the pinned runtime and build the gateway as described in the
 `python3 -B tests/codex/conformance.py`. Use `--api` and `--scenario` for a narrower
 local check; CI runs the complete set. Results include counts, statuses, profile
 digest and timings without request/response bodies or credentials.
+
+For Interactions, run the same command with `--api gemini_interactions`, plus
+`python3 -B tests/codex/interactions_http.py` and
+`python3 -B tests/codex/interactions_continuity.py`. Required CI also runs the opaque
+probe, restart, payload-loss repair, missing/pending execution blocking, explicit
+recovery, and host-managed compaction into a new Codex thread followed by restart.
 
 These tests establish protocol compatibility with mock providers. Before production
 use, test the actual model, application permissions and recovery under the
