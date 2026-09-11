@@ -1,13 +1,14 @@
 pub mod config;
 mod digest;
 mod error;
+pub mod extensions;
 mod http;
 pub mod manifest;
 mod proxy;
 
 pub use config::{Config, Limits, Model, Provider, Secrets};
 pub use error::ConfigError;
-pub use http::router;
+pub use http::{router, router_with_observers};
 
 pub mod ir;
 mod responses_policy;

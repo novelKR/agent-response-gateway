@@ -164,3 +164,8 @@ version-specific HTTPS location under the [release procedure](docs/release.md).
 
 See [development direction](docs/roadmap.md) for scope and
 [the development workflow](docs/github-workflow.md) for contribution checks.
+
+Optional [native observers](docs/extensions.md) can be installed and explicitly
+activated on Linux/macOS. They receive numeric HTTP metadata only. Read the
+[extension architecture](docs/extensions-design.md) for trust, lifecycle and
+future account-pool boundaries; OAuth/account pooling remains unsupported.

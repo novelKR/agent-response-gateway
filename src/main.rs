@@ -6,6 +6,9 @@ use std::{
 
 use agent_response_gateway::{
     Config, ConfigError, Secrets,
+    extensions::{
+        EXTENDED_MANIFEST_SCHEMA, EXTENDED_READY_SCHEMA, ExtensionPlan, ExtensionRuntime,
+    },
     manifest::{MANIFEST_SCHEMA, READY_SCHEMA},
 };
 use clap::{Parser, Subcommand};
@@ -24,16 +27,24 @@ enum Command {
     Serve {
         #[arg(long)]
         config: PathBuf,
+        /// Explicit activation snapshot for trusted native metadata observers.
+        #[arg(long)]
+        extensions_lock: Option<PathBuf>,
     },
     /// Report the normalized embedded configuration and digest without reading credentials.
     Manifest {
         #[arg(long)]
         config: PathBuf,
+        /// Inspect extension package bytes without running any executable.
+        #[arg(long)]
+        extensions_lock: Option<PathBuf>,
     },
     /// Validate configuration structure; credentials and providers are not probed.
     CheckConfig {
         #[arg(long)]
         config: PathBuf,
+        #[arg(long)]
+        extensions_lock: Option<PathBuf>,
     },
 }
 
@@ -55,36 +66,61 @@ async fn main() -> std::process::ExitCode {
 }
 
 async fn run(cli: Cli) -> Result<(), ConfigError> {
-    let path = match &cli.command {
-        Command::Serve { config }
-        | Command::CheckConfig { config }
-        | Command::Manifest { config } => config,
+    let (path, extensions_lock) = match &cli.command {
+        Command::Serve {
+            config,
+            extensions_lock,
+        }
+        | Command::CheckConfig {
+            config,
+            extensions_lock,
+        }
+        | Command::Manifest {
+            config,
+            extensions_lock,
+        } => (config, extensions_lock),
     };
     let raw = std::fs::read_to_string(path)
         .map_err(|_| ConfigError("Cannot read configuration file".into()))?;
     let config = Config::parse(&raw)?;
+    let extensions = extensions_lock
+        .as_deref()
+        .map(ExtensionPlan::load)
+        .transpose()?;
+    let manifest = config.manifest()?;
+    let base_manifest = serde_json::to_value(&manifest).expect("manifest JSON");
+    let extended_manifest = extensions
+        .as_ref()
+        .map(|plan| plan.manifest(&base_manifest))
+        .transpose()?;
     match cli.command {
         Command::CheckConfig { .. } => {
-            println!(
-                "{}",
-                json!({"status": "valid", "credentials_checked": false, "provider_probe": false})
-            );
+            let mut report =
+                json!({"status": "valid", "credentials_checked": false, "provider_probe": false});
+            if let Some(plan) = &extensions {
+                report["extensions_checked"] = json!(true);
+                report["extensions_executed"] = json!(false);
+                report["extensions_sha256"] = json!(plan.configuration_sha256());
+            }
+            println!("{report}");
             return Ok(());
         }
         Command::Manifest { .. } => {
-            println!(
-                "{}",
-                serde_json::to_string(&config.manifest()?).expect("manifest JSON")
-            );
+            if let Some(extended) = &extended_manifest {
+                println!("{extended}");
+            } else {
+                println!(
+                    "{}",
+                    serde_json::to_string(&manifest).expect("manifest JSON")
+                );
+            }
             return Ok(());
         }
         Command::Serve { .. } => {}
     }
-    let manifest = config.manifest()?;
     let secrets = Secrets::from_env(&config)?;
     let address = config.listen;
     let grace = Duration::from_millis(config.limits.shutdown_grace_ms);
-    let router = agent_response_gateway::router(config, secrets)?;
     let listener = tokio::net::TcpListener::bind(address)
         .await
         .map_err(|_| ConfigError("Cannot bind the configured loopback address".into()))?;
@@ -93,11 +129,23 @@ async fn run(cli: Cli) -> Result<(), ConfigError> {
         .map_err(|_| ConfigError("Cannot determine listener address".into()))?;
     // Register handlers before announcing readiness to a supervising process.
     let shutdown = shutdown_signal()?;
-    println!(
-        "{}",
-        json!({"event":"ready", "address":bound.to_string(), "base_url":format!("http://{bound}/v1"), "version":env!("CARGO_PKG_VERSION"),
-            "schema":READY_SCHEMA,"manifest_schema":MANIFEST_SCHEMA,"configuration_sha256":manifest.configuration_sha256()})
-    );
+    let extension_runtime = extensions
+        .as_ref()
+        .map(ExtensionRuntime::start)
+        .transpose()?;
+    let router = agent_response_gateway::router_with_observers(
+        config,
+        secrets,
+        extension_runtime.as_ref().map(ExtensionRuntime::sink),
+    )?;
+    let mut readiness = json!({"event":"ready", "address":bound.to_string(), "base_url":format!("http://{bound}/v1"), "version":env!("CARGO_PKG_VERSION"),
+        "schema":READY_SCHEMA,"manifest_schema":MANIFEST_SCHEMA,"configuration_sha256":manifest.configuration_sha256()});
+    if let Some(extended) = &extended_manifest {
+        readiness["schema"] = json!(EXTENDED_READY_SCHEMA);
+        readiness["manifest_schema"] = json!(EXTENDED_MANIFEST_SCHEMA);
+        readiness["execution_sha256"] = extended["execution_sha256"].clone();
+    }
+    println!("{readiness}");
     io::stdout()
         .flush()
         .map_err(|_| ConfigError("Cannot write readiness message".into()))?;
@@ -118,6 +166,7 @@ async fn run(cli: Cli) -> Result<(), ConfigError> {
             }
         }
     }
+    drop(extension_runtime);
     Ok(())
 }
 

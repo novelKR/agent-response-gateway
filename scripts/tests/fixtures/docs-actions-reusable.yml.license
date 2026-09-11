@@ -1,0 +1,9 @@
+SPDX-License-Identifier: MIT
+Source: https://github.com/novelKR/docs-actions/blob/6dfabdb29486dc7e4de737ab7f08d5832fd98821/.github/workflows/reusable-pages-deploy.yml
+Scope: exact workflow snapshot in docs-actions-reusable.yml, not gateway project code.
+Copyright notice and permission: docs-actions-LICENSE.txt (unchanged upstream LICENSE).
+Upstream license SHA-256: a16963eff65be1e04e4309e762a0185f83e5d126e77cd72fbe8f78c1be2b266f
+
+This current consumer snapshot is distinct from the upstream historical fixtures.
+Earlier snapshots and their original grants remain in Git history. Adopting the
+maintained upstream MIT edition does not revoke or rewrite those earlier grants.

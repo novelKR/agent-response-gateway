@@ -46,8 +46,8 @@
       "order": 0,
       "source": "README.md",
       "translation": "README.ko.md",
-      "source_sha256": "ffcdd67a56d2a3e80415392094966c84dfa3295d6aa8c3516006301378c1e13b",
-      "translation_sha256": "802629dcaa11a66fe26254b23fd582063851fe8267738882cc6e729a0180b6d6",
+      "source_sha256": "40fa8403334eaf703169c7417d7a3b070e813cbbbf6e920139859b9278b8676d",
+      "translation_sha256": "29e62027305e2dd59536753f3129109e13be926a69f4d89272012a9d8712b806",
       "anchors": [
         "agent-response-gateway",
         "getting-started",
@@ -743,6 +743,62 @@
       ],
       "source_sha256": "fa1b2d27ada444ead679fe357960bf98d64ea9368f26a5d469ab960bb9c6a9cb",
       "translation_sha256": "5f5557dddc8533428a806fc1d5e72602c7f1e111b890c89d6e4cb894e975748c"
+    },
+    {
+      "id": "extensions-design",
+      "section": "architecture",
+      "order": 5,
+      "route": "/guide/extensions-design",
+      "source": "docs/extensions-design.md",
+      "translation": "docs/ko/extensions-design.md",
+      "anchors": [
+        "codex-pool-extension-proposal",
+        "codex-pool-확장-제안",
+        "core-and-extension-responsibilities",
+        "decision-and-alternatives",
+        "native-extension-architecture",
+        "observer-messages-and-limits",
+        "package-and-permission-contract",
+        "process-lifecycle-and-failure-policy",
+        "trust-and-execution-identity",
+        "validation-and-evolution",
+        "검증과-후속-확장",
+        "관측-메시지와-제한",
+        "네이티브-확장-아키텍처",
+        "선택한-방식과-대안",
+        "신뢰와-실행-정체성",
+        "코어와-확장의-책임",
+        "패키지와-권한-계약",
+        "프로세스-수명과-장애-정책"
+      ],
+      "source_sha256": "f40d9f058f26bb91973bdabef7dd42c07a7b809041e309d6fec399ad9f991c1c",
+      "translation_sha256": "8854e11a0ec32989042515c9787b366df01f6b1f8527f8e8038d71f6d8ef3315"
+    },
+    {
+      "id": "extensions",
+      "section": "integration",
+      "order": 2,
+      "route": "/guide/extensions",
+      "source": "docs/extensions.md",
+      "translation": "docs/ko/extensions.md",
+      "anchors": [
+        "disable-change-versions-and-recover",
+        "inspect-and-start-the-opted-in-gateway",
+        "install-approve-and-enable",
+        "installing-native-observers",
+        "prepare-a-local-example-package",
+        "requirements-and-supported-scope",
+        "validation-and-troubleshooting",
+        "검증과-문제-해결",
+        "네이티브-관측-확장-설치",
+        "로컬-예제-패키지-준비",
+        "비활성화와-버전-변경-및-복구",
+        "선택형-gateway-검사와-시작",
+        "설치와-승인-및-활성화",
+        "요구사항과-지원-범위"
+      ],
+      "source_sha256": "21d904efb0c60acfb08b652991cd4df154989e751f1c597c785ba6a516036621",
+      "translation_sha256": "d131d9e760a5eccdcb173a6494bb7e1ba0212c5bf3a5c003e3e2a178dc0b0c13"
     }
   ]
 }
