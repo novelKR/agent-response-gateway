@@ -829,8 +829,8 @@
       "order": 20,
       "source": "docs/interactions.md",
       "translation": "docs/ko/interactions.md",
-      "source_sha256": "4698510e933d0b549b60f9f5b0bcac097cab8ba05b18481f57a10dba4a4a713a",
-      "translation_sha256": "2a240402a78d7d01d8f7cac4c4f180840a662c01e789b937925673b01d7b50f1",
+      "source_sha256": "bbbb5df27446c77de1298c054b120983c7a470c7a81b6d067256072a58f5e43e",
+      "translation_sha256": "a0036ee0da9ac91ead3c94540a936ca02937ac306db5112b8da5bda2b7c43324",
       "anchors": [
         "backup-and-failure-recovery",
         "configuration",

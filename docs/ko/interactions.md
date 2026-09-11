@@ -102,6 +102,8 @@ wire digest, 프로필·어댑터 버전이 포함되지만 실제 제공자 호
 | Requires action | 완료된 Responses 도구 항목; 세션에는 도구 대기 상태 유지 |
 | 불완전하거나 중단된 출력 | 성공 확정·자동 재시도 없음; 호스트 정리 필요 |
 
+종료 이벤트의 usage를 우선한다. 없으면 step delta metadata나 step stop의 마지막
+누적 usage를 사용하며 누적 카운터와 단계별 카운터를 합산하지 않는다.
 usage의 input_tokens는 total_input_tokens이다. output_tokens는
  total_output_tokens와 total_thought_tokens의 합이며 둘 중 하나라도 없으면
 알 수 없는 값으로 둔다. total_tokens는 보존하고 모든 카운터가 있으면 합과

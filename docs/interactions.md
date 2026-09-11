@@ -101,6 +101,8 @@ provider call. Combined observer/continuation manifest mode is currently rejecte
 | Requires action | Completed Responses tool items; session retains pending tool state |
 | Incomplete or interrupted output | No successful finalization or automatic retry; host reconciliation required |
 
+Terminal usage takes precedence. If it is absent, use the last cumulative usage
+from step delta metadata or step stop; never sum cumulative and per-step counters.
 For usage, input_tokens equals total_input_tokens. output_tokens is the sum of
 available total_output_tokens and total_thought_tokens; it remains unknown if either
 counter is absent. total_tokens is preserved and checked against the sum when all
