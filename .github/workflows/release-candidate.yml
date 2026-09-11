@@ -76,8 +76,9 @@ jobs:
           python -B scripts/release_package.py build --target "$PACKAGE_TARGET" --output .local/candidate
           python -B scripts/release_package.py verify .local/candidate --commit "$GITHUB_SHA" --target "$PACKAGE_TARGET"
           python -B scripts/release_provenance.py pack --directory .local/candidate --output .local/distribution
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
+          archive: true
           name: candidate-input-${{ matrix.target }}
           path: .local/distribution/*
           if-no-files-found: error
@@ -106,8 +107,10 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.14'
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
+          skip-decompress: false
+          digest-mismatch: error
           name: candidate-input-${{ matrix.target }}
           path: .local/signed
       - name: Inspect exact artifacts without executing a binary or build script
@@ -123,8 +126,9 @@ jobs:
         run: |
           cp "$PROOF_PATH" ".local/signed/$PACKAGE_TARGET.sigstore.jsonl"
           python -B scripts/release_provenance.py verify --directory .local/signed --commit "$GITHUB_SHA" --target "$PACKAGE_TARGET" --run-id "$GITHUB_RUN_ID" --attempt "$GITHUB_RUN_ATTEMPT" --tag "$RELEASE_TAG"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
+          archive: true
           name: release-candidate-${{ matrix.target }}
           path: .local/signed/*
           if-no-files-found: error
