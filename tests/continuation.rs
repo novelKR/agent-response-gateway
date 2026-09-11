@@ -26,6 +26,9 @@ fn replay(s: &Session, id: String) -> Replay {
         origin: s.origin.clone(),
         response: id,
         parent: s.head.clone(),
+        input_len: 0,
+        input_sha256: digest(&json!([])).unwrap(),
+        provider_status: "completed".into(),
         steps: vec![json!({"type":"thought","signature":"synthetic-private"})],
         output: vec![json!({"type":"message","content":[]})],
     }
@@ -77,8 +80,14 @@ fn store_contract(store: &mut dyn ContinuationStore) {
             .is_err()
     );
     assert!(store.record(&id).is_err());
-    store.finalize(&s.id, &id, "hash", "ciphertext").unwrap();
-    assert!(store.finalize(&s.id, &id, "hash", "ciphertext").is_err());
+    store
+        .finalize(&s.id, &id, "hash", "ciphertext", false)
+        .unwrap();
+    assert!(
+        store
+            .finalize(&s.id, &id, "hash", "ciphertext", false)
+            .is_err()
+    );
     let next = store.session(&s.id).unwrap();
     assert_eq!(next.head.as_deref(), Some(id.as_str()));
     assert!(
@@ -238,7 +247,9 @@ fn compaction_requires_explicit_begin_finalization_and_commit() {
     let id = store
         .begin(&s.id, s.revision, None, "compact-input", 1024)
         .unwrap();
-    store.finalize(&s.id, &id, "hash", "ciphertext").unwrap();
+    store
+        .finalize(&s.id, &id, "hash", "ciphertext", false)
+        .unwrap();
     let s = store.session(&s.id).unwrap();
     assert_eq!(s.status, "awaiting_compaction");
     assert!(
@@ -257,4 +268,53 @@ fn compaction_requires_explicit_begin_finalization_and_commit() {
         .unwrap();
     assert_eq!(s.epoch, 2);
     assert_eq!(s.status, "ready");
+}
+
+#[test]
+fn key_binding_and_pending_tool_transitions_are_explicit() {
+    let t = private();
+    let mut store = open(t.path(), true);
+    store.bind_protection("synthetic-key-binding").unwrap();
+    store.bind_protection("synthetic-key-binding").unwrap();
+    assert!(store.bind_protection("other-key-binding").is_err());
+    let s = store.create(&origin()).unwrap();
+    let attempt = store.begin(&s.id, s.revision, None, "input", 1024).unwrap();
+    store
+        .finalize(&s.id, &attempt, "hash", "ciphertext", true)
+        .unwrap();
+    let s = store.session(&s.id).unwrap();
+    assert!(s.pending_tools);
+    assert!(
+        store
+            .transition(&s.id, s.revision, "compact_begin", None, "host-decision")
+            .is_err()
+    );
+}
+
+#[tokio::test]
+async fn publication_limit_rejection_does_not_finalize_execution() {
+    let t = private();
+    let mut store = open(t.path(), true);
+    let s = store.create(&origin()).unwrap();
+    let id = store.begin(&s.id, s.revision, None, "input", 8192).unwrap();
+    let runtime = Runtime::new(
+        Box::new(store),
+        Protector::new("key1".into(), &[1; 32]).unwrap(),
+    );
+    assert!(
+        runtime
+            .finalize_checked(replay(&s, id.clone()), |_| Err(Error(
+                "test publication limit"
+            )))
+            .await
+            .is_err()
+    );
+    runtime
+        .access(move |store, _| {
+            assert!(store.record(&id).is_err());
+            assert_eq!(store.session(&s.id)?.status, "pending");
+            Ok(())
+        })
+        .await
+        .unwrap();
 }

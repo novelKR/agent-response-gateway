@@ -102,3 +102,12 @@ impl OpaqueState {
         Ok(&self.bytes)
     }
 }
+
+/// Replay spans admitted by the continuation authentication boundary. The empty
+/// default is safe; populated spans are constructed only inside this crate after
+/// checking session, epoch, durable finalization and exact public/input digests.
+/// This type deliberately has no Debug or deserialization implementation.
+#[derive(Default)]
+pub struct VerifiedProviderHistory {
+    pub(crate) segments: std::collections::BTreeMap<usize, (usize, Vec<serde_json::Value>)>,
+}

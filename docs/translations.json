@@ -806,10 +806,18 @@
       "order": 30,
       "source": "docs/interactions-design.md",
       "translation": "docs/ko/interactions-design.md",
-      "source_sha256": "05ff27b7884b511b19cc98b7d23f937057f96891c36a12136d3fa3c3f1f77023",
-      "translation_sha256": "17fa65ac23fe5ad8bed5e07e5450f058d809d8b9088e0c77aa76b93e36c5930f",
+      "source_sha256": "ed3ba0692f42bf65fe5b69a19a48583429647fb4df5d55c802f31e75c25fe821",
+      "translation_sha256": "da40e3435c125cbb93e53c986b6c51935d72ef14836a5b6d4d2712bfbf67d202",
       "anchors": [
-        "gemini-interactions-design"
+        "compatibility-and-acceptance",
+        "data-and-execution-ownership",
+        "gemini-interactions-design",
+        "gemini-interactions-implementation-contract",
+        "gemini-interactions-구현-계약",
+        "recovery-and-compaction",
+        "데이터와-실행-소유권",
+        "복구와-압축",
+        "호환성과-수락"
       ],
       "route": "/guide/interactions-design"
     }

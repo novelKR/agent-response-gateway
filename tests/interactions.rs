@@ -177,3 +177,119 @@ fn stream_reassembles_tools_and_rejects_missing_terminal() {
     assert_eq!(out.steps[0]["arguments"]["text"], "한글");
     assert!(p.stream(4096, "resp_other".into()).finish().is_err());
 }
+
+#[test]
+fn structured_output_and_function_arguments_must_match_declared_schema() {
+    let mut r = request();
+    r["text"] = json!({"format":{"type":"json_schema","name":"result","strict":true,"schema":{"type":"object","properties":{"answer":{"type":"string"}},"required":["answer"],"additionalProperties":false}}});
+    let p = prepare(r).unwrap();
+    for text in [
+        "not JSON",
+        "{}",
+        "{\"answer\":2}",
+        "{\"answer\":\"yes\",\"extra\":0}",
+    ] {
+        assert!(
+            p.decode(
+                response(
+                    json!([{"type":"model_output","content":[{"type":"text","text":text}]}]),
+                    "completed"
+                ),
+                "resp_invalid"
+            )
+            .is_err()
+        );
+    }
+    assert!(p.decode(response(json!([{"type":"model_output","content":[{"type":"text","text":"{\"answer\":\"yes\"}"}]}]),"completed"),"resp_valid").is_ok());
+    assert!(prepare(request()).unwrap().decode(response(json!([{"type":"function_call","id":"call_1","name":"echo","arguments":{"text":42}}]),"requires_action"),"resp_args").is_err());
+}
+
+#[test]
+fn missing_usage_stays_unknown_and_inconsistent_totals_fail() {
+    let p = prepare(request()).unwrap();
+    let mut r = response(
+        json!([{"type":"thought","signature":"synthetic"}]),
+        "completed",
+    );
+    r.as_object_mut().unwrap().remove("usage");
+    assert!(
+        p.decode(r.clone(), "resp_opaque").unwrap().response["usage"]["output_tokens"].is_null()
+    );
+    r["usage"] = json!({"total_input_tokens":10,"total_output_tokens":3,"total_thought_tokens":2,"total_tokens":13});
+    assert!(p.decode(r, "resp_bad_usage").is_err());
+}
+
+#[test]
+fn truncated_json_and_out_of_order_stream_steps_fail() {
+    let p = prepare(request()).unwrap();
+    assert!(p.decode_bytes(b"{\"id\":", "resp_truncated").is_err());
+    let mut s = p.stream(4096, "resp_order".into());
+    assert!(
+        s.event(frame(
+            "step.start",
+            json!({"index":0,"step":{"type":"thought"}})
+        ))
+        .is_err()
+    );
+    let mut s = p.stream(4096, "resp_order2".into());
+    s.event(frame("interaction.created",json!({"interaction":{"id":"provider-id","model":"actual-model","object":"interaction","status":"in_progress"}}))).unwrap();
+    assert!(
+        s.event(frame(
+            "step.start",
+            json!({"index":1,"step":{"type":"thought"}})
+        ))
+        .is_err()
+    );
+}
+
+#[test]
+fn json_and_sse_reconstruct_identical_provider_steps_and_public_output() {
+    let p = prepare(request()).unwrap();
+    let steps = json!([{"type":"thought","signature":"synthetic-split"},{"type":"model_output","content":[{"type":"text","text":"한글 text"}]}]);
+    let expected = p
+        .decode(response(steps.clone(), "completed"), "resp_equivalent")
+        .unwrap();
+    let mut s = p.stream(16384, "resp_equivalent".into());
+    s.event(frame("interaction.created",json!({"interaction":{"id":"provider-id","model":"actual-model","object":"interaction","status":"in_progress"}}))).unwrap();
+    s.event(frame(
+        "step.start",
+        json!({"index":0,"step":{"type":"thought"}}),
+    ))
+    .unwrap();
+    for signature in ["synthetic-", "split"] {
+        s.event(frame(
+            "step.delta",
+            json!({"index":0,"delta":{"type":"thought_signature","signature":signature}}),
+        ))
+        .unwrap();
+    }
+    s.event(frame("step.stop", json!({"index":0}))).unwrap();
+    s.event(frame(
+        "step.start",
+        json!({"index":1,"step":{"type":"model_output"}}),
+    ))
+    .unwrap();
+    for text in ["한글 ", "text"] {
+        s.event(frame(
+            "step.delta",
+            json!({"index":1,"delta":{"type":"text","text":text}}),
+        ))
+        .unwrap();
+    }
+    s.event(frame("step.stop", json!({"index":1}))).unwrap();
+    s.event(frame(
+        "interaction.completed",
+        json!({"interaction":response(steps,"completed")}),
+    ))
+    .unwrap();
+    s.event(agent_response_gateway::adapters::sse::SseEvent {
+        event: "done".into(),
+        data: "[DONE]".into(),
+    })
+    .unwrap();
+    let actual = s.finish().unwrap();
+    assert_eq!(actual.steps, expected.steps);
+    assert_eq!(actual.response["output"], expected.response["output"]);
+    assert_eq!(actual.response["usage"], expected.response["usage"]);
+    assert_eq!(actual.provider_status, expected.provider_status);
+}

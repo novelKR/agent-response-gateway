@@ -12,6 +12,7 @@ pub struct InteractionsStream<'a> {
     terminal: bool,
     done: bool,
     response_id: String,
+    progress: Vec<Value>,
 }
 impl<'a> InteractionsStream<'a> {
     pub(super) fn new(
@@ -20,6 +21,7 @@ impl<'a> InteractionsStream<'a> {
         response_id: String,
     ) -> Self {
         Self {
+            progress: Vec::new(),
             prepared,
             limit,
             bytes: 0,
@@ -55,6 +57,7 @@ impl<'a> InteractionsStream<'a> {
         }
         let v = decode(event.data.as_bytes())?;
         let kind = string(&v, "event_type")?;
+        let event_copy = v.clone();
         if event.event != "message" && event.event != kind {
             return Err(IrError::InvalidEventOrder);
         }
@@ -163,7 +166,24 @@ impl<'a> InteractionsStream<'a> {
             }
             _ => return Err(unsupported()),
         }
+        match kind {
+            "interaction.created" => self.progress.push(json!({"type":"response.created","response":{"id":self.response_id,"object":"response","status":"in_progress","output":[]}})),
+            "step.start" if event_copy["step"]["type"]=="model_output" => {
+                let index=self.steps.iter().take(self.steps.len()-1).filter(|s|s["type"]!="thought").count();
+                let id=format!("{}_{}",self.response_id,index);
+                self.progress.push(json!({"type":"response.output_item.added","output_index":index,"item":{"id":id,"type":"message","role":"assistant","status":"in_progress","content":[]}}));
+                self.progress.push(json!({"type":"response.content_part.added","item_id":id,"output_index":index,"content_index":0,"part":{"type":"output_text","text":"","annotations":[]}}));
+            },
+            "step.delta" if event_copy["delta"]["type"]=="text" => {
+                let position=self.active.ok_or(IrError::InvalidEventOrder)?;
+                let index=self.steps[..position].iter().filter(|s|s["type"]!="thought").count();
+                self.progress.push(json!({"type":"response.output_text.delta","item_id":format!("{}_{}",self.response_id,index),"output_index":index,"content_index":0,"delta":event_copy["delta"]["text"]}));
+            },_=>{}
+        }
         Ok(())
+    }
+    pub fn take_progress(&mut self) -> Vec<Value> {
+        std::mem::take(&mut self.progress)
     }
     pub fn is_complete(&self) -> bool {
         self.done

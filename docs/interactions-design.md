@@ -9,8 +9,10 @@
 
 [English](interactions-design.md) | [한국어](ko/interactions-design.md)
 
-This describes the staged Interactions implementation. The current runtime does not
-activate an Interactions route. The provider contract is pinned in the
+The experimental runtime has an opt-in Interactions route and durable SQLite
+continuation. It requires host-created sessions and separate protection/control
+credentials. Same-thread continuation after Codex local compaction is not supported.
+The provider contract is pinned in the
 [wire lock](../tests/interactions/wire-lock.json). The [opaque probe](../tests/codex/opaque_continuation.py)
 tests the pinned Codex using synthetic Responses providers, not Gemini or encryption.
 
@@ -36,9 +38,12 @@ history. A missing execution record, pending attempt or unknown outcome does not
 The host must reconcile uncertain work explicitly; never silently resend inference.
 
 The host creates sessions and registers local compaction through a separately
-authenticated loopback control interface. Compaction starts a new epoch from checked
-portable history and completed tool results. It must not claim preservation of lost
-provider state. New sessions are never inferred from missing database records.
+authenticated loopback control interface. Epoch transitions require checked portable
+history and completed tool results; they must not claim preservation of lost provider
+state. Codex 0.154.0 reinserts developer instructions after the compacted history.
+The instruction bridge rejects such mid-conversation instructions, so epoch controls
+alone do not provide a qualified compaction workflow. New sessions are never inferred
+from missing database records.
 
 ## Compatibility and acceptance
 

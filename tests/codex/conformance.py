@@ -73,6 +73,9 @@ structured_output="native"
 strict_structured_output="native"
 strict_tool_arguments="native"
 """
+    if api == "gemini_interactions":
+        import interactions_harness
+        return interactions_harness.route(json.loads(runtime.LOCK.read_text())["version"])
     if api == "chat_completions":
         route = route.replace('api="messages"', 'api="chat_completions"').replace('auth="api_key"', 'auth="bearer"').replace('messages_version="2023-06-01"\n', '').replace('instruction_hierarchy="bridged_instruction_envelope"', 'instruction_hierarchy="native"').replace("synthetic-messages", "synthetic-chat")
     return route
@@ -257,6 +260,9 @@ class Scenario:
         self.tool_contracts = set()
 
     def response(self, body):
+        if self.api == "gemini_interactions":
+            import interactions_harness
+            return interactions_harness.respond(self,body)
         if self.api != "responses":
             return converted_response(self, body)
         self.requests += 1
@@ -309,8 +315,10 @@ class UpstreamHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         state = self.server.scenario
         try:
-            require(self.path == {"messages":"/v1/messages", "chat_completions":"/v1/chat/completions", "responses":"/v1/responses"}[state.api], "unexpected upstream endpoint")
-            if state.api == "messages":
+            require(self.path == {"messages":"/v1/messages", "chat_completions":"/v1/chat/completions", "responses":"/v1/responses", "gemini_interactions":"/v1/interactions"}[state.api], "unexpected upstream endpoint")
+            if state.api == "gemini_interactions":
+                require(self.headers.get("x-goog-api-key") == "synthetic-upstream-key" and self.headers.get("Authorization") is None, "Interactions authentication differs")
+            elif state.api == "messages":
                 require(self.headers.get("x-api-key") == "synthetic-upstream-key" and self.headers.get("Authorization") is None, "Messages credential selection differs")
                 require(self.headers.get("anthropic-version") == "2023-06-01", "Messages version header differs")
             else:
@@ -329,7 +337,10 @@ class UpstreamHandler(BaseHTTPRequestHandler):
             state.started.set()
             if state.name.startswith("cancellation"):
                 # Synchronize cancellation with client-observed output, not server writes.
-                if state.api == "messages":
+                if state.api == "gemini_interactions":
+                    import interactions_harness as ih
+                    partial_frames=[ih.event("step.start",index=0,step={"type":"model_output"}), ih.event("step.delta",index=0,delta={"type":"text","text":"Synthetic partial."})]
+                elif state.api == "messages":
                     partial_frames = [
                         event("content_block_start", index=0, content_block={"type":"text","text":""}),
                         event("content_block_delta", index=0, delta={"type":"text_delta","text":"Synthetic partial."}),
@@ -349,6 +360,8 @@ class UpstreamHandler(BaseHTTPRequestHandler):
                 while not state.stop.wait(0.05):
                     if state.name == "cancellation_heartbeat":
                         frame = b": synthetic keepalive\n\n"
+                    elif state.api == "gemini_interactions":
+                        frame=ih.event("step.delta",index=0,delta={"type":"text","text":" synthetic"})
                     elif state.api == "messages":
                         frame = event("content_block_delta", index=0, delta={"type":"text_delta","text":" synthetic"})
                     else:
@@ -444,11 +457,17 @@ def run_scenario(name, binary, gateway_binary, api="responses"):
         config.write_text(f'listen="127.0.0.1:0"\n[providers.mock]\nbase_url="http://127.0.0.1:{server.server_port}/v1"\napi_key_env="ARG_MOCK_KEY"\n[models."gpt-5.4"]\nprovider="mock"\nupstream_model="synthetic-model"\n')
         if api != "responses":
             config.write_text(config.read_text() + converted_route(api))
+        if api == "gemini_interactions":
+            import interactions_harness as ih
+            host_token=ih.setup(root,gateway_binary,config,gateway_env)
         manifest = embedded_contract.inspect_manifest(gateway_binary, config, env)
         gateway = subprocess.Popen([str(gateway_binary), "serve", "--config", str(config)], env=gateway_env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
         cleanup.callback(stop_process, gateway)
         ready = embedded_contract.read_ready(gateway, manifest)
         (home / "config.toml").write_text(f'model="gpt-5.4"\nmodel_provider="gateway"\nweb_search="disabled"\nmodel_context_window=32768\nmodel_auto_compact_token_limit=24576\n[model_providers.gateway]\nname="Synthetic gateway"\nbase_url="{ready["base_url"]}"\nwire_api="responses"\nenv_key="ARG_CODEX_TEST_TOKEN"\nrequires_openai_auth=false\nsupports_websockets=false\nrequest_max_retries=0\nstream_max_retries=0\n')
+        if api == "gemini_interactions":
+            session=ih.create_session(ready["base_url"],host_token,manifest)
+            with (home/"config.toml").open("a") as f:f.write("http_headers="+json.dumps({"x-gateway-session":session["id"]}).replace(": "," = ")+"\n")
         codex_env = {**env, "HOME": str(home), "CODEX_HOME": str(home), "ARG_CODEX_TEST_TOKEN": token}
         embedded_contract.validate_credential_split(manifest, gateway_env, codex_env, "ARG_CODEX_TEST_TOKEN", home)
         profile_digest = None
@@ -506,7 +525,7 @@ def run_scenario(name, binary, gateway_binary, api="responses"):
             elif method == "turn/completed":
                 final = message["params"]["turn"]["status"]
                 if name == "text_followup" and state.requests == 1:
-                    require(final == "completed", "first text turn did not complete")
+                    require(final == "completed", f"first text turn did not complete (requests={state.requests})")
                     rpc.call("turn/start", {"threadId": thread_id, "input": [{"type":"text","text":"Continue the synthetic fixture."}]})
                     continue
                 break
@@ -514,7 +533,7 @@ def run_scenario(name, binary, gateway_binary, api="responses"):
                 raise AssertionError("unexpected server request")
         turn_elapsed_ms = round((time.monotonic() - turn_started) * 1000, 3)
         expected = "interrupted" if name.startswith("cancellation") else "failed" if name in {"transport_failure", "grammar_failure"} else "completed"
-        require(final == expected, "unexpected final turn status")
+        require(final == expected, f"unexpected final turn status (requests={state.requests}, calls={calls})")
         require(not state.errors, "mock upstream validation failed")
         if name == "output_controls":
             require(json.loads(final_text) == {"answer":"synthetic"} and state.requests == 1, "explicit schema output did not reach Codex")
@@ -553,11 +572,12 @@ def run_scenario(name, binary, gateway_binary, api="responses"):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--gateway-bin", type=Path, default=ROOT / "target/debug/agent-response-gateway")
-    parser.add_argument("--api", choices=("responses", "messages", "chat_completions"), action="append")
+    parser.add_argument("--codex-bundle", type=Path, default=runtime.BUNDLE)
+    parser.add_argument("--api", choices=("responses", "messages", "chat_completions", "gemini_interactions"), action="append")
     parser.add_argument("--scenario", choices=("text", "function_tool", "namespace_tool", "custom_patch", "approval_denial", "cancellation", "cancellation_heartbeat", "transport_failure", "parallel_tools", "grammar_failure", "text_followup", "output_controls", "mixed_tool_text"), action="append")
     args = parser.parse_args()
     lock = json.loads(runtime.LOCK.read_text())
-    binary = runtime.verify_bundle(runtime.BUNDLE, lock)
+    binary = runtime.verify_bundle(args.codex_bundle, lock)
     failures = 0
     for api in args.api or ["responses", "messages", "chat_completions"]:
         scenarios = args.scenario or ["text", "function_tool", "namespace_tool", "custom_patch", "approval_denial", "cancellation", "cancellation_heartbeat", "transport_failure", "output_controls"]

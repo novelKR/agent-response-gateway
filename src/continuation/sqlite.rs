@@ -113,9 +113,19 @@ impl SqliteStore {
             "PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON;",
         )
         .map_err(sql)?;
+        let page_size: i64 = db
+            .query_row("PRAGMA page_size", [], |r| r.get(0))
+            .map_err(sql)?;
+        db.pragma_update(
+            None,
+            "max_page_count",
+            i64::try_from(limit).map_err(|_| Error("store limit"))? / page_size,
+        )
+        .map_err(sql)?;
         if initialize {
             db.execute_batch("BEGIN IMMEDIATE;
           CREATE TABLE metadata (schema TEXT NOT NULL, identity TEXT NOT NULL);
+          CREATE TABLE protection (singleton INTEGER PRIMARY KEY CHECK(singleton=1), fingerprint TEXT NOT NULL);
           CREATE TABLE sessions (id TEXT PRIMARY KEY, value TEXT NOT NULL);
           CREATE TABLE attempts (id TEXT PRIMARY KEY, session TEXT NOT NULL REFERENCES sessions(id), epoch INTEGER NOT NULL, input_digest TEXT NOT NULL, status TEXT NOT NULL, reserve INTEGER NOT NULL, UNIQUE(session,epoch,input_digest));
           CREATE TABLE records (id TEXT PRIMARY KEY REFERENCES attempts(id), digest TEXT NOT NULL, envelope TEXT);
@@ -170,6 +180,26 @@ impl SqliteStore {
     }
 }
 impl ContinuationStore for SqliteStore {
+    fn bind_protection(&mut self, fingerprint: &str) -> Result<()> {
+        let tx = self.db.transaction().map_err(sql)?;
+        let saved: Option<String> = tx
+            .query_row(
+                "SELECT fingerprint FROM protection WHERE singleton=1",
+                [],
+                |r| r.get(0),
+            )
+            .optional()
+            .map_err(sql)?;
+        match saved {
+            Some(saved) if saved != fingerprint => return Err(Error("protection binding changed")),
+            None => {
+                tx.execute("INSERT INTO protection VALUES(1,?1)", [fingerprint])
+                    .map_err(sql)?;
+            }
+            _ => {}
+        }
+        tx.commit().map_err(sql)
+    }
     fn create(&mut self, origin: &Origin) -> Result<Session> {
         origin.validate()?;
         let s = Session {
@@ -179,6 +209,7 @@ impl ContinuationStore for SqliteStore {
             origin: origin.clone(),
             status: "ready".into(),
             head: None,
+            pending_tools: false,
             portable_sha256: None,
         };
         self.db
@@ -248,7 +279,14 @@ impl ContinuationStore for SqliteStore {
         tx.commit().map_err(sql)?;
         Ok(attempt)
     }
-    fn finalize(&mut self, id: &str, attempt: &str, digest: &str, envelope: &str) -> Result<()> {
+    fn finalize(
+        &mut self,
+        id: &str,
+        attempt: &str,
+        digest: &str,
+        envelope: &str,
+        pending_tools: bool,
+    ) -> Result<()> {
         let tx = self.db.transaction().map_err(sql)?;
         let mut s = load(&tx, id)?;
         let reserve:i64=tx.query_row("SELECT reserve FROM attempts WHERE id=?1 AND session=?2 AND epoch=?3 AND status='pending'",params![attempt,id,s.epoch],|r|r.get(0)).map_err(sql)?;
@@ -274,6 +312,7 @@ impl ContinuationStore for SqliteStore {
         }
         .into();
         s.head = Some(attempt.into());
+        s.pending_tools = pending_tools;
         s.revision += 1;
         save(&tx, &s)?;
         tx.commit().map_err(sql)?;
@@ -316,7 +355,7 @@ impl ContinuationStore for SqliteStore {
             return Err(Error("transition conflict"));
         }
         match kind {
-            "compact_begin" if s.status == "ready" => {
+            "compact_begin" if s.status == "ready" && !s.pending_tools => {
                 s.status = "compacting".into();
             }
             "compact_commit" if s.status == "awaiting_compaction" => {
@@ -325,6 +364,7 @@ impl ContinuationStore for SqliteStore {
                 }
                 s.epoch += 1;
                 s.head = None;
+                s.pending_tools = false;
                 s.portable_sha256 = portable.map(str::to_owned);
                 s.status = "ready".into();
             }
@@ -334,6 +374,7 @@ impl ContinuationStore for SqliteStore {
                 }
                 s.epoch += 1;
                 s.head = None;
+                s.pending_tools = false;
                 s.portable_sha256 = portable.map(str::to_owned);
                 s.status = "ready".into();
             }
