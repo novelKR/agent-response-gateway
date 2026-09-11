@@ -52,6 +52,7 @@ pub enum UpstreamAuth {
     #[default]
     Bearer,
     ApiKey,
+    GoogleApiKey,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize)]
@@ -62,6 +63,7 @@ pub enum DeclaredSupport {
     BridgedToolNamespace,
     BridgedCodexPatchGrammar,
     BridgedInstructionEnvelope,
+    BridgedGeminiInstructionEnvelope,
     Unsupported,
 }
 
@@ -95,6 +97,9 @@ impl ModelProfile {
                             DeclaredSupport::Native => Support::Native,
                             DeclaredSupport::BridgedCustomToolJson => {
                                 Support::Bridged(BridgeRule::CustomToolJson)
+                            }
+                            DeclaredSupport::BridgedGeminiInstructionEnvelope => {
+                                Support::Bridged(BridgeRule::GeminiInstructionEnvelope)
                             }
                             DeclaredSupport::BridgedInstructionEnvelope => {
                                 Support::Bridged(BridgeRule::MessagesInstructionEnvelope)
@@ -287,7 +292,12 @@ impl Config {
                 if !version.is_empty()
                     && version.len() <= 128
                     && version.bytes().all(|b| b.is_ascii_graphic()) => {}
-            (None, ApiProtocol::Responses | ApiProtocol::ChatCompletions) => {}
+            (
+                None,
+                ApiProtocol::Responses
+                | ApiProtocol::ChatCompletions
+                | ApiProtocol::GeminiInteractions,
+            ) => {}
             _ => {
                 return Err(ConfigError(
                     "messages_version is required only for Messages routes".into(),
@@ -323,6 +333,7 @@ impl Provider {
             ApiProtocol::Responses => "responses",
             ApiProtocol::Messages => "messages",
             ApiProtocol::ChatCompletions => "chat/completions",
+            ApiProtocol::GeminiInteractions => "interactions",
         };
         let path = format!("{}/{endpoint}", url.path().trim_end_matches('/'));
         url.set_path(&path);

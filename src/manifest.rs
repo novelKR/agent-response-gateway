@@ -57,6 +57,9 @@ impl Config {
                         .to_owned();
                     let value = match support {
                         Support::Native => "native",
+                        Support::Bridged(BridgeRule::GeminiInstructionEnvelope) => {
+                            "bridged_gemini_instruction_envelope"
+                        }
                         Support::Bridged(BridgeRule::CustomToolJson) => "bridged_custom_tool_json",
                         Support::Bridged(BridgeRule::ToolNamespace) => "bridged_tool_namespace",
                         Support::Bridged(BridgeRule::CodexPatchGrammar) => {

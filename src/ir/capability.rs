@@ -40,6 +40,7 @@ pub enum BridgeRule {
     ToolNamespace,
     CodexPatchGrammar,
     MessagesInstructionEnvelope,
+    GeminiInstructionEnvelope,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Support {
@@ -69,6 +70,9 @@ impl CapabilityProfile {
                     if *feature == Feature::NamespacedTools => {}
                 Support::Bridged(BridgeRule::CodexPatchGrammar)
                     if *feature == Feature::CustomGrammar => {}
+                Support::Bridged(BridgeRule::GeminiInstructionEnvelope)
+                    if *feature == Feature::InstructionHierarchy
+                        && self.protocol == ApiProtocol::GeminiInteractions => {}
                 Support::Bridged(BridgeRule::MessagesInstructionEnvelope)
                     if *feature == Feature::InstructionHierarchy
                         && self.protocol == ApiProtocol::Messages => {}
@@ -332,8 +336,11 @@ pub fn plan_translation(
         }
         match route.capabilities.support(feature) {
             Support::Native => {}
-            Support::Bridged(BridgeRule::MessagesInstructionEnvelope) => {
-                bridges.push(BridgeRule::MessagesInstructionEnvelope);
+            Support::Bridged(
+                rule @ (BridgeRule::MessagesInstructionEnvelope
+                | BridgeRule::GeminiInstructionEnvelope),
+            ) => {
+                bridges.push(rule);
             }
             Support::Bridged(
                 rule @ (BridgeRule::CustomToolJson
