@@ -72,6 +72,11 @@ jobs:
       - run: cargo +1.98.0 clippy --all-targets --locked -- -D warnings
       - run: cargo +1.98.0 test --locked
       - run: cargo +1.98.0 build --locked
+      - name: Build the optional native observer example
+        run: cargo +1.98.0 build --locked --example metadata_observer
+      - name: Exercise extension installation, supervision and isolation
+        if: runner.os != 'Windows'
+        run: python -B scripts/extension_smoke.py --binary target/debug/agent-response-gateway --observer target/debug/examples/metadata_observer
       - name: Exercise native CLI, three protocols and graceful shutdown
         env:
           GATEWAY_EXECUTABLE: ${{ matrix.executable }}
