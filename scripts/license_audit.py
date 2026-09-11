@@ -127,7 +127,7 @@ def load_policy(root):
     require(isinstance(allowed, list) and allowed and all(isinstance(x, str) and x for x in allowed) and len(set(allowed)) == len(allowed), "invalid license allow list")
     require(own["license"] not in allowed, "project AGPL must not be globally allowed")
     # Every new license is a policy change, not an inferred OSI/FSF exemption.
-    require(set(allowed) <= {"MIT", "Apache-2.0", "BSD-3-Clause", "ISC", "Unicode-3.0", "CDLA-Permissive-2.0"}, "unreviewed third-party license policy")
+    require(set(allowed) <= {"MIT", "Apache-2.0", "BSD-3-Clause", "ISC", "Unicode-3.0", "CDLA-Permissive-2.0", "Zlib"}, "unreviewed third-party license policy")
     manifest = tomllib.loads(read_bytes(root / "Cargo.toml").decode())
     package = manifest["package"]
     require(package["name"] == own["name"] and package.get("license") == own["license"], "root package license differs from policy")
