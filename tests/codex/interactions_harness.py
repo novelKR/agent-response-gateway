@@ -104,7 +104,7 @@ def respond(state,body):
 
     if getattr(state,'editing',False) and not getattr(state,'normalization',False) and state.requests==2 and state.name in {'custom_patch','approval_denial'}:
         calls=[s for s in input_steps if s.get('type')=='function_call' and s.get('id')=='call_fixture']
-        base.require(len(calls)==1 and calls[0]['name'].startswith('arg_edit_') and calls[0]['arguments']=={'path':'fixture.txt','before_context':[],'old_lines':['synthetic-old'],'new_lines':['synthetic-content'],'after_context':[]},'structured native history changed')
+        base.require(len(calls)==1 and calls[0]['name'].startswith('arg_edit_') and calls[0]['arguments']==__import__('editing_fixture').edit_input(getattr(state,'operations',False),file_conflict=getattr(state,'file_conflict',False)),'structured native history changed')
     if state.requests==2:
         base.require(any(s.get('type')=='thought' and s.get('signature')=='synthetic-signature-1' for s in input_steps),'provider thought not replayed')
         if state.name!='text_followup':
@@ -135,6 +135,6 @@ def respond(state,body):
     else:blocks=[{'type':'model_output','content':[{'type':'text','text':base.CONTROL_TEXT if state.name=='output_controls' else 'Synthetic complete.'}]}]
     if getattr(state,'editing',False) and not getattr(state,'normalization',False) and state.name in {'custom_patch','approval_denial','grammar_failure'} and state.requests==1:
         from editing_fixture import block
-        edit=block([{'name':t['name'],'input_schema':t['parameters']} for t in body['tools']], invalid=state.name=='grammar_failure')
+        edit=block([{'name':t['name'],'input_schema':t['parameters']} for t in body['tools']], invalid=state.name=='grammar_failure',operations=getattr(state,'operations',False),file_conflict=getattr(state,'file_conflict',False))
         blocks=[{'type':'function_call','id':edit['id'],'name':edit['name'],'arguments':edit['input']}]
     return frames([{'type':'thought','signature':f'synthetic-signature-{state.requests}'}]+blocks,state.requests)

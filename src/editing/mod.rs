@@ -1,4 +1,7 @@
 //! Opt-in pure editing representations. File access and execution belong to the host.
+mod operations;
+pub use operations::{Operation, OperationBundle};
+
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
@@ -25,6 +28,8 @@ pub enum ClientContract {
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Representation {
+    #[serde(rename = "operations/v1")]
+    Operations,
     #[serde(rename = "patch-text/v1")]
     PatchText,
     #[serde(rename = "context-lines/v1")]
@@ -314,4 +319,28 @@ pub fn normalize_patch_envelope(text: &str) -> Result<NormalizedPatch<'_>, IrErr
         text: Cow::Owned(corrected),
         applied_rule: Some("patch-envelope/v1"),
     })
+}
+
+impl Representation {
+    pub(crate) fn compile(self, raw: &str) -> Result<String, IrError> {
+        match self {
+            Self::ContextLines => ContextEdit::from_json(raw)?.compile(),
+            Self::Operations => OperationBundle::from_json(raw)?.compile(),
+            Self::PatchText => Err(invalid()),
+        }
+    }
+    pub(crate) fn decode(self, patch: &str) -> Result<String, IrError> {
+        match self {
+            Self::ContextLines => serde_json::to_string(&ContextEdit::from_patch(patch)?),
+            Self::Operations => serde_json::to_string(&OperationBundle::from_patch(patch)?),
+            Self::PatchText => return Err(invalid()),
+        }
+        .map_err(|_| invalid())
+    }
+    pub(crate) fn schema(self) -> Value {
+        match self {
+            Self::Operations => OperationBundle::schema(),
+            _ => ContextEdit::schema(),
+        }
+    }
 }

@@ -305,3 +305,7 @@ checked HTTP admission and terminal validation limits.
 Explicit [editing compatibility](editing-design.md) additionally admits the pinned
 Code Mode text-part result contract. It preserves the whole program result through
 a selected bridge; unrelated structured tool results remain unsupported.
+
+The selected editing contract also supports deterministic context edits, independent
+operation bundles and direct patch envelope normalization. See the editing contract
+for required inputs and limits; the host owns file matching and execution results.

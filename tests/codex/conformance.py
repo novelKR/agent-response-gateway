@@ -212,7 +212,7 @@ def converted_response(state, body):
         require(any(r.get("role") == "developer" for r in records) and all(r.get("role") in {"protocol_default", "developer", "system"} for r in records), "instruction provenance changed")
     if getattr(state, "editing", False) and not getattr(state,"normalization",False) and state.requests == 2 and state.name in {"custom_patch", "approval_denial"}:
         calls = [b for m in body["messages"] if m["role"] == "assistant" for b in m["content"] if b.get("type") == "tool_use" and b.get("id") == "call_fixture"]
-        require(len(calls) == 1 and calls[0]["name"].startswith("arg_edit_") and calls[0]["input"] == {"path":"fixture.txt","before_context":[],"old_lines":["synthetic-old"],"new_lines":["synthetic-content"],"after_context":[]}, "structured history changed")
+        require(len(calls) == 1 and calls[0]["name"].startswith("arg_edit_") and calls[0]["input"] == __import__("editing_fixture").edit_input(getattr(state,"operations",False),file_conflict=getattr(state,"file_conflict",False)), "structured history changed")
     if state.requests == 2:
         if state.name == "text_followup":
             require(any(m.get("role") == "assistant" and any(b.get("text") == "Synthetic complete." for b in m["content"]) for m in body["messages"]), "prior assistant text is missing")
@@ -263,7 +263,7 @@ def converted_response(state, body):
         blocks = [{"type":"text","text":"Synthetic complete."}]
     if getattr(state, "editing", False) and not getattr(state,"normalization",False) and state.name in {"custom_patch", "approval_denial", "grammar_failure"}:
         from editing_fixture import block
-        blocks = [block(body["tools"], invalid=state.name == "grammar_failure")]
+        blocks = [block(body["tools"], invalid=state.name == "grammar_failure", operations=getattr(state,"operations",False), file_conflict=getattr(state,"file_conflict",False))]
     if state.name == "mixed_tool_text":
         blocks.append({"type":"text","text":"Synthetic after tool."})
     if state.name == "output_controls":
@@ -474,7 +474,7 @@ def stop_process(process):
             stream.close()
 
 
-def run_scenario(name, binary, gateway_binary, api="responses", managed_contract=None, native_custom=False, profile_packs=False, codec_binary=None, editing=False, code_mode=False, normalization=False):
+def run_scenario(name, binary, gateway_binary, api="responses", managed_contract=None, native_custom=False, profile_packs=False, codec_binary=None, editing=False, code_mode=False, normalization=False, operations=False, file_conflict=False):
     local = ROOT / ".local/conformance"
     local.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix=name + "-", dir=local) as temporary, contextlib.ExitStack() as cleanup:
@@ -484,11 +484,16 @@ def run_scenario(name, binary, gateway_binary, api="responses", managed_contract
         home = root / "codex-home"
         home.mkdir()
         state = Scenario(name, workspace, api)
+        state.operations = operations
+        state.file_conflict = file_conflict
         state.normalization = normalization
         state.code_mode = code_mode
         state.editing = editing
         if editing and not normalization and name in {"custom_patch", "approval_denial"}:
             (workspace / "fixture.txt").write_text("synthetic-old\n")
+        if operations:
+            for path, content in [('deleted.txt','synthetic-delete'),('source.txt','synthetic-moved')]:
+                (workspace/path).write_text(content+'\n')
         state.native_custom=native_custom
         state.native_custom_names=set()
         state.managed_contract=managed_contract
@@ -515,6 +520,7 @@ def run_scenario(name, binary, gateway_binary, api="responses", managed_contract
         if editing:
             from editing_fixture import configure
             config.write_text(configure(config.read_text(), code_mode=code_mode).replace('normalization="none"', 'normalization="patch-envelope/v1"').replace('representation="context-lines/v1"','representation="patch-text/v1"') if normalization else configure(config.read_text(), code_mode=code_mode))
+            if operations: config.write_text(config.read_text().replace('representation="context-lines/v1"','representation="operations/v1"'))
             if name == "contract_failure":
                 raw=config.read_text();lines=raw.splitlines();lines=[('client_descriptor_sha256="'+'0'*64+'"') if line.startswith('client_descriptor_sha256=') else line for line in lines];config.write_text('\n'.join(lines)+'\n')
         gateway_args = ["--config", str(config)]
@@ -636,7 +642,9 @@ def run_scenario(name, binary, gateway_binary, api="responses", managed_contract
             require(calls == 0 and approvals == 0 and not (workspace / "fixture.txt").exists(), "invalid grammar reached tool execution")
             require(state.requests == 1, "failed grammar request was retried")
         elif name == "custom_patch":
-            require((workspace / "fixture.txt").read_text() == "synthetic-content\n", "custom patch was not applied correctly")
+            require((workspace / "fixture.txt").read_text() == ("synthetic-old\n" if file_conflict else "synthetic-content\n"), "custom patch result differs")
+            if operations and not file_conflict:
+                require((workspace/'created.txt').read_text()=='synthetic-created\n' and not (workspace/'deleted.txt').exists() and not (workspace/'source.txt').exists() and (workspace/'moved.txt').read_text()=='synthetic-moved\n','independent operations differ')
             require(state.result_seen and state.requests == 2, "custom tool result did not return")
         elif name == "approval_denial":
             require(approvals == 1 and ((workspace / "fixture.txt").read_text() == "synthetic-old\n" if editing and not normalization else not (workspace / "fixture.txt").exists()), "approval denial did not prevent the action")
@@ -648,6 +656,11 @@ def run_scenario(name, binary, gateway_binary, api="responses", managed_contract
         else:
             require(state.requests == 1, "unexpected extra model request")
         result = {"api": api, "scenario": name, "status": "passed", "turn_status": final, "upstream_requests": state.requests, "dynamic_calls": calls, "denied_approvals": approvals}
+        if operations:
+            result['operations']=True
+            result['file_conflict']=file_conflict
+            if name=='approval_denial':
+                require(not (workspace/'created.txt').exists() and (workspace/'deleted.txt').exists() and (workspace/'source.txt').exists() and not (workspace/'moved.txt').exists(),'denied bundle changed files')
         result["turn_elapsed_ms"] = turn_elapsed_ms
         if managed_contract:
             result["reasoning_contract"]=managed_contract
