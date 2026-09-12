@@ -73,7 +73,7 @@ impl Config {
                     (key, json!(value))
                 })
                 .collect();
-            routes.push(json!({
+            let mut route_projection = json!({
                 "alias":route.alias,"provider_id":snapshot.provider_id,"endpoint":route.endpoint.as_str(),
                 "upstream_model":snapshot.model,"api":snapshot.api,"auth":route.auth,
                 "api_key_env":self.providers[&snapshot.provider_id].api_key_env,
@@ -82,7 +82,13 @@ impl Config {
                     "protocol":snapshot.capabilities.protocol,"support":support},
                 "context_window":snapshot.context_window,"max_output_tokens":snapshot.max_output_tokens,
                 "tested_codex_version":route.tested_codex_version,
-            }));
+            });
+            if snapshot.api == crate::ir::ApiProtocol::GeminiInteractions {
+                route_projection["wire_contract_sha256"] =
+                    json!("5aad40046c3245d672393942f1554e35a293179d145ce8e6e2aad08bbc79ceb4");
+                route_projection["wire_contract_version"] = json!("v1");
+            }
+            routes.push(route_projection);
         }
         // Existing serve requires credentials for every configured provider, including unused ones.
         let credentials: std::collections::BTreeMap<_, _> = self
@@ -90,11 +96,16 @@ impl Config {
             .iter()
             .map(|(id, p)| (id, &p.api_key_env))
             .collect();
-        let configuration = sorted(
+        let mut configuration = sorted(
             json!({"listen":self.listen.to_string(),"source_url":self.source_url,
             "local_token_env":self.local_token_env,"upstream_credential_references":credentials,
             "limits":self.limits,"routes":routes}),
         );
+        if let Some(c) = &self.continuation {
+            configuration["continuation"] =
+                serde_json::to_value(c).expect("continuation configuration");
+            configuration = sorted(configuration);
+        }
         let bytes = serde_json::to_vec(&configuration)
             .expect("normalized configuration contains JSON values");
         let configuration_sha256 = sha256(&bytes)
@@ -102,7 +113,11 @@ impl Config {
             .map(|byte| format!("{byte:02x}"))
             .collect();
         Ok(EmbeddedManifest {
-            schema: MANIFEST_SCHEMA,
+            schema: if self.continuation.is_some() {
+                "gateway-embedded-manifest/v2"
+            } else {
+                MANIFEST_SCHEMA
+            },
             package: Package {
                 name: env!("CARGO_PKG_NAME"),
                 version: env!("CARGO_PKG_VERSION"),

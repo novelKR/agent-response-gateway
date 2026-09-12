@@ -9,8 +9,11 @@
 
 [English](../interactions-design.md) | [한국어](interactions-design.md)
 
-이 문서는 단계적으로 구현할 Interactions 계약이다. 현재 런타임은 Interactions
-경로를 활성화하지 않는다. 제공자 계약은 [wire lock](../../tests/interactions/wire-lock.json)에
+런타임은 명시적으로 활성화하는 Interactions 경로와 SQLite 영속
+continuation을 제공한다. 호스트가 생성한 세션과 별도의 보호·제어 자격 증명이
+필요하다. 로컬 압축 후 호스트가 검증된 이동 가능 맥락을 새 Codex 작업으로
+옮기고 새 continuation epoch를 명시적으로 활성화한다.
+제공자 계약은 [wire lock](../../tests/interactions/wire-lock.json)에
 고정한다. [opaque probe](../../tests/codex/opaque_continuation.py)는 합성 Responses
 제공자와 고정 Codex를 시험하며 Gemini나 암호화 구현을 검증하지 않는다.
 
@@ -36,8 +39,13 @@ finalized 기록이 있으면 인증된 클라이언트 이력으로 누락 payl
 호스트가 불확실한 작업을 명시적으로 정리하며 모델 호출을 조용히 반복하지 않는다.
 
 호스트는 별도 인증을 사용하는 loopback 제어 인터페이스에서 세션을 생성하고
-로컬 압축을 등록한다. 검증된 이동 가능 이력과 완료 도구 결과로 새 epoch를 만든다.
-잃어버린 제공자 상태가 보존됐다고 주장하지 않는다.
+로컬 압축을 등록한다. epoch 전이에는 검증된 이동 가능 이력과 완료 도구 결과가
+필요하며, 잃어버린 제공자 상태가 보존됐다고 주장하지 않는다. Codex 0.154.0은
+압축된 이력 뒤에 developer 지시를 다시 삽입한다. 지시 bridge는 대화 중간 지시를
+거부한다. 호스트는 원래 작업을 보존하고 요약·완료 도구 결과를 검증한 뒤 새 작업의
+이동 가능 사용자 메시지 하나에 담는다. 이 메시지의 정규 digest를 새 epoch에
+기록한다. 게이트웨이는 해당 메시지가 정확히 한 번 있는지 확인하고 새 작업의
+선행 지시를 받아들이며, 후속 턴부터 전체 입력 prefix를 인증한다.
 데이터베이스 기록이 없다는 이유로 새 세션을 추정하지 않는다.
 
 ## 호환성과 수락

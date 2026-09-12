@@ -22,6 +22,7 @@ pub(crate) struct GatewayState {
     pub secrets: Secrets,
     pub client: reqwest::Client,
     pub slots: Arc<Semaphore>,
+    pub continuation: Option<crate::continuation::Runtime>,
 }
 
 #[derive(Clone)]
@@ -47,7 +48,16 @@ pub fn router_with_observers(
         .pool_max_idle_per_host(config.limits.max_in_flight)
         .build()
         .map_err(|_| ConfigError("Cannot construct upstream HTTP client".into()))?;
+    let continuation = config
+        .continuation
+        .as_ref()
+        .map(|c| c.start(&secrets))
+        .transpose()?;
+    let control = continuation
+        .as_ref()
+        .map(|(r, t)| crate::continuation::control::router(r.clone(), t.clone()));
     let state = Arc::new(GatewayState {
+        continuation: continuation.map(|(r, _)| r),
         slots: Arc::new(Semaphore::new(config.limits.max_in_flight)),
         config,
         secrets,
@@ -75,6 +85,7 @@ pub fn router_with_observers(
             )
         })
         .with_state(state)
+        .merge(control.unwrap_or_default())
         .layer(middleware::from_fn_with_state(observers, audit)))
 }
 

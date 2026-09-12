@@ -17,11 +17,7 @@ use std::collections::{BTreeMap, BTreeSet};
 mod stream;
 pub use stream::InteractionsStream;
 
-/// Provider replay segments are populated only after the transport verifies continuation.
-#[derive(Default)]
-pub struct ProviderHistory {
-    pub(crate) segments: BTreeMap<usize, (usize, Vec<Value>)>,
-}
+pub use crate::ir::continuity::VerifiedProviderHistory as ProviderHistory;
 pub struct PreparedInteractions {
     pub payload: Value,
     model: String,
@@ -71,7 +67,7 @@ fn schema(value: &Value, depth: usize) -> Result<(), IrError> {
                 }
             }
             "enum" => {
-                if !v.is_array() {
+                if !v.as_array().is_some_and(|a| !a.is_empty()) {
                     return Err(unsupported());
                 }
             }
@@ -92,6 +88,9 @@ fn schema(value: &Value, depth: usize) -> Result<(), IrError> {
             }
             "items" => schema(v, depth + 1)?,
             "anyOf" => {
+                if !v.as_array().is_some_and(|a| !a.is_empty()) {
+                    return Err(unsupported());
+                }
                 for child in v.as_array().ok_or(unsupported())? {
                     schema(child, depth + 1)?;
                 }
@@ -159,18 +158,20 @@ impl PreparedInteractions {
             let mut position = 0;
             while position < items.len() {
                 if let Some((end, steps)) = history.segments.get(&position) {
-                    if *end <= position || *end > items.len() {
+                    if *end < position || *end > items.len() {
                         return Err(IrError::InvalidToolMapping);
                     }
                     // The public call entries remain available for result identity validation.
                     for item in &items[position..*end] {
                         if let Item::ToolCall(c) = item {
-                            pending.insert(c.call_id.clone(), c);
+                            pending.insert(c.call_id.clone(), (c, true));
                         }
                     }
                     input.extend(steps.clone());
-                    position = *end;
-                    continue;
+                    if *end > position {
+                        position = *end;
+                        continue;
+                    }
                 }
                 match &items[position] {
                     Item::Message(m) if matches!(m.role, Role::System | Role::Developer) => {
@@ -195,19 +196,38 @@ impl PreparedInteractions {
                         if !args.is_object() {
                             return Err(IrError::InvalidJsonArguments);
                         }
-                        pending.insert(c.call_id.clone(), c);
+                        pending.insert(c.call_id.clone(), (c, false));
                         input.push(json!({"type":"function_call","id":c.call_id.as_str(),"name":lowered.tool.name,"arguments":args}));
                     }
                     Item::ToolResult(r) => {
-                        let call = pending
+                        let (call, authenticated) = pending
                             .remove(&r.call_id)
                             .ok_or(IrError::InvalidToolMapping)?;
-                        let result = registry.lower_result(r, call)?;
-                        input.push(json!({"type":"function_result","call_id":r.call_id.as_str(),"result":result.output}));
+                        // A compact request can omit tool declarations. The durable replay
+                        // already authenticated this exact call and its original kind.
+                        let result = if authenticated {
+                            let kind = match call.input {
+                                ToolInput::Json(_) => crate::ir::ToolKind::Function,
+                                ToolInput::Freeform(_) => crate::ir::ToolKind::Custom,
+                            };
+                            if r.kind != kind || !r.extensions.fields.is_empty() {
+                                return Err(IrError::InvalidToolMapping);
+                            }
+                            r.clone()
+                        } else {
+                            registry.lower_result(r, call)?
+                        };
+                        input.push(json!({"type":"function_result","call_id":r.call_id.as_str(),"result":tool_result(&result.output)?}));
                     }
                     _ => return Err(unsupported()),
                 }
                 position += 1;
+            }
+            if let Some((end, steps)) = history.segments.get(&items.len()) {
+                if *end != items.len() {
+                    return Err(IrError::InvalidToolMapping);
+                }
+                input.extend(steps.clone());
             }
         }
         if !pending.is_empty() {
@@ -225,10 +245,24 @@ impl PreparedInteractions {
                 .clone()
                 .unwrap_or(json!({"type":"object","properties":{},"additionalProperties":false}));
             schema(&parameters, 0)?;
-            tools.push(json!({"type":"function","name":t.identity.name,"description":t.description,"parameters":parameters}));
+            let mut tool =
+                json!({"type":"function","name":t.identity.name,"parameters":parameters});
+            if let Some(description) = &t.description {
+                tool["description"] = json!(description);
+            }
+            tools.push(tool);
         }
         let g = &request.generation;
-        if g.temperature.is_some() || g.top_p.is_some() || g.parallel_tool_calls == Some(false) {
+        if g.temperature.is_some()
+            || g.top_p.is_some()
+            || (g.parallel_tool_calls == Some(false) && !tools.is_empty())
+        {
+            return Err(unsupported());
+        }
+        if g.max_output_tokens
+            .or(plan.route.max_output_tokens)
+            .is_none_or(|n| n == 0 || n > i32::MAX as u64)
+        {
             return Err(unsupported());
         }
         let mut generation = json!({"max_output_tokens":g.max_output_tokens.or(plan.route.max_output_tokens).ok_or(unsupported())?,"thinking_summaries":"none"});
@@ -301,18 +335,16 @@ impl PreparedInteractions {
         known_fields(
             &value,
             &[
-                "id",
-                "object",
-                "model",
-                "status",
-                "steps",
-                "created",
-                "updated",
-                "usage",
-                "service_tier",
+                "id", "object", "model", "status", "steps", "created", "updated", "usage",
             ],
         )?;
-        if string(&value, "model")? != self.model || string(&value, "object")? != "interaction" {
+        if value
+            .get("model")
+            .is_some_and(|v| v.as_str() != Some(self.model.as_str()))
+            || value
+                .get("object")
+                .is_some_and(|v| v.as_str() != Some("interaction"))
+        {
             return Err(unsupported());
         }
         ItemId::new(string(&value, "id")?)?;
@@ -400,6 +432,14 @@ impl PreparedInteractions {
                         .filter(|v| v.is_object())
                         .ok_or(IrError::InvalidJsonArguments)?;
                     let id = ItemId::new(format!("{response_id}_{}", output.len()))?;
+                    let name = string(step, "name")?;
+                    let definition = self.payload["tools"]
+                        .as_array()
+                        .and_then(|tools| tools.iter().find(|t| t["name"] == name))
+                        .ok_or(IrError::InvalidToolMapping)?;
+                    if !schema_matches(&definition["parameters"], args) {
+                        return Err(IrError::InvalidJsonArguments);
+                    }
                     let c = self.tools.restore(
                         string(step, "name")?,
                         call_id,
@@ -437,6 +477,23 @@ impl PreparedInteractions {
         }
         self.tools
             .validate_count(calls.len(), status != "incomplete")?;
+        if status == "completed"
+            && let Some(schema) = self
+                .payload
+                .get("response_format")
+                .and_then(|f| f.get("schema"))
+        {
+            let text: String = output
+                .iter()
+                .filter_map(|item| item.get("content").and_then(Value::as_array))
+                .flatten()
+                .filter_map(|part| part.get("text").and_then(Value::as_str))
+                .collect();
+            let document = decode(text.as_bytes())?;
+            if !schema_matches(schema, &document) {
+                return Err(IrError::InvalidField("structured_output"));
+            }
+        }
         let usage = usage(value.get("usage"))?;
         validator.apply(EventIR::UsageUpdated(Usage {
             input_tokens: usage["input_tokens"].as_u64(),
@@ -510,4 +567,84 @@ fn usage(v: Option<&Value>) -> Result<Value, IrError> {
     Ok(
         json!({"input_tokens":input,"output_tokens":output,"total_tokens":total,"input_tokens_details":{"cached_tokens":cached},"output_tokens_details":{"reasoning_tokens":thought}}),
     )
+}
+
+fn tool_result(value: &Value) -> Result<Value, IrError> {
+    match value {
+        Value::String(_) | Value::Object(_) => Ok(value.clone()),
+        Value::Array(parts) => Ok(Value::Array(
+            parts
+                .iter()
+                .map(|part| {
+                    known_fields(part, &["type", "text"])?;
+                    if !matches!(string(part, "type")?, "input_text" | "output_text" | "text") {
+                        return Err(unsupported());
+                    }
+                    Ok(json!({"type":"text","text":string(part,"text")?}))
+                })
+                .collect::<Result<Vec<_>, IrError>>()?,
+        )),
+        _ => Err(unsupported()),
+    }
+}
+
+fn schema_matches(schema: &Value, value: &Value) -> bool {
+    if schema
+        .get("enum")
+        .and_then(Value::as_array)
+        .is_some_and(|a| !a.contains(value))
+        || schema
+            .get("anyOf")
+            .and_then(Value::as_array)
+            .is_some_and(|a| !a.iter().any(|s| schema_matches(s, value)))
+    {
+        return false;
+    }
+    if let Some(t) = schema.get("type").and_then(Value::as_str) {
+        let matches = match t {
+            "object" => value.is_object(),
+            "array" => value.is_array(),
+            "string" => value.is_string(),
+            "integer" => {
+                value.as_i64().is_some()
+                    || value.as_u64().is_some()
+                    || value.as_f64().is_some_and(|n| n.fract() == 0.0)
+            }
+            "number" => value.is_number(),
+            "boolean" => value.is_boolean(),
+            "null" => value.is_null(),
+            _ => false,
+        };
+        if !matches {
+            return false;
+        }
+    }
+    if let Some(object) = value.as_object() {
+        if schema
+            .get("required")
+            .and_then(Value::as_array)
+            .is_some_and(|required| {
+                required
+                    .iter()
+                    .any(|k| !object.contains_key(k.as_str().expect("validated schema")))
+            })
+        {
+            return false;
+        }
+        for (key, value) in object {
+            if let Some(child) = schema.get("properties").and_then(|p| p.get(key)) {
+                if !schema_matches(child, value) {
+                    return false;
+                }
+            } else if schema.get("additionalProperties") == Some(&Value::Bool(false)) {
+                return false;
+            }
+        }
+    }
+    if let (Some(items), Some(child)) = (value.as_array(), schema.get("items"))
+        && items.iter().any(|value| !schema_matches(child, value))
+    {
+        return false;
+    }
+    true
 }

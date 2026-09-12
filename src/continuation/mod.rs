@@ -45,6 +45,7 @@ pub struct Session {
     pub origin: Origin,
     pub status: String,
     pub head: Option<String>,
+    pub pending_tools: bool,
     pub portable_sha256: Option<String>,
 }
 #[derive(Clone, Serialize, Deserialize)]
@@ -56,12 +57,23 @@ pub struct Replay {
     pub origin: Origin,
     pub response: String,
     pub parent: Option<String>,
+    pub input_len: usize,
+    pub input_sha256: String,
+    pub provider_status: String,
     pub steps: Vec<Value>,
     pub output: Vec<Value>,
 }
 impl Replay {
     pub fn validate(&self) -> Result<()> {
-        if self.schema != SCHEMA || self.epoch <= 0 || self.steps.is_empty() {
+        if self.schema != SCHEMA
+            || self.epoch <= 0
+            || self.steps.is_empty()
+            || self.input_sha256.len() != 64
+            || !matches!(
+                self.provider_status.as_str(),
+                "completed" | "requires_action"
+            )
+        {
             return Err(Error("invalid replay"));
         }
         label(&self.session)?;
@@ -85,6 +97,7 @@ pub struct StoredReplay {
 /// Transactions are business operations rather than database-specific SQL primitives.
 /// PostgreSQL implementations must pass the same contract tests, including compare-and-set.
 pub trait ContinuationStore: Send {
+    fn bind_protection(&mut self, fingerprint: &str) -> Result<()>;
     fn create(&mut self, origin: &Origin) -> Result<Session>;
     fn session(&mut self, id: &str) -> Result<Session>;
     fn begin(
@@ -95,7 +108,14 @@ pub trait ContinuationStore: Send {
         input_digest: &str,
         reserve: u64,
     ) -> Result<String>;
-    fn finalize(&mut self, id: &str, attempt: &str, digest: &str, envelope: &str) -> Result<()>;
+    fn finalize(
+        &mut self,
+        id: &str,
+        attempt: &str,
+        digest: &str,
+        envelope: &str,
+        pending_tools: bool,
+    ) -> Result<()>;
     fn uncertain(&mut self, id: &str, attempt: &str) -> Result<()>;
     fn record(&mut self, id: &str) -> Result<StoredReplay>;
     fn repair(&mut self, id: &str, digest: &str, envelope: &str) -> Result<()>;
@@ -275,16 +295,100 @@ impl Runtime {
         .await
     }
     pub async fn finalize(&self, replay: Replay) -> Result<String> {
+        self.finalize_checked(replay, |_| Ok(())).await
+    }
+    pub async fn finalize_checked(
+        &self,
+        replay: Replay,
+        check: impl FnOnce(&str) -> Result<()> + Send + 'static,
+    ) -> Result<String> {
         self.access(move |store, key| {
             let envelope = key.seal(&replay)?;
+            check(&envelope)?;
             store.finalize(
                 &replay.session,
                 &replay.response,
                 &digest(&replay)?,
                 &envelope,
+                replay.provider_status == "requires_action",
             )?;
             Ok(envelope)
         })
         .await
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Configuration {
+    pub directory: std::path::PathBuf,
+    pub store_id: String,
+    pub realm: String,
+    pub generation: String,
+    pub key_id: String,
+    pub key_env: String,
+    pub control_token_env: String,
+    pub max_store_bytes: u64,
+}
+impl Configuration {
+    pub fn validate(&self) -> std::result::Result<(), crate::ConfigError> {
+        let fail = || crate::ConfigError("Invalid continuation configuration".into());
+        for s in [
+            &self.store_id,
+            &self.realm,
+            &self.generation,
+            &self.key_id,
+            &self.key_env,
+            &self.control_token_env,
+        ] {
+            label(s).map_err(|_| fail())?;
+        }
+        if !self.directory.is_absolute()
+            || self.max_store_bytes < 16 * 1024 * 1024
+            || self.max_store_bytes > i64::MAX as u64
+            || self.key_env == self.control_token_env
+        {
+            return Err(fail());
+        }
+        Ok(())
+    }
+    pub fn start(
+        &self,
+        secrets: &crate::Secrets,
+    ) -> std::result::Result<(Runtime, String), crate::ConfigError> {
+        let fail = || crate::ConfigError("Cannot initialize verified continuation runtime".into());
+        let key = std::env::var(&self.key_env).map_err(|_| fail())?;
+        let control = std::env::var(&self.control_token_env).map_err(|_| fail())?;
+        if !(32..=4096).contains(&control.len())
+            || !control.bytes().all(|b| b.is_ascii_graphic())
+            || key == control
+            || control == secrets.local_token
+            || key == secrets.local_token
+            || secrets
+                .upstream_keys
+                .values()
+                .any(|v| v == &control || v == &key)
+        {
+            return Err(fail());
+        }
+        let bytes = unhex(&key).map_err(|_| fail())?;
+        let protector = Protector::new(self.key_id.clone(), &bytes).map_err(|_| fail())?;
+        let mut store =
+            SqliteStore::open(&self.directory, false, self.max_store_bytes).map_err(|_| fail())?;
+        if store.identity().map_err(|_| fail())? != self.store_id {
+            return Err(fail());
+        }
+        let binding_key = ring::hmac::Key::new(ring::hmac::HMAC_SHA256, &bytes);
+        let fingerprint = hex(ring::hmac::sign(
+            &binding_key,
+            format!(
+                "gateway-store-protection/v1:{}:{}",
+                self.store_id, self.key_id
+            )
+            .as_bytes(),
+        )
+        .as_ref());
+        store.bind_protection(&fingerprint).map_err(|_| fail())?;
+        Ok((Runtime::new(Box::new(store), protector), control))
     }
 }

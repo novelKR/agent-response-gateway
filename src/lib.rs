@@ -18,3 +18,5 @@ pub mod routing;
 pub mod adapters;
 
 pub mod continuation;
+
+mod proxy_interactions;

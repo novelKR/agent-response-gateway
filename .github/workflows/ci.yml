@@ -169,6 +169,15 @@ jobs:
       - name: Verify host-owned continuity with the pinned Codex
         shell: bash
         run: python3 -B tests/codex/continuity.py | tee .local/continuity-results.jsonl
+      - name: Verify opaque replay prerequisite
+        run: python3 -B tests/codex/opaque_continuation.py
+      - name: Verify Interactions protocol and durable HTTP failures
+        run: |
+          python3 -B tests/codex/conformance.py --api gemini_interactions
+          python3 -B tests/codex/interactions_http.py
+          python3 -B tests/codex/interactions_continuity.py --resume-only
+      - name: Require Interactions compaction and recovery acceptance
+        run: python3 -B tests/codex/interactions_continuity.py
       - name: Report payload-free outcomes
         if: ${{ always() }}
         run: |

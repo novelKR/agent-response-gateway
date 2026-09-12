@@ -73,6 +73,11 @@ pub(crate) async fn responses(
     request: Request,
 ) -> Result<Response, ApiError> {
     let started = Instant::now();
+    let mut session_headers = request.headers().get_all("x-gateway-session").iter();
+    let session_id = match (session_headers.next(), session_headers.next()) {
+        (Some(v), None) => v.to_str().ok().map(str::to_owned),
+        _ => None,
+    };
     let permit = state.slots.clone().try_acquire_owned().map_err(|_| {
         ApiError::new(
             StatusCode::TOO_MANY_REQUESTS,
@@ -125,6 +130,12 @@ pub(crate) async fn responses(
         .config
         .resolve_route(&model_id)
         .expect("configuration was validated");
+    if route.snapshot.api == crate::ir::ApiProtocol::GeminiInteractions {
+        return crate::proxy_interactions::responses(
+            state, payload, model_id, streaming, session_id, permit,
+        )
+        .await;
+    }
     let admitted = route.admit(payload).map_err(|_| {
         bad(
             "unsupported_request",

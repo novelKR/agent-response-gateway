@@ -316,6 +316,18 @@ pub fn plan_translation(
     request: &RequestIR,
     target: &ContinuityBinding,
 ) -> Result<TranslationPlan, IrError> {
+    plan_translation_with_history(
+        request,
+        target,
+        &super::continuity::VerifiedProviderHistory::default(),
+    )
+}
+
+pub(crate) fn plan_translation_with_history(
+    request: &super::request::RequestIR,
+    target: &super::continuity::ContinuityBinding,
+    history: &super::continuity::VerifiedProviderHistory,
+) -> Result<TranslationPlan, IrError> {
     target.validate()?;
     let required = requirements(request)?;
     let route = &target.route;
@@ -368,8 +380,15 @@ pub fn plan_translation(
         let registry =
             super::bridge::CustomToolBridge::new(request.tools.as_deref().unwrap_or(&[]))?;
         if let Some(Input::Items(items)) = &request.input {
-            for item in items {
+            for (index, item) in items.iter().enumerate() {
                 if let Item::ToolCall(call) = item {
+                    if history
+                        .segments
+                        .iter()
+                        .any(|(start, (end, _))| *start <= index && index < *end)
+                    {
+                        continue;
+                    }
                     registry.lower_call(call)?;
                 }
             }

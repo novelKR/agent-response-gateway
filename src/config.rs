@@ -25,6 +25,7 @@ pub struct Config {
     pub models: BTreeMap<String, Model>,
     #[serde(default)]
     pub capability_profiles: BTreeMap<String, ModelProfile>,
+    pub continuation: Option<crate::continuation::Configuration>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -181,6 +182,9 @@ impl Config {
     }
 
     pub fn validate(&self) -> Result<(), ConfigError> {
+        if let Some(c) = &self.continuation {
+            c.validate()?;
+        }
         if !self.listen.ip().is_loopback() {
             return Err(ConfigError(
                 "Only loopback listen addresses are supported".into(),
@@ -268,6 +272,20 @@ impl Config {
 impl Config {
     pub(crate) fn validate_route(&self, model: &Model) -> Result<(), ConfigError> {
         let converted = model.api != ApiProtocol::Responses;
+        if model.api == ApiProtocol::GeminiInteractions
+            && (self.continuation.is_none() || model.auth != Some(UpstreamAuth::GoogleApiKey))
+        {
+            return Err(ConfigError(
+                "Interactions requires continuation and google_api_key authentication".into(),
+            ));
+        }
+        if model.api != ApiProtocol::GeminiInteractions
+            && model.auth == Some(UpstreamAuth::GoogleApiKey)
+        {
+            return Err(ConfigError(
+                "google_api_key is for Interactions routes".into(),
+            ));
+        }
         if converted && (model.auth.is_none() || model.capability_profile.is_none()) {
             return Err(ConfigError(
                 "Converted routes require explicit auth and capability_profile".into(),

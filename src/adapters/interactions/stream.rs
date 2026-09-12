@@ -12,6 +12,8 @@ pub struct InteractionsStream<'a> {
     terminal: bool,
     done: bool,
     response_id: String,
+    progress: Vec<Value>,
+    cumulative_usage: Option<Value>,
 }
 impl<'a> InteractionsStream<'a> {
     pub(super) fn new(
@@ -20,6 +22,8 @@ impl<'a> InteractionsStream<'a> {
         response_id: String,
     ) -> Self {
         Self {
+            progress: Vec::new(),
+            cumulative_usage: None,
             prepared,
             limit,
             bytes: 0,
@@ -55,6 +59,21 @@ impl<'a> InteractionsStream<'a> {
         }
         let v = decode(event.data.as_bytes())?;
         let kind = string(&v, "event_type")?;
+        let allowed: &[&str] = match kind {
+            "interaction.created" | "interaction.completed" => {
+                &["event_type", "event_id", "interaction"]
+            }
+            "interaction.status_update" => &["event_type", "event_id", "interaction_id", "status"],
+            "step.start" => &["event_type", "event_id", "index", "step"],
+            "step.delta" => &["event_type", "event_id", "index", "delta", "metadata"],
+            "step.stop" => &["event_type", "event_id", "index", "step_usage", "usage"],
+            _ => return Err(unsupported()),
+        };
+        known_fields(&v, allowed)?;
+        if v.get("event_id").is_some_and(|id| !id.is_string()) {
+            return Err(unsupported());
+        }
+        let event_copy = v.clone();
         if event.event != "message" && event.event != kind {
             return Err(IrError::InvalidEventOrder);
         }
@@ -64,10 +83,29 @@ impl<'a> InteractionsStream<'a> {
                     return Err(IrError::InvalidEventOrder);
                 }
                 let meta = v.get("interaction").ok_or(unsupported())?;
+                known_fields(
+                    meta,
+                    &[
+                        "id", "status", "model", "object", "created", "updated", "steps", "usage",
+                    ],
+                )?;
                 if string(meta, "status")? != "in_progress"
-                    || string(meta, "model")? != self.prepared.model
+                    || meta
+                        .get("model")
+                        .is_some_and(|v| v.as_str() != Some(self.prepared.model.as_str()))
+                    || meta
+                        .get("object")
+                        .is_some_and(|v| v.as_str() != Some("interaction"))
+                    || meta
+                        .get("steps")
+                        .is_some_and(|v| !v.as_array().is_some_and(Vec::is_empty))
                 {
                     return Err(unsupported());
+                }
+                ItemId::new(string(meta, "id")?)?;
+                if let Some(cumulative) = meta.get("usage") {
+                    usage(Some(cumulative))?;
+                    self.cumulative_usage = Some(cumulative.clone());
                 }
                 self.interaction = Some(meta.clone());
             }
@@ -77,7 +115,15 @@ impl<'a> InteractionsStream<'a> {
                     .as_ref()
                     .ok_or(IrError::InvalidEventOrder)?;
                 if v.get("interaction_id") != meta.get("id")
-                    || !matches!(string(&v, "status")?, "in_progress" | "requires_action")
+                    || !matches!(
+                        string(&v, "status")?,
+                        "in_progress"
+                            | "requires_action"
+                            | "completed"
+                            | "incomplete"
+                            | "failed"
+                            | "cancelled"
+                    )
                 {
                     return Err(unsupported());
                 }
@@ -104,6 +150,13 @@ impl<'a> InteractionsStream<'a> {
                 let i = self.active.ok_or(IrError::InvalidEventOrder)?;
                 if v["index"].as_u64() != Some(i as u64) {
                     return Err(IrError::InvalidEventOrder);
+                }
+                if let Some(metadata) = v.get("metadata") {
+                    known_fields(metadata, &["total_usage"])?;
+                    if let Some(cumulative) = metadata.get("total_usage") {
+                        usage(Some(cumulative))?;
+                        self.cumulative_usage = Some(cumulative.clone());
+                    }
                 }
                 let d = v.get("delta").ok_or(unsupported())?;
                 let step = &mut self.steps[i];
@@ -139,7 +192,17 @@ impl<'a> InteractionsStream<'a> {
                     return Err(IrError::InvalidEventOrder);
                 }
                 if !self.arguments.is_empty() {
+                    if self.steps[i].get("arguments").is_some() {
+                        return Err(IrError::InvalidJsonArguments);
+                    }
                     self.steps[i]["arguments"] = decode(self.arguments.as_bytes())?;
+                }
+                if let Some(per_step) = v.get("step_usage") {
+                    usage(Some(per_step))?;
+                }
+                if let Some(cumulative) = v.get("usage") {
+                    usage(Some(cumulative))?;
+                    self.cumulative_usage = Some(cumulative.clone());
                 }
             }
             "interaction.completed" => {
@@ -157,13 +220,35 @@ impl<'a> InteractionsStream<'a> {
                 if meta.get("steps").is_some_and(|s| s != &json!(self.steps)) {
                     return Err(unsupported());
                 }
+                if meta.get("usage").is_none()
+                    && let Some(cumulative) = &self.cumulative_usage
+                {
+                    meta["usage"] = cumulative.clone();
+                }
                 meta["steps"] = json!(self.steps);
                 self.interaction = Some(meta);
                 self.terminal = true;
             }
             _ => return Err(unsupported()),
         }
+        match kind {
+            "interaction.created" => self.progress.push(json!({"type":"response.created","response":{"id":self.response_id,"object":"response","status":"in_progress","output":[]}})),
+            "step.start" if event_copy["step"]["type"]=="model_output" => {
+                let index=self.steps.iter().take(self.steps.len()-1).filter(|s|s["type"]!="thought").count();
+                let id=format!("{}_{}",self.response_id,index);
+                self.progress.push(json!({"type":"response.output_item.added","output_index":index,"item":{"id":id,"type":"message","role":"assistant","status":"in_progress","content":[]}}));
+                self.progress.push(json!({"type":"response.content_part.added","item_id":id,"output_index":index,"content_index":0,"part":{"type":"output_text","text":"","annotations":[]}}));
+            },
+            "step.delta" if event_copy["delta"]["type"]=="text" => {
+                let position=self.active.ok_or(IrError::InvalidEventOrder)?;
+                let index=self.steps[..position].iter().filter(|s|s["type"]!="thought").count();
+                self.progress.push(json!({"type":"response.output_text.delta","item_id":format!("{}_{}",self.response_id,index),"output_index":index,"content_index":0,"delta":event_copy["delta"]["text"]}));
+            },_=>{}
+        }
         Ok(())
+    }
+    pub fn take_progress(&mut self) -> Vec<Value> {
+        std::mem::take(&mut self.progress)
     }
     pub fn is_complete(&self) -> bool {
         self.done
