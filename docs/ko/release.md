@@ -100,3 +100,7 @@ python3 -B scripts/check_public_boundary.py --archive .local/release/license-not
 지원하지 않는 링크·파일 유형이 없는지 확인한다. Cargo 패키지도
 `cargo package --list --allow-dirty`로 실제 포함 목록을 확인한다.
 `.gitignore`와 Cargo의 제외 규칙은 검사나 실제 배포 목록 확인을 대체하지 않는다.
+
+사용량 계측과 선택형 Recorder는 [토큰 사용량 계측 안내](usage-accounting.md)를
+참조한다. Recorder 설치·로컬 커밋 보장·외부 전달은 HTTP 메타데이터 관찰과
+별개의 계약이다.

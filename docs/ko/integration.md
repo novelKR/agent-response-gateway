@@ -90,6 +90,38 @@ Bearer 토큰과 프로세스별 공급자 설정을 테넌트별 보안 경계�
 
 
 
+합성 백엔드 예제는 인증·정책·업무 저장 서비스를 갖춘 애플리케이션을 사용한다.
+애플리케이션이 접근 권한과 워크플로 정책을 확인한 뒤 동일 호스트 또는 동일 네트워크
+namespace에서 설정된 루프백 게이트웨이를 호출한다. 공개 게이트웨이 서비스를
+새로 제공하는 예제가 아니다.
+
+```text
+Application access and policy checks
+    -> Local Responses gateway -> Configured model provider
+    <- Responses output / tool calls
+Application tool approval, execution and business storage
+
+Gateway usage -> Optional Usage Recorder -> PostgreSQL / HTTP collector
+```
+
+백엔드는 도구 실행과 업무 승인을 소유한다. 신뢰하는 배포 구성이 프로세스에 설정된
+공급자 키를 제공하며, 클라이언트가 보낸 테넌트 정체성으로 자격 증명을 선택하지 않는다.
+기록기의 [범용 전송 계약](usage-accounting.md)은 선택형이며 업무 저장과 분리된다.
+이 예제는 배포된 통합이나 새 엔드포인트를 주장하지 않는다.
+
+| 상태 | 이 예제의 소유권 |
+|---|---|
+| 업무 데이터와 승인 기록 | 백엔드 애플리케이션 |
+| 대화 이력과 복구 | 현재 연속성 계약에 따른 호스트 |
+| 공급자 전용 연속성 | 호스트의 출처·복구 계약에 따른 선택형 게이트웨이 continuation; 독립 모듈 배포는 후속 영역 |
+| 공개 Response 객체와 계보 | 접근·보존 계약이 필요한 향후 선택형 서비스 |
+| 사용량 원장과 전송 outbox | 선택형 Usage Recorder |
+
+동적 자격 증명 임대, 테넌트별 선택, 계정 풀과 공급자 연속성은 확장 방향이며 이 예제로
+활성화되는 기능이 아니다. 향후 독립 애플리케이션이 이 모듈을 자체 제공할 수도 있으며,
+외부 정책 서비스가 코어의 필수 제어자는 아니다. 조합 방식은 [제품 개요](index.md)를
+참조한다.
+
 <a id="further-acceptance"></a>
 <a id="integration-verification"></a>
 <a id="후속-수락"></a>
@@ -142,3 +174,7 @@ stdout에서 이를 읽고 사전 명세와 대조한 뒤 Codex를 시작한다.
 유효 설정이 변경됐다면 준비 해시가 달라져야 한다. 자격 증명 값이 바뀌어도 설정
 참조 해시만으로는 이를 알 수 없으므로 재개에는 별도 자격 증명 세대이
 필요하다. 수명·접근 범위·실패·복구는 [내장 계약](embedded-design.md)을 따른다.
+
+사용량 계측과 선택형 Recorder는 [토큰 사용량 계측 안내](usage-accounting.md)를
+참조한다. Recorder 설치·로컬 커밋 보장·외부 전달은 HTTP 메타데이터 관찰과
+별개의 계약이다.

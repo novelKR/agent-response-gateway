@@ -1,3 +1,4 @@
+import copy
 import io
 import json
 from pathlib import Path
@@ -90,6 +91,28 @@ class ReleasePackageTests(unittest.TestCase):
         artifacts = built(); artifacts["dev"] = {"features":set(),"kinds":{"lib"}}
         with self.assertRaises(package.PackageError):
             sbom(artifacts=artifacts)
+
+    def test_local_usage_contract_is_bound_to_corresponding_source_not_a_registry_checksum(self):
+        meta = metadata()
+        source = Path('/synthetic-source').resolve()
+        meta['workspace_root'] = str(source)
+        meta['workspace_members'] = ['root', 'usage']
+        meta['packages'].append({'id':'usage', 'name':'gateway-usage-contract', 'version':'0.1.0',
+                                 'license':'AGPL-3.0-only', 'source':None,
+                                 'manifest_path':str(source / 'crates/usage-contract/Cargo.toml')})
+        meta['resolve']['nodes'].append({'id':'usage', 'deps':[]})
+        meta['resolve']['nodes'][0]['deps'].append({'pkg':'usage', 'name':'usage', 'dep_kinds':[{'kind':None, 'target':None}]})
+        artifacts = built()
+        artifacts['usage'] = {'features':set(), 'kinds':{'lib'}}
+        value = sbom(meta=meta, artifacts=artifacts)
+        component = next(c for c in value['components'] if c['name'] == 'gateway-usage-contract')
+        self.assertEqual(component['licenses'], [{'expression':'AGPL-3.0-only'}])
+        self.assertNotIn('hashes', component)
+        for field, invalid in [('name', 'unreviewed-local'), ('license', 'MIT'), ('manifest_path', str(source / 'other/Cargo.toml'))]:
+            wrong = copy.deepcopy(meta)
+            wrong['packages'][-1][field] = invalid
+            with self.assertRaises(package.PackageError):
+                sbom(meta=wrong, artifacts=artifacts)
 
     def test_cargo_artifact_evidence_requires_success_and_collects_compiled_features(self):
         raw = b'{"reason":"compiler-artifact","package_id":"root","features":["a"],"target":{"kind":["lib"]}}\n'

@@ -23,6 +23,8 @@ pub(crate) struct GatewayState {
     pub client: reqwest::Client,
     pub slots: Arc<Semaphore>,
     pub continuation: Option<crate::continuation::Runtime>,
+    pub usage: Option<crate::usage::UsageSink>,
+    pub configuration_sha256: String,
 }
 
 #[derive(Clone)]
@@ -38,8 +40,23 @@ pub fn router_with_observers(
     secrets: Secrets,
     observers: Option<ObserverSink>,
 ) -> Result<Router, ConfigError> {
+    router_with_usage(config, secrets, observers, None)
+}
+
+/// Opt-in accounting; durable mode may gate upstream admission and final completion.
+pub fn router_with_usage(
+    config: Config,
+    secrets: Secrets,
+    observers: Option<ObserverSink>,
+    usage: Option<crate::usage::UsageSink>,
+) -> Result<Router, ConfigError> {
     config.validate()?;
     secrets.validate(&config)?;
+    if usage.is_some() && config.continuation.is_some() {
+        return Err(ConfigError(
+            "Managed continuation with accounting requires the managed usage integration".into(),
+        ));
+    }
     let client = reqwest::Client::builder()
         .redirect(reqwest::redirect::Policy::none())
         .retry(reqwest::retry::never())
@@ -59,9 +76,11 @@ pub fn router_with_observers(
     let state = Arc::new(GatewayState {
         continuation: continuation.map(|(r, _)| r),
         slots: Arc::new(Semaphore::new(config.limits.max_in_flight)),
+        configuration_sha256: config.manifest()?.configuration_sha256().into(),
         config,
         secrets,
         client,
+        usage,
     });
     let protected = Router::new()
         .route("/v1/models", get(models))

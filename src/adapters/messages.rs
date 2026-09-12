@@ -575,7 +575,12 @@ impl PreparedMessages {
         } else {
             let (input, output, total) =
                 usage(value.get("usage").ok_or(IrError::InvalidField("usage"))?)?;
-            json!({"input_tokens":input,"output_tokens":output,"total_tokens":total})
+            response_usage(
+                value.get("usage").ok_or(IrError::InvalidField("usage"))?,
+                input,
+                output,
+                total,
+            )
         };
         validator.apply(EventIR::UsageUpdated(Usage {
             input_tokens: metrics["input_tokens"].as_u64(),
@@ -728,4 +733,16 @@ fn managed_usage(value: Option<&Value>) -> Result<Value, IrError> {
     // The pinned Codex accepts omitted optional counters, not null integers
     // inside details objects. Never invent zero for an unknown provider count.
     Ok(result)
+}
+
+fn response_usage(raw: &Value, input: u64, output: u64, total: u64) -> Value {
+    let canonical = gateway_usage_contract::normalize(
+        gateway_usage_contract::Profile::MessagesV1,
+        gateway_usage_contract::extract(gateway_usage_contract::Profile::MessagesV1, raw),
+    );
+    let mut result = canonical.responses();
+    result["input_tokens"] = json!(input);
+    result["output_tokens"] = json!(output);
+    result["total_tokens"] = json!(total);
+    result
 }

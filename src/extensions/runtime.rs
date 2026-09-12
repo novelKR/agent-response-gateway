@@ -72,6 +72,8 @@ impl Drop for Worker {
 /// Own for the listener's lifetime. Drop stops observers and reaps direct child processes.
 pub struct ExtensionRuntime {
     workers: Vec<Worker>,
+    usage_worker: Option<super::usage_runtime::UsageWorker>,
+    usage_sink: Option<crate::usage::UsageSink>,
     sink: ObserverSink,
     _store_lock: Option<std::fs::File>,
 }
@@ -82,6 +84,8 @@ impl ExtensionRuntime {
         let lock = super::filesystem::runtime_lock(&plan.root, plan.owner)?;
         let mut runtime = Self {
             workers: Vec::new(),
+            usage_worker: None,
+            usage_sink: None,
             sink: ObserverSink::default(),
             _store_lock: Some(lock),
         };
@@ -108,6 +112,21 @@ impl ExtensionRuntime {
                 return Err(super::invalid());
             }
             super::filesystem::private_dir(&state, Some(plan.owner))?;
+            if package.protocol == gateway_usage_contract::PROTOCOL {
+                let binding = plan
+                    .activation
+                    .recorder
+                    .as_ref()
+                    .ok_or_else(super::invalid)?;
+                if binding.mode != gateway_usage_contract::Mode::Off {
+                    let state = plan.root.join("usage").join(&binding.store_id);
+                    filesystem_check_config(plan, binding, &state)?;
+                    let (sink, worker) = super::usage_runtime::spawn(&executable, &state, binding)?;
+                    runtime.usage_sink = Some(sink);
+                    runtime.usage_worker = Some(worker);
+                }
+                continue;
+            }
             let (sender, worker) = unix::spawn(&executable, &state)?;
             runtime.sink.senders.push(sender);
             runtime.workers.push(worker);
@@ -122,6 +141,9 @@ impl ExtensionRuntime {
         ))
     }
 
+    pub fn usage_sink(&self) -> Option<crate::usage::UsageSink> {
+        self.usage_sink.clone()
+    }
     pub fn sink(&self) -> ObserverSink {
         self.sink.clone()
     }
@@ -134,6 +156,13 @@ impl Drop for ExtensionRuntime {
             worker.stop.store(true, Ordering::Relaxed);
         }
         self.workers.clear();
+        self.usage_worker.take();
+        if let Some(sink) = &self.usage_sink {
+            tracing::info!(
+                dropped_usage_events = sink.dropped_events(),
+                "usage_recorder_stopped"
+            );
+        }
         tracing::info!(
             dropped_observations = self.sink.dropped_observations(),
             "extension_observers_stopped"
@@ -306,6 +335,24 @@ mod unix {
             assert!(started.elapsed() < Duration::from_secs(2));
         }
     }
+}
+
+#[cfg(unix)]
+fn filesystem_check_config(
+    plan: &ExtensionPlan,
+    binding: &gateway_usage_contract::RecorderBinding,
+    state: &std::path::Path,
+) -> Result<(), ConfigError> {
+    super::filesystem::private_dir(state, Some(plan.owner))?;
+    if super::hash(&super::filesystem::read(
+        &state.join("recorder.json"),
+        65_536,
+        plan.owner,
+    )?) != binding.config_sha256
+    {
+        return Err(super::invalid());
+    }
+    Ok(())
 }
 
 #[cfg(test)]

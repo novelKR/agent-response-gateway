@@ -1,0 +1,12 @@
+[package]
+name = "gateway-usage-contract"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.98"
+license = "AGPL-3.0-only"
+publish = false
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["arbitrary_precision"] }
+ring = { version = "0.17", default-features = false }

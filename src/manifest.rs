@@ -98,6 +98,10 @@ impl Config {
                     &crate::digest::sha256(include_bytes!("../tests/reasoning/wire-lock.json"))
                 ));
             }
+            if self.models[&route.alias].usage_profile.is_some() {
+                route_projection["usage_profile"] =
+                    json!(self.models[&route.alias].resolved_usage_profile());
+            }
             routes.push(route_projection);
         }
         // Existing serve requires credentials for every configured provider, including unused ones.

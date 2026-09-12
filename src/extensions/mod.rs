@@ -1,4 +1,4 @@
-//! Opt-in, versioned observers. No credential, request-body or routing hooks.
+//! Opt-in, versioned observers and usage recorders. No model credential, body or routing hooks.
 #![cfg_attr(not(unix), allow(dead_code))]
 use std::{collections::BTreeMap, path::PathBuf};
 
@@ -10,6 +10,7 @@ use crate::ConfigError;
 #[cfg(unix)]
 mod filesystem;
 mod runtime;
+mod usage_runtime;
 pub use runtime::{ExtensionRuntime, ObserverSink};
 
 pub const PACKAGE_SCHEMA: &str = "gateway-extension-package/v1";
@@ -18,6 +19,7 @@ pub const OBSERVER_PROTOCOL: &str = "gateway-observer/v1";
 pub const EXTENDED_MANIFEST_SCHEMA: &str = "gateway-extended-manifest/v1";
 pub const EXTENDED_READY_SCHEMA: &str = "gateway-extended-ready/v1";
 pub const PERMISSIONS: [&str; 2] = ["observe_http_metadata", "write_private_state"];
+pub const RECORDER_PERMISSIONS: [&str; 3] = ["export_usage", "observe_usage", "write_usage_store"];
 const MAX_JSON: u64 = 65_536;
 const MAX_BINARY: u64 = 128 * 1024 * 1024;
 const MAX_NOTICE: u64 = 256 * 1024;
@@ -114,9 +116,16 @@ impl Package {
             || !valid_id(&self.id)
             || !valid_version(&self.version)
             || self.target != host_target()?
-            || self.protocol != OBSERVER_PROTOCOL
-            || !permissions(&self.permissions)
-            || self.state_schema != "observer-state/v1"
+            || !((self.protocol == OBSERVER_PROTOCOL
+                && permissions(&self.permissions)
+                && self.state_schema == "observer-state/v1")
+                || (self.protocol == gateway_usage_contract::PROTOCOL
+                    && self
+                        .permissions
+                        .iter()
+                        .map(String::as_str)
+                        .eq(RECORDER_PERMISSIONS)
+                    && self.state_schema == "usage-store/v1"))
             || !(2..=8).contains(&self.files.len())
             || !self.files.contains_key("extension")
             || !self.files.contains_key("LICENSE.txt")
@@ -153,13 +162,23 @@ struct EnabledExtension {
 #[serde(deny_unknown_fields)]
 struct Activation {
     schema: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    recorder: Option<gateway_usage_contract::RecorderBinding>,
     generation: u64,
     extensions: Vec<EnabledExtension>,
 }
 
 impl Activation {
     fn validate(&self) -> Result<(), ConfigError> {
-        if self.schema != LOCK_SCHEMA || self.extensions.len() > MAX_EXTENSIONS {
+        if self.schema
+            != (if self.recorder.is_some() {
+                "gateway-extension-lock/v2"
+            } else {
+                LOCK_SCHEMA
+            })
+            || self.extensions.len() > MAX_EXTENSIONS
+            || self.recorder.as_ref().is_some_and(|r| !r.validate())
+        {
             return Err(invalid());
         }
         let mut previous: Option<&str> = None;
@@ -167,7 +186,13 @@ impl Activation {
             if !valid_id(&entry.id)
                 || !valid_version(&entry.version)
                 || !valid_hash(&entry.package_sha256)
-                || !permissions(&entry.grants)
+                || !(permissions(&entry.grants)
+                    || (self.recorder.is_some()
+                        && entry
+                            .grants
+                            .iter()
+                            .map(String::as_str)
+                            .eq(RECORDER_PERMISSIONS)))
                 || previous.is_some_and(|id| id >= entry.id.as_str())
             {
                 return Err(invalid());
@@ -244,9 +269,33 @@ impl ExtensionPlan {
                     .join(&entry.package_sha256),
                 Some(owner),
             )?;
+            if entry.grants != package.permissions {
+                return Err(invalid());
+            }
             packages.push(package);
         }
-        let configuration = json!({"schema":"gateway-extension-configuration/v1", "store":root,
+        let recorders = packages
+            .iter()
+            .filter(|p| p.protocol == gateway_usage_contract::PROTOCOL)
+            .count();
+        if recorders != usize::from(activation.recorder.is_some()) {
+            return Err(invalid());
+        }
+        if let Some(binding) = &activation.recorder {
+            let state = root.join("usage").join(&binding.store_id);
+            filesystem::private_dir(&state, Some(owner))?;
+            let raw = filesystem::read(&state.join("recorder.json"), MAX_JSON, owner)?;
+            if hash(&raw) != binding.config_sha256 {
+                return Err(invalid());
+            }
+            let config: gateway_usage_contract::RecorderConfig =
+                serde_json::from_slice(&raw).map_err(|_| invalid())?;
+            if config.schema != "gateway-usage-recorder-config/v1" || config.destinations.len() > 8
+            {
+                return Err(invalid());
+            }
+        }
+        let configuration = json!({"schema":if activation.recorder.is_some() {"gateway-extension-configuration/v2"} else {"gateway-extension-configuration/v1"}, "store":root,
             "activation":activation, "packages":packages});
         let configuration_sha256 = hash(&canonical(&configuration)?);
         Ok(Self {
@@ -264,6 +313,20 @@ impl ExtensionPlan {
         Err(invalid())
     }
 
+    pub fn manifest_schema(&self) -> &'static str {
+        if self.activation.recorder.is_some() {
+            "gateway-extended-manifest/v2"
+        } else {
+            EXTENDED_MANIFEST_SCHEMA
+        }
+    }
+    pub fn ready_schema(&self) -> &'static str {
+        if self.activation.recorder.is_some() {
+            "gateway-extended-ready/v2"
+        } else {
+            EXTENDED_READY_SCHEMA
+        }
+    }
     pub fn configuration_sha256(&self) -> &str {
         &self.configuration_sha256
     }
@@ -273,10 +336,14 @@ impl ExtensionPlan {
     }
 
     pub fn manifest(&self, base_manifest: &Value) -> Result<Value, ConfigError> {
-        let configuration = json!({"gateway":base_manifest,"extensions":self.configuration});
+        let mut configuration = json!({"gateway":base_manifest,"extensions":self.configuration});
+        if self.activation.recorder.is_some() {
+            configuration["usage_contract"] = json!("gateway-usage-event/v1");
+            configuration["usage_profiles"] = json!(["responses/v1", "chat/v1", "messages/v1"]);
+        }
         let execution_sha256 = hash(&canonical(&configuration)?);
         Ok(
-            json!({"schema":EXTENDED_MANIFEST_SCHEMA, "configuration":configuration,
+            json!({"schema":self.manifest_schema(), "configuration":configuration,
             "execution_sha256":execution_sha256}),
         )
     }
@@ -301,6 +368,7 @@ mod tests {
     fn lock_is_strict_and_canonical() {
         let activation = Activation {
             schema: LOCK_SCHEMA.into(),
+            recorder: None,
             generation: 1,
             extensions: vec![],
         };
@@ -323,6 +391,7 @@ mod tests {
         };
         let mut activation = Activation {
             schema: LOCK_SCHEMA.into(),
+            recorder: None,
             generation: 1,
             extensions: vec![entry.clone()],
         };

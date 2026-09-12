@@ -35,6 +35,7 @@ MAX_MEMBER = 32 * 1024 * 1024
 MAX_EXPANDED = 256 * 1024 * 1024
 MAX_RECORD = 8 * 1024 * 1024
 MAX_PACKAGES = 4096
+LOCAL_PACKAGES = {"agent-response-gateway": "Cargo.toml", "gateway-usage-contract": "crates/usage-contract/Cargo.toml", "gateway-usage-recorder": "extensions/usage-recorder/Cargo.toml"}
 SCOPE = "cargo-lock-all-platforms-including-build-and-dev; not a linked-binary inventory"
 
 
@@ -170,7 +171,14 @@ def load_metadata(root, policy):
     require(result.returncode == 0, "locked offline Cargo metadata failed; prepare the exact dependencies first")
     metadata = json.loads(result.stdout)
     own_id = metadata["resolve"]["root"]
-    require(metadata["workspace_members"] == [own_id], "unreviewed workspace member")
+    local = [p for p in metadata["packages"] if p["source"] is None]
+    require({p["id"] for p in local} == set(metadata["workspace_members"]), "unreviewed local dependency")
+    require({p["name"] for p in local} == set(LOCAL_PACKAGES), "unreviewed workspace member")
+    for member in local:
+        require(Path(member["manifest_path"]).resolve() == root / LOCAL_PACKAGES[member["name"]]
+                and member["license"] == policy["root"]["license"] and member["version"] == "0.1.0",
+                "local package license or path is not reviewed")
+    require(not any(p["source"] is not None and p["name"] in LOCAL_PACKAGES for p in metadata["packages"]), "third party collides with local exception")
     own = next(p for p in metadata["packages"] if p["id"] == own_id)
     require(Path(own["manifest_path"]).resolve() == root / "Cargo.toml" and own["source"] is None and own["name"] == policy["root"]["name"], "root license exception is not bound to the project")
     require(all(p["id"] == own_id or p["name"] != own["name"] for p in metadata["packages"]), "third party collides with project exception")
@@ -187,7 +195,7 @@ def locked_packages(root):
         require(key not in seen, "ambiguous locked package identity")
         seen.add(key)
         if not package.get("source"):
-            require(package["name"] == "agent-response-gateway", "unreviewed local dependency")
+            require(package["name"] in LOCAL_PACKAGES, "unreviewed local dependency")
             continue
         require(package["source"] == REGISTRY, "dependency source needs a reviewed provenance adapter")
         require(valid_hash(package.get("checksum")), "locked source checksum is missing")
@@ -298,11 +306,12 @@ class Deny:
         self.metadata_path.write_bytes(json_bytes(self.metadata))
         self.expected = {package_key(p) for p in metadata["packages"]}
         self.own_key = package_key(next(p for p in metadata["packages"] if p["id"] == metadata["resolve"]["root"]))
+        self.own_keys = {package_key(p) for p in metadata["packages"] if p["source"] is None and p["name"] in LOCAL_PACKAGES}
 
     def evaluate(self, selections):
-        require(set(selections) == self.expected - {self.own_key}, "SPDX selection coverage mismatch")
+        require(set(selections) == self.expected - self.own_keys, "SPDX selection coverage mismatch")
         config = ['[licenses]', 'allow = []', 'include-dev = true', 'include-build = true', 'unused-allowed-license = "deny"', 'unused-license-exception = "allow"', '[licenses.private]', 'ignore = false']
-        values = {**selections, self.own_key: [self.policy["root"]["license"]]}
+        values = {**selections, **{key: [self.policy["root"]["license"]] for key in self.own_keys}}
         for (name, version), licenses in sorted(values.items()):
             require(isinstance(licenses, list) and all(isinstance(x, str) for x in licenses), "invalid license selection")
             config.extend(['[[licenses.exceptions]]', 'crate = ' + json.dumps(name + '@=' + version), 'allow = ' + json.dumps(licenses)])
@@ -336,9 +345,9 @@ class Deny:
                 raise AuditError("cargo-deny policy or evidence error")
         require(set(answers) == self.expected and len(summaries) == 1, "cargo-deny did not check every locked package")
         # cargo-deny 0.20.2 uses the bit value 4 for license-check failures.
-        require(result.returncode in {0, 4} and answers[self.own_key], "cargo-deny failed or project license rejected")
+        require(result.returncode in {0, 4} and all(answers[key] for key in self.own_keys), "cargo-deny failed or project license rejected")
         require((result.returncode == 0) == all(answers.values()), "cargo-deny outcome mismatch")
-        return {key: accepted for key, accepted in answers.items() if key != self.own_key}
+        return {key: accepted for key, accepted in answers.items() if key not in self.own_keys}
 
 
 def select_licenses(records, policy, evaluator, previous):
