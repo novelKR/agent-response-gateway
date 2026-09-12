@@ -37,18 +37,20 @@ def load_json(raw):
 
 def validate_manifest(value):
     require(isinstance(value, dict) and set(value) == {"schema", "package", "client_api", "lifecycle", "configuration", "configuration_sha256"}, "Invalid manifest shape")
-    require(value["schema"] in {MANIFEST_SCHEMA,"gateway-embedded-manifest/v2","gateway-embedded-manifest/v3","gateway-embedded-manifest/v4"} and value["client_api"] == "responses" and value["lifecycle"] == "host-supervised-process/v1", "Unsupported manifest contract")
+    require(value["schema"] in {MANIFEST_SCHEMA,"gateway-embedded-manifest/v2","gateway-embedded-manifest/v3","gateway-embedded-manifest/v4","gateway-embedded-manifest/v5"} and value["client_api"] == "responses" and value["lifecycle"] == "host-supervised-process/v1", "Unsupported manifest contract")
     package = value["package"]
     require(isinstance(package, dict) and set(package) == {"name", "version"} and package["name"] == "agent-response-gateway" and isinstance(package["version"], str) and bool(package["version"]), "Invalid package identity")
     configuration = value["configuration"]
     version = value["schema"].rsplit("/", 1)[1]
-    managed = version == "v3" or (version == "v4" and "continuation" in configuration)
-    require(isinstance(configuration, dict) and set(configuration) == ({"listen", "source_url", "local_token_env", "upstream_credential_references", "limits", "routes"} | ({"continuation", "replay_versions"} if managed else {"continuation"} if value["schema"].endswith("/v2") else set())), "Invalid configuration projection")
+    managed = version == "v3" or (version in {"v4","v5"} and "continuation" in configuration)
+    require(isinstance(configuration, dict) and set(configuration) == ({"listen", "source_url", "local_token_env", "upstream_credential_references", "limits", "routes"} | ({"continuation", "replay_versions"} if managed else {"continuation"} if value["schema"].endswith("/v2") else set()) | ({"profile_packs"} if version == "v5" else set())), "Invalid configuration projection")
     if managed:
         require(configuration["replay_versions"] == {"read": [1, 2], "write": 2}, "Unsupported replay contract")
-    if version == "v4":
+    if version == "v5":
+        validate_profile_packs(configuration)
+    if version in {"v4", "v5"}:
         selected = [r["compatibility"] for r in configuration["routes"] if "compatibility" in r]
-        require(bool(selected), "Compatibility selection missing")
+        require(bool(selected) or version == "v5", "Compatibility selection missing")
         for binding in selected:
             require(set(binding) == {"id","policy","admission","on_unsupported","provider_support","contract"}, "Invalid compatibility projection")
             require(binding["admission"] == "checked" and binding["on_unsupported"] == "reject" and binding["contract"] == "gateway-tool-compatibility/v1", "Unsupported compatibility contract")
@@ -63,8 +65,35 @@ def validate_manifest(value):
     return value
 
 
-def inspect_manifest(binary, config, env):
-    result = subprocess.run([str(binary), "manifest", "--config", str(config)], env=env, capture_output=True, timeout=10, check=False)
+def validate_profile_packs(configuration):
+    packs = configuration["profile_packs"]
+    require(isinstance(packs, dict) and set(packs) == {"schema", "activation", "packages", "evidence_status", "capability_imports", "policy_imports"}, "Invalid profile pack projection")
+    require(packs["schema"] == "gateway-profile-pack-configuration/v1" and packs["evidence_status"] == "publisher_claims_not_attestation", "Unsupported profile pack contract")
+    activation = packs["activation"]
+    require(set(activation) == {"schema", "generation", "packs"} and activation["schema"] == "gateway-profile-pack-lock/v1" and type(activation["generation"]) is int and 0 <= activation["generation"] < 2**64, "Invalid profile pack activation")
+    entries = activation["packs"]
+    require(isinstance(entries, list) and len(entries) <= 16 and all(isinstance(e, dict) and set(e) == {"id", "version", "package_sha256"} for e in entries), "Invalid pack entries")
+    require([e["id"] for e in entries] == sorted(set(e["id"] for e in entries)) and set(packs["packages"]) == {e["id"] for e in entries}, "Profile pack inventory mismatch")
+    entries = {e["id"]: e for e in entries}
+    for name, package in packs["packages"].items():
+        entry = entries[name]
+        require(set(package) == {"schema", "id", "version", "capabilities", "policies", "evidence", "notices"} and package["schema"] == "gateway-profile-pack/v1" and package["id"] == name and package["version"] == entry["version"], "Invalid profile pack package")
+        raw = json.dumps(package, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False).encode() + b"\n"
+        require(hashlib.sha256(raw).hexdigest() == entry["package_sha256"], "Profile pack bytes mismatch")
+    for kind, exports in (("capability_imports", "capabilities"), ("policy_imports", "policies")):
+        for binding in packs[kind].values():
+            require(set(binding) == ({"pack", "export", "provider", "upstream_model"} if kind == "capability_imports" else {"pack", "export"}), "Invalid profile pack import")
+            require(binding["pack"] in entries and binding["export"] in packs["packages"][binding["pack"]][exports], "Unresolved profile pack import")
+    for route in configuration["routes"]:
+        expected = {}
+        for kind, imports, name in (("capability", "capability_imports", route["capability_profile"]["id"]), ("policy", "policy_imports", route.get("compatibility", {}).get("id"))):
+            binding = packs[imports].get(name)
+            expected[kind] = None if binding is None else {"pack": binding["pack"], "export": binding["export"], "version": entries[binding["pack"]]["version"], "package_sha256": entries[binding["pack"]]["package_sha256"]}
+        require(route.get("profile_packs") == (expected if any(expected.values()) else None), "Route pack binding mismatch")
+
+
+def inspect_manifest(binary, config, env, extra_args=()):
+    result = subprocess.run([str(binary), "manifest", "--config", str(config), *extra_args], env=env, capture_output=True, timeout=10, check=False)
     require(result.returncode == 0 and not result.stderr and len(result.stdout.splitlines()) == 1, "Manifest inspection failed")
     return validate_manifest(load_json(result.stdout))
 
@@ -73,7 +102,7 @@ def parse_ready_line(line, manifest):
     require(isinstance(line, str) and line.endswith("\n") and len(line.encode()) <= MAX_READY_BYTES, "Invalid readiness frame")
     ready = load_json(line)
     require(isinstance(ready, dict) and set(ready) == {"schema", "manifest_schema", "configuration_sha256", "event", "address", "base_url", "version"}, "Invalid readiness shape")
-    require(ready["schema"] == ("gateway-ready/v4" if manifest["schema"].endswith("/v4") else "gateway-ready/v3" if manifest["schema"].endswith("/v3") else "gateway-ready/v2" if manifest["schema"].endswith("/v2") else READY_SCHEMA) and ready["manifest_schema"] == manifest["schema"] and ready["event"] == "ready", "Unsupported readiness contract")
+    require(ready["schema"] == ("gateway-ready/v5" if manifest["schema"].endswith("/v5") else "gateway-ready/v4" if manifest["schema"].endswith("/v4") else "gateway-ready/v3" if manifest["schema"].endswith("/v3") else "gateway-ready/v2" if manifest["schema"].endswith("/v2") else READY_SCHEMA) and ready["manifest_schema"] == manifest["schema"] and ready["event"] == "ready", "Unsupported readiness contract")
     require(ready["configuration_sha256"] == manifest["configuration_sha256"] and ready["version"] == manifest["package"]["version"], "Readiness binding mismatch")
     require(isinstance(ready["address"], str) and ready["base_url"] == "http://" + ready["address"] + "/v1", "Readiness endpoint mismatch")
     try:
@@ -117,7 +146,7 @@ def validate_credential_split(manifest, gateway_env, codex_env, local_key_name, 
 
 def validate_extended_manifest(value):
     require(isinstance(value,dict) and set(value)=={'schema','configuration','execution_sha256'}, 'Invalid extended manifest')
-    require(value['schema'] in {'gateway-extended-manifest/v3','gateway-extended-manifest/v4'}, 'Unsupported extended managed contract')
+    require(value['schema'] in {'gateway-extended-manifest/v3','gateway-extended-manifest/v4','gateway-extended-manifest/v5'}, 'Unsupported extended managed contract')
     configuration=value['configuration']
     require(set(configuration) in ({'gateway','extensions'}, {'gateway','extensions','usage_contract','usage_profiles'}), 'Invalid extended configuration')
     base=validate_manifest(configuration['gateway'])

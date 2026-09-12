@@ -40,6 +40,7 @@ impl EmbeddedManifest {
     }
     pub fn ready_schema(&self) -> &'static str {
         match self.schema {
+            "gateway-embedded-manifest/v5" => "gateway-ready/v5",
             "gateway-embedded-manifest/v4" => "gateway-ready/v4",
             "gateway-embedded-manifest/v3" => "gateway-ready/v3",
             _ => READY_SCHEMA,
@@ -102,6 +103,9 @@ impl Config {
                 "context_window":snapshot.context_window,"max_output_tokens":snapshot.max_output_tokens,
                 "tested_codex_version":route.tested_codex_version,
             });
+            if let Some(packs) = self.route_pack_projection(&self.models[&route.alias]) {
+                route_projection["profile_packs"] = packs;
+            }
             if let Some(policy) = &route.compatibility {
                 let profile_id = self.models[&route.alias]
                     .capability_profile
@@ -163,6 +167,10 @@ impl Config {
             configuration["replay_versions"] = json!({"read":[1,2],"write":2});
             configuration = sorted(configuration);
         }
+        if let Some(packs) = self.profile_pack_projection() {
+            configuration["profile_packs"] = packs;
+            configuration = sorted(configuration);
+        }
         let bytes = serde_json::to_vec(&configuration)
             .expect("normalized configuration contains JSON values");
         let configuration_sha256 = sha256(&bytes)
@@ -170,7 +178,9 @@ impl Config {
             .map(|byte| format!("{byte:02x}"))
             .collect();
         Ok(EmbeddedManifest {
-            schema: if self
+            schema: if self.profile_packs.is_some() {
+                "gateway-embedded-manifest/v5"
+            } else if self
                 .models
                 .values()
                 .any(|m| m.compatibility_policy.is_some())

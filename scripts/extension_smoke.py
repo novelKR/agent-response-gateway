@@ -107,7 +107,7 @@ def request(base, path, *, payload=None, auth=False):
 PHASE = 'initialization'
 
 
-def run(binary, observer):
+def run(binary, observer, profile_packs=False):
     global PHASE
     manager.target()
     Upstream.calls = 0
@@ -137,6 +137,14 @@ def run(binary, observer):
             environment = {'ARG_LOCAL_TOKEN': 'L' * 40, 'ARG_MOCK_KEY': 'synthetic-upstream-key',
                            'UNRELATED_SECRET': 'synthetic-not-for-observers'}
             common = ['--config', str(config)]
+            if profile_packs:
+                import sys
+                sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tests/codex'))
+                from profile_pack_fixture import activate
+                raw = config.read_text() + 'capability_profile="native"\n[capability_profiles.native]\nversion="1"\nprovider="mock"\nupstream_model="synthetic"\napi="responses"\ncontext_window=8192\nmax_output_tokens=2048\ntested_codex_version="synthetic"\nsupport={}\n'
+                packed, pack_lock = activate(binary, root / 'profile-packs', raw)
+                config.write_text(packed)
+                common += ['--profile-packs-lock', str(pack_lock)]
             options = [*common, '--extensions-lock', str(lock)]
 
             def command(verb, args, expected=0):
@@ -149,7 +157,7 @@ def run(binary, observer):
             PHASE = 'offline-inspection'
             plain = command('manifest', common).stdout
             extended = json.loads(command('manifest', options).stdout)
-            require(extended['schema'] == 'gateway-extended-manifest/v1', 'Wrong extended manifest schema')
+            require(extended['schema'] == ('gateway-extended-manifest/v5' if profile_packs else 'gateway-extended-manifest/v1'), 'Wrong extended manifest schema')
             checked = json.loads(command('check-config', options).stdout)
             require(checked['extensions_executed'] is False, 'Offline inspection executed code')
             require(not counts.exists(), 'Offline operations ran the observer')
@@ -161,7 +169,7 @@ def run(binary, observer):
             observer_pid = None
             try:
                 ready = read_ready(child)
-                require(ready['schema'] == 'gateway-extended-ready/v1'
+                require(ready['schema'] == ('gateway-extended-ready/v5' if profile_packs else 'gateway-extended-ready/v1')
                         and ready['execution_sha256'] == extended['execution_sha256'], 'Readiness binding mismatch')
                 base = ready['base_url'].removesuffix('/v1')
                 require(request(base, '/healthz')[0] == 200, 'Health endpoint failed')
@@ -245,9 +253,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--binary', type=Path, required=True)
     parser.add_argument('--observer', type=Path, required=True)
+    parser.add_argument('--profile-packs', action='store_true')
     args = parser.parse_args()
     try:
-        run(args.binary.resolve(strict=True), args.observer.resolve(strict=True))
+        run(args.binary.resolve(strict=True), args.observer.resolve(strict=True), args.profile_packs)
         print('Extension smoke passed: offline lifecycle, native forwarding, isolation and shutdown')
         return 0
     except (OSError, ValueError, RuntimeError, subprocess.SubprocessError, KeyError):

@@ -188,3 +188,11 @@ origin에도 결합된다. 실행 확장을 사용하면 외부 계약은
 실행 식별성을 바꾸지 않는다. 호스트는 자식 시작 전에 이 버전을 인식하고 전체
 설정·실행 digest를 비교해야 한다. 정책을 선택하지 않은 기존 설정은 이전 manifest
 버전을 유지한다. [도구 정책](protocol.md#checked-responses-tools)을 참고한다.
+
+`--profile-packs-lock`을 선택하면 `gateway-embedded-manifest/v5`와
+`gateway-ready/v5`를 사용하며, 네이티브 확장도 선택하면
+`gateway-extended-manifest/v5`와 `gateway-extended-ready/v5`를 사용한다.
+고정된 설정은 정확한 데이터 패키지 digest와 명시적인 호스트 import를 포함한다.
+선택한 export의 식별도 영향을 받는 경로 origin에 결합된다. 호스트는 에이전트를
+시작하기 전에 이 버전을 이해해야 한다. 패키지·활성화·덮어쓰기 금지·재시작 계약은
+[프로파일 팩](profile-packs.md)을 참고한다.

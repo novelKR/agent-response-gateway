@@ -25,6 +25,41 @@ def ready(value):
 
 
 class EmbeddedContractTests(unittest.TestCase):
+    def test_profile_pack_manifest_binds_package_imports_and_optional_extensions(self):
+        value = manifest()
+        value['schema'] = 'gateway-embedded-manifest/v5'
+        package = {'schema':'gateway-profile-pack/v1','id':'synthetic','version':'1.0.0','capabilities':{'functions':{}},'policies':{},'evidence':[],'notices':{'LICENSE':'synthetic'}}
+        sha = hashlib.sha256((json.dumps(package,ensure_ascii=False,sort_keys=True,separators=(',',':'))+'\n').encode()).hexdigest()
+        entry = {'id':'synthetic','version':'1.0.0','package_sha256':sha}
+        value['configuration']['profile_packs'] = {'schema':'gateway-profile-pack-configuration/v1','activation':{'schema':'gateway-profile-pack-lock/v1','generation':1,'packs':[entry]},'packages':{'synthetic':package},'evidence_status':'publisher_claims_not_attestation','capability_imports':{'local':{'pack':'synthetic','export':'functions','provider':'host','upstream_model':'model'}},'policy_imports':{}}
+        value['configuration']['routes'][0].update(capability_profile={'id':'local'},profile_packs={'capability':{'pack':'synthetic','version':'1.0.0','package_sha256':sha,'export':'functions'},'policy':None})
+        def stamp(v):
+            v['configuration_sha256'] = hashlib.sha256(json.dumps(v['configuration'],ensure_ascii=False,sort_keys=True,separators=(',',':')).encode()).hexdigest()
+        stamp(value)
+        contract.validate_manifest(value)
+        for mutation in ('package', 'export', 'route', 'claims', 'unknown', 'duplicate'):
+            changed = copy.deepcopy(value)
+            packs = changed['configuration']['profile_packs']
+            if mutation == 'package': packs['packages']['synthetic']['version'] = '2.0.0'
+            elif mutation == 'export': packs['capability_imports']['local']['export'] = 'unknown'
+            elif mutation == 'route': changed['configuration']['routes'][0]['profile_packs']['capability']['package_sha256'] = '0'*64
+            elif mutation == 'claims': packs['evidence_status'] = 'attested'
+            elif mutation == 'unknown': packs['auto_download'] = True
+            else: packs['activation']['packs'].append(copy.deepcopy(entry))
+            stamp(changed)
+            with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                contract.validate_manifest(changed)
+        for managed in (False,True):
+            current = copy.deepcopy(value)
+            if managed: current['configuration'].update(continuation={},replay_versions={'read':[1,2],'write':2})
+            stamp(current)
+            for recorder in (False, True):
+                config = {'gateway':current,'extensions':{}}
+                if recorder: config.update(usage_contract='gateway-usage-event/v1',usage_profiles=['responses/v1','chat/v1','messages/v1']+(['gemini_interactions/v1','deepseek/v1'] if managed else []))
+                extended = {'schema':'gateway-extended-manifest/v5','configuration':config,'execution_sha256':hashlib.sha256(json.dumps(config,ensure_ascii=False,sort_keys=True,separators=(',',':')).encode()).hexdigest()}
+                frame = {**ready(current),'schema':'gateway-extended-ready/v5','manifest_schema':extended['schema'],'execution_sha256':extended['execution_sha256']}
+                self.assertEqual(contract.parse_extended_ready_line(json.dumps(frame)+'\n',extended),frame)
+
     def test_checked_policy_manifest_and_readiness_bind_selection_and_replay(self):
         def digest(value):
             value["configuration_sha256"] = hashlib.sha256(json.dumps(value["configuration"], ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()).hexdigest()

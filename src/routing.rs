@@ -82,6 +82,15 @@ impl Config {
             snapshot.capabilities = binding.policy.apply(&snapshot.capabilities)?;
             snapshot.adapter_version = binding.adapter_version();
         }
+        if let Some(packs) = self.route_pack_projection(model) {
+            snapshot.adapter_version = format!(
+                "{}/profile-packs/1/{}",
+                snapshot.adapter_version,
+                crate::continuation::hex(&crate::digest::sha256(
+                    &serde_json::to_vec(&packs).expect("pack binding")
+                ))
+            );
+        }
         snapshot
             .validate()
             .map_err(|_| ConfigError("Invalid route snapshot".into()))?;

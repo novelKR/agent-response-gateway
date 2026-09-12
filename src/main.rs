@@ -20,6 +20,11 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Manage non-executable profile packs locally, without credentials or network access.
+    ProfilePack {
+        #[command(subcommand)]
+        command: agent_response_gateway::profile_packs::manager::Command,
+    },
     /// Explicitly initialize a new private continuation store; never replaces an existing database.
     InitContinuation {
         #[arg(long)]
@@ -34,6 +39,9 @@ enum Command {
         /// Explicit activation snapshot for trusted native metadata observers.
         #[arg(long)]
         extensions_lock: Option<PathBuf>,
+        /// Explicit frozen activation of non-executable profile packs.
+        #[arg(long)]
+        profile_packs_lock: Option<PathBuf>,
     },
     /// Report the normalized embedded configuration and digest without reading credentials.
     Manifest {
@@ -42,6 +50,9 @@ enum Command {
         /// Inspect extension package bytes without running any executable.
         #[arg(long)]
         extensions_lock: Option<PathBuf>,
+        /// Explicit frozen activation of non-executable profile packs.
+        #[arg(long)]
+        profile_packs_lock: Option<PathBuf>,
     },
     /// Validate configuration structure; credentials and providers are not probed.
     CheckConfig {
@@ -49,6 +60,9 @@ enum Command {
         config: PathBuf,
         #[arg(long)]
         extensions_lock: Option<PathBuf>,
+        /// Explicit frozen activation of non-executable profile packs.
+        #[arg(long)]
+        profile_packs_lock: Option<PathBuf>,
     },
 }
 
@@ -70,6 +84,13 @@ async fn main() -> std::process::ExitCode {
 }
 
 async fn run(cli: Cli) -> Result<(), ConfigError> {
+    if let Command::ProfilePack { command } = cli.command {
+        println!(
+            "{}",
+            agent_response_gateway::profile_packs::manager::run(command)?
+        );
+        return Ok(());
+    }
     if let Command::InitContinuation {
         directory,
         max_store_bytes,
@@ -87,24 +108,34 @@ async fn run(cli: Cli) -> Result<(), ConfigError> {
         );
         return Ok(());
     }
-    let (path, extensions_lock) = match &cli.command {
-        Command::InitContinuation { .. } => unreachable!(),
+    let (path, extensions_lock, profile_packs_lock) = match &cli.command {
+        Command::InitContinuation { .. } | Command::ProfilePack { .. } => unreachable!(),
         Command::Serve {
             config,
             extensions_lock,
+            profile_packs_lock,
         }
         | Command::CheckConfig {
             config,
             extensions_lock,
+            profile_packs_lock,
         }
         | Command::Manifest {
             config,
             extensions_lock,
-        } => (config, extensions_lock),
+            profile_packs_lock,
+        } => (config, extensions_lock, profile_packs_lock),
     };
     let raw = std::fs::read_to_string(path)
         .map_err(|_| ConfigError("Cannot read configuration file".into()))?;
-    let config = Config::parse(&raw)?;
+    let config = if let Some(path) = profile_packs_lock {
+        Config::parse_with_profile_packs(
+            &raw,
+            agent_response_gateway::profile_packs::ProfilePackPlan::load(path)?,
+        )?
+    } else {
+        Config::parse(&raw)?
+    };
     let extensions = extensions_lock
         .as_deref()
         .map(ExtensionPlan::load)
@@ -119,6 +150,10 @@ async fn run(cli: Cli) -> Result<(), ConfigError> {
         Command::CheckConfig { .. } => {
             let mut report =
                 json!({"status": "valid", "credentials_checked": false, "provider_probe": false});
+            if profile_packs_lock.is_some() {
+                report["profile_packs_checked"] = json!(true);
+                report["profile_packs_executed"] = json!(false);
+            }
             if let Some(plan) = &extensions {
                 report["extensions_checked"] = json!(true);
                 report["extensions_executed"] = json!(false);
@@ -139,7 +174,7 @@ async fn run(cli: Cli) -> Result<(), ConfigError> {
             return Ok(());
         }
         Command::Serve { .. } => {}
-        Command::InitContinuation { .. } => unreachable!(),
+        Command::InitContinuation { .. } | Command::ProfilePack { .. } => unreachable!(),
     }
     let secrets = Secrets::from_env(&config)?;
     let continuation_enabled = config.continuation.is_some();
@@ -169,7 +204,9 @@ async fn run(cli: Cli) -> Result<(), ConfigError> {
     let mut readiness = json!({"event":"ready", "address":bound.to_string(), "base_url":format!("http://{bound}/v1"), "version":env!("CARGO_PKG_VERSION"),
         "schema":manifest.ready_schema(),"manifest_schema":manifest.schema(),"configuration_sha256":manifest.configuration_sha256()});
     if let Some(extended) = &extended_manifest {
-        readiness["schema"] = json!(if compatibility_enabled {
+        readiness["schema"] = json!(if manifest.schema() == "gateway-embedded-manifest/v5" {
+            "gateway-extended-ready/v5"
+        } else if compatibility_enabled {
             "gateway-extended-ready/v4"
         } else if continuation_enabled {
             "gateway-extended-ready/v3"
