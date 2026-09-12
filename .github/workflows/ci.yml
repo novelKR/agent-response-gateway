@@ -310,9 +310,39 @@ jobs:
           path: .local/docs-site/dist/
           retention-days: 14
 
+  usage-recorder:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.14'
+      - run: rustup toolchain install 1.98.0 --profile minimal --component clippy
+      - run: cargo +1.98.0 clippy --workspace --all-targets --locked -- -D warnings
+      - run: cargo +1.98.0 test --workspace --locked
+      - run: cargo +1.98.0 build --workspace --locked
+      - run: python -B scripts/usage_smoke.py --binary target/debug/agent-response-gateway --recorder target/debug/gateway-usage-recorder
+      - name: Build the pre-alignment usage recorder
+        run: |
+          git fetch --no-tags origin bbc5d2c3e48018d94f5cc3c796b149832478de78
+          mkdir -p .local/usage-legacy-source
+          git archive bbc5d2c3e48018d94f5cc3c796b149832478de78 | tar -x -C .local/usage-legacy-source
+          cargo build --locked --manifest-path .local/usage-legacy-source/Cargo.toml -p gateway-usage-recorder --target-dir target/legacy-usage
+      - name: Upgrade the real legacy ledger and outbox
+        run: python -B scripts/usage_smoke.py --binary target/debug/agent-response-gateway --recorder target/debug/gateway-usage-recorder --legacy-recorder target/legacy-usage/debug/gateway-usage-recorder
+      - name: Prepare disposable PostgreSQL tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-16
+          echo "/usr/lib/postgresql/16/bin" >> "$GITHUB_PATH"
+      - run: python -B scripts/usage_postgres_test.py
+
   ci-required:
     if: ${{ always() }}
-    needs: [targets, format, rust, publication, licenses, codex-conformance, package-smoke, docs]
+    needs: [targets, format, rust, publication, licenses, codex-conformance, package-smoke, docs, usage-recorder]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:

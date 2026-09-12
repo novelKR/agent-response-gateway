@@ -172,3 +172,7 @@ completion 토큰에 포함되므로 다시 더하지 않는다. DeepSeek cache-
 명시 복구를 검사한다. [reasoning wire lock](../../tests/reasoning/wire-lock.json)과
 [DeepSeek API 보충 계약](../../tests/reasoning/deepseek-api-lock.json)을 참고한다. 실제 제공자
 모델 호환성·품질·비용 qualification은 별도이다.
+
+사용량 계측과 선택형 Recorder는 [토큰 사용량 계측 안내](usage-accounting.md)를
+참조한다. Recorder 설치·로컬 커밋 보장·외부 전달은 HTTP 메타데이터 관찰과
+별개의 계약이다.

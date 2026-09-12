@@ -181,3 +181,7 @@ notifications, tools, restart, payload repair, compaction and explicit recovery.
 See the [reasoning wire lock](../tests/reasoning/wire-lock.json) and
 [DeepSeek API supplement](../tests/reasoning/deepseek-api-lock.json). Real-provider
 model compatibility, quality and cost qualification remain separate.
+
+Usage accounting and the optional recorder are described in the
+[token usage accounting guide](usage-accounting.md). Recorder installation,
+local commit guarantees and external delivery are separate from HTTP metadata observation.

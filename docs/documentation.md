@@ -115,6 +115,13 @@ not make its contents publishable. Local snapshots containing private configurat
 can keep the full local check failing; distinguish that outcome from checks of
 the actual refs and artifacts intended for publication.
 
+Linked worktrees share repository refs, so moving a change to a worktree does not
+isolate this check from local snapshot refs. For a publication candidate, use a
+separate full clone of the public remote and apply the exact candidate diff there.
+Run the unchanged checker on that candidate and its public history. Record that
+scope separately from the original checkout result; do not delete local refs or
+weaken reserved-path rules to obtain a pass.
+
 <a id="번역-관리"></a>
 
 ## Translation maintenance

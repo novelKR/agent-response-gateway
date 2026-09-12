@@ -35,7 +35,7 @@ model before operational use.
 | Stream error, truncation or unknown semantic event | Fail without manufactured completion or retry |
 | max_tokens finish | Incomplete response |
 | Unknown blocks, citations, state or finish behavior | Explicit error |
-| Usage | Input, cache-read/cache-created input, output and checked total tokens |
+| Usage | Checked input/output/total; cache-read/cache-created details retained |
 | Provider errors | Sanitized HTTP status/error; provider response bodies are not included |
 
 The [instruction mapping](messages-instruction-design.md) preserves text, source
@@ -215,3 +215,7 @@ repair, host-managed compaction and explicit recovery for both profiles. The
 [wire scope](../tests/reasoning/wire-lock.json) pins the reviewed contract and source
 digests. This is mock protocol/recovery support, not qualification of a real Claude
 model. Changing model, route or reasoning contract requires a new bound session.
+
+Usage accounting and the optional recorder are described in the
+[token usage accounting guide](usage-accounting.md). Recorder installation,
+local commit guarantees and external delivery are separate from HTTP metadata observation.
