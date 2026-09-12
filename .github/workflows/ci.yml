@@ -166,6 +166,10 @@ jobs:
       - name: Run every synthetic Codex scenario
         shell: bash
         run: python3 -B tests/codex/conformance.py | tee .local/conformance-results.jsonl
+      - name: Verify checked Responses tool compatibility
+        run: |
+          python3 -B tests/codex/conformance.py --api responses_checked
+          python3 -B tests/codex/conformance.py --api responses_checked --responses-native-custom
       - name: Verify host-owned continuity with the pinned Codex
         shell: bash
         run: python3 -B tests/codex/continuity.py | tee .local/continuity-results.jsonl
@@ -328,6 +332,8 @@ jobs:
       - run: cargo +1.98.0 build --workspace --locked
       - run: python -B scripts/usage_smoke.py --binary target/debug/agent-response-gateway --recorder target/debug/gateway-usage-recorder
       - run: python -B scripts/managed_usage_smoke.py --gateway-bin target/debug/agent-response-gateway --recorder-bin target/debug/gateway-usage-recorder
+      - name: Verify managed policy and recorder compatibility
+        run: python -B scripts/managed_usage_smoke.py --gateway-bin target/debug/agent-response-gateway --recorder-bin target/debug/gateway-usage-recorder --compatibility-policy
       - name: Build the pre-alignment usage recorder
         run: |
           git fetch --no-tags origin bbc5d2c3e48018d94f5cc3c796b149832478de78
