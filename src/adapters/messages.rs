@@ -484,7 +484,7 @@ impl PreparedMessages {
         let mut response = json!({"id":id.as_str(),"object":"response","created_at":std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_err(|_| IrError::InvalidField("response_time"))?.as_secs(),"model":self.model,"status":status,"output":output,
             "error":Value::Null,
             "incomplete_details":if terminal == Terminal::Incomplete {json!({"reason":reason})} else {Value::Null},
-            "usage":{"input_tokens":input_total,"output_tokens":generated,"total_tokens":total}});
+            "usage":response_usage(value.get("usage").ok_or(IrError::InvalidField("usage"))?, input_total, generated, total)});
         self.reflect_format(&mut response);
         Ok(response)
     }
@@ -533,4 +533,16 @@ fn usage(usage: &Value) -> Result<(u64, u64, u64), IrError> {
         .checked_add(generated)
         .ok_or(IrError::InvalidField("usage"))?;
     Ok((input_total, generated, total))
+}
+
+fn response_usage(raw: &Value, input: u64, output: u64, total: u64) -> Value {
+    let canonical = gateway_usage_contract::normalize(
+        gateway_usage_contract::Profile::MessagesV1,
+        gateway_usage_contract::extract(gateway_usage_contract::Profile::MessagesV1, raw),
+    );
+    let mut result = canonical.responses();
+    result["input_tokens"] = json!(input);
+    result["output_tokens"] = json!(output);
+    result["total_tokens"] = json!(total);
+    result
 }

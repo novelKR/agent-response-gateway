@@ -8,7 +8,7 @@ mod proxy;
 
 pub use config::{Config, Limits, Model, Provider, Secrets};
 pub use error::ConfigError;
-pub use http::{router, router_with_observers};
+pub use http::{router, router_with_observers, router_with_usage};
 
 pub mod ir;
 mod responses_policy;
@@ -20,3 +20,4 @@ pub mod adapters;
 pub mod continuation;
 
 mod proxy_interactions;
+pub mod usage;

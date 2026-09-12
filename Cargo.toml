@@ -1,3 +1,8 @@
+[workspace]
+members = ["crates/usage-contract", "extensions/usage-recorder"]
+default-members = ["."]
+resolver = "3"
+
 [package]
 name = "agent-response-gateway"
 version = "0.1.0"
@@ -9,6 +14,7 @@ publish = false
 exclude = ["/.private/**", "/docs-site/node_modules/**", "/docs-site/.temp/**", "/docs-site/.vitepress/.cache/**", "/docs-site/.vitepress/.temp/**"]
 
 [dependencies]
+gateway-usage-contract = { path = "crates/usage-contract" }
 async-stream = "0.3"
 axum = "0.8"
 bytes = "1"

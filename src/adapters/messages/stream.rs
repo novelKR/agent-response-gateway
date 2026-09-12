@@ -444,8 +444,7 @@ impl MessagesStream<'_> {
                 }
                 response["status"] = json!(status);
                 response["output"] = json!(items);
-                response["usage"] =
-                    json!({"input_tokens":input,"output_tokens":generated,"total_tokens":total});
+                response["usage"] = super::response_usage(&self.usage, input, generated, total);
                 if let Some(reason) = reason {
                     response["incomplete_details"] = json!({"reason":reason});
                 }

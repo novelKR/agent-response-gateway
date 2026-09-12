@@ -96,6 +96,40 @@ propagation. Follow the consumer's existing deployment and environment managemen
 
 
 
+A synthetic backend example uses an application with authentication, policy and
+business storage services. The application checks access and workflow policy,
+then calls the configured loopback gateway on the same host or in the same
+network namespace. This does not introduce a public gateway service.
+
+```text
+Application access and policy checks
+    -> Local Responses gateway -> Configured model provider
+    <- Responses output / tool calls
+Application tool approval, execution and business storage
+
+Gateway usage -> Optional Usage Recorder -> PostgreSQL / HTTP collector
+```
+
+The backend owns tool execution and business approval. Its trusted deployment
+supplies process-configured provider keys; client-supplied tenant identity does
+not select credentials. The recorder's [generic export contract](usage-accounting.md)
+is optional and separate from workflow storage. This example claims no deployed
+integration or new endpoint.
+
+| State | Ownership in this example |
+|---|---|
+| Business data and approval records | Backend application |
+| Conversation history and recovery | Host under the current continuity contract |
+| Provider-specific continuation | Opt-in gateway continuation under host-owned origin and recovery contracts; independent module deployment remains future work |
+| Public Response objects and lineage | Future optional service with access and retention contracts |
+| Usage ledger and delivery outbox | Optional Usage Recorder |
+
+Dynamic credential leases, tenant-specific selection, account pools and provider
+continuity are extension directions, not capabilities enabled by this example.
+Standalone applications may eventually supply these modules themselves; an
+external policy service is not a mandatory controller of the core. See the
+[product overview](index.md) for composition choices.
+
 <a id="further-acceptance"></a>
 <a id="통합-검증"></a>
 <a id="후속-수락"></a>
@@ -151,3 +185,7 @@ inspection must change readiness when its effective configuration differs.
 Changing credential values cannot be detected from a configuration-reference
 digest alone; resume needs a separate credential generation. Follow the
 [embedded contract](embedded-design.md) for lifecycle, access, failure and recovery.
+
+Usage accounting and the optional recorder are described in the
+[token usage accounting guide](usage-accounting.md). Recorder installation,
+local commit guarantees and external delivery are separate from HTTP metadata observation.

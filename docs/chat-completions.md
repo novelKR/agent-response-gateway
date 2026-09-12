@@ -87,3 +87,7 @@ actual Codex and a mock provider. It uses the restricted [Messages test profile]
 including explicit effort/schema controls, grammar rejection, approval denial and
 both cancellation modes. These results validate the protocol path; operational
 use requires the selected real model and application to be tested.
+
+Usage accounting and the optional recorder are described in the
+[token usage accounting guide](usage-accounting.md). Recorder installation,
+local commit guarantees and external delivery are separate from HTTP metadata observation.

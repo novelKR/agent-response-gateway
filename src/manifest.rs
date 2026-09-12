@@ -88,6 +88,10 @@ impl Config {
                     json!("5aad40046c3245d672393942f1554e35a293179d145ce8e6e2aad08bbc79ceb4");
                 route_projection["wire_contract_version"] = json!("v1");
             }
+            if self.models[&route.alias].usage_profile.is_some() {
+                route_projection["usage_profile"] =
+                    json!(self.models[&route.alias].resolved_usage_profile());
+            }
             routes.push(route_projection);
         }
         // Existing serve requires credentials for every configured provider, including unused ones.

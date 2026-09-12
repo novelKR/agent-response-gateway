@@ -120,3 +120,8 @@ private history. Public builds and CI must not require those records.
 Include the notice bundle in distribution after the [publication check](../docs/documentation.md).
 Inspect system libraries, container packages and bundled executables separately
 for the actual artifact, beyond the Cargo list. See the [release guide](../docs/release.md).
+
+The local gateway, usage contract and recorder packages share the root project
+license. Their exact local paths are validated; this is not a third-party AGPL
+exception. The dependency selection includes Zlib for foldhash; its original
+notice is retained with the locked sources.

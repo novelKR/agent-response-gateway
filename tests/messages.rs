@@ -160,7 +160,7 @@ fn response_usage_text_and_function_calls_are_validated_and_restored() {
     assert_eq!(decoded["output"][0]["content"][0]["text"], "합성 응답");
     assert_eq!(
         decoded["usage"],
-        json!({"input_tokens":17,"output_tokens":3,"total_tokens":20})
+        json!({"input_tokens":17,"output_tokens":3,"total_tokens":20,"input_tokens_details":{"cached_tokens":5,"cache_write_tokens":2}})
     );
     assert!(decoded["created_at"].as_u64().unwrap() > 0);
     let mut upstream = response();

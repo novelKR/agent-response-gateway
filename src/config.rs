@@ -45,6 +45,7 @@ pub struct Model {
     pub auth: Option<UpstreamAuth>,
     pub capability_profile: Option<String>,
     pub messages_version: Option<String>,
+    pub usage_profile: Option<gateway_usage_contract::Profile>,
 }
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, serde::Serialize, PartialEq, Eq)]
@@ -235,6 +236,10 @@ impl Config {
             }
         }
         for (id, model) in &self.models {
+            let expected = model.resolved_usage_profile();
+            if model.usage_profile.is_some_and(|p| p != expected) {
+                return Err(ConfigError("Usage profile does not match route API".into()));
+            }
             if !safe_label(id)
                 || !self.providers.contains_key(&model.provider)
                 || model.upstream_model.is_empty()
@@ -404,5 +409,18 @@ impl Secrets {
             }
         }
         Ok(())
+    }
+}
+
+impl Model {
+    pub fn resolved_usage_profile(&self) -> gateway_usage_contract::Profile {
+        match self.api {
+            ApiProtocol::Responses => gateway_usage_contract::Profile::ResponsesV1,
+            ApiProtocol::ChatCompletions => gateway_usage_contract::Profile::ChatV1,
+            ApiProtocol::Messages => gateway_usage_contract::Profile::MessagesV1,
+            ApiProtocol::GeminiInteractions => {
+                gateway_usage_contract::Profile::GeminiInteractionsV1
+            }
+        }
     }
 }
