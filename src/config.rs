@@ -201,6 +201,20 @@ impl Config {
         Ok(config)
     }
 
+    pub fn resolved_usage_profile(&self, model: &Model) -> gateway_usage_contract::Profile {
+        if model
+            .capability_profile
+            .as_ref()
+            .and_then(|id| self.capability_profiles.get(id))
+            .and_then(|p| p.reasoning_contract.as_ref())
+            .and_then(|c| c.chat_dialect())
+            == Some(crate::ir::reasoning::ChatDialect::DeepSeek)
+        {
+            gateway_usage_contract::Profile::DeepSeekV1
+        } else {
+            model.resolved_usage_profile()
+        }
+    }
     pub fn validate(&self) -> Result<(), ConfigError> {
         if let Some(c) = &self.continuation {
             c.validate()?;
@@ -255,7 +269,7 @@ impl Config {
             }
         }
         for (id, model) in &self.models {
-            let expected = model.resolved_usage_profile();
+            let expected = self.resolved_usage_profile(model);
             if model.usage_profile.is_some_and(|p| p != expected) {
                 return Err(ConfigError("Usage profile does not match route API".into()));
             }

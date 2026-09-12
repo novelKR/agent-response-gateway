@@ -14,7 +14,8 @@
 선택적으로 사용할 수 있는 [Python 연속성 모듈](../../scripts/continuity_contract.py)은
 호스트의 실행 기록을 검사하고 새 개정본을 반환한다. 표준 라이브러리만 사용하며
 입출력이나 모델 호출은 수행하지 않는다. 저장, 인증, 승인과 복구는 호스트가
-담당하고 Rust 게이트웨이는 상태를 저장하지 않는다.
+담당하는 호스트 저널 계약이다. 선택형 제공자 상태는 별도의
+[관리형 continuation 실행 계층](managed-continuation.md)을 사용한다.
 전체 흐름은 [이력·재개 설계](continuity-design.md)를 참조한다.
 
 <a id="verified-inputs-and-private-journal"></a>

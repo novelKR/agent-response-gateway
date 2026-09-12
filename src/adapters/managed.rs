@@ -14,11 +14,50 @@ use crate::{
 };
 use serde_json::Value;
 
+/// Numeric accounting and allowlisted identities are independent of replay data.
+#[derive(Clone)]
+pub(crate) struct Accounting {
+    pub usage: gateway_usage_contract::CanonicalUsage,
+    pub model: Option<String>,
+    pub response_id: Option<String>,
+    pub upstream: gateway_usage_contract::Outcome,
+}
+impl Accounting {
+    pub fn new(
+        profile: gateway_usage_contract::Profile,
+        usage: Option<&Value>,
+        metadata: &Value,
+        upstream: gateway_usage_contract::Outcome,
+    ) -> Self {
+        let empty = serde_json::json!({});
+        Self {
+            usage: gateway_usage_contract::normalize(
+                profile,
+                gateway_usage_contract::extract(
+                    profile,
+                    usage.filter(|v| !v.is_null()).unwrap_or(&empty),
+                ),
+            ),
+            model: metadata
+                .get("model")
+                .and_then(Value::as_str)
+                .filter(|v| gateway_usage_contract::safe_label(v))
+                .map(str::to_owned),
+            response_id: metadata
+                .get("id")
+                .and_then(Value::as_str)
+                .filter(|v| gateway_usage_contract::safe_label(v))
+                .map(str::to_owned),
+            upstream,
+        }
+    }
+}
 pub(crate) struct ManagedOutput {
     pub response: Value,
     pub native: NativeReplay,
     pub outcome: Outcome,
     pub usage: Value,
+    pub accounting: Accounting,
 }
 impl ManagedOutput {
     /// Retain numeric metadata separately. Codex's optional usage object requires
@@ -43,14 +82,18 @@ impl ManagedOutput {
         self.response["usage"] = usage;
     }
 }
-fn interaction_output(value: DecodedInteraction) -> Result<ManagedOutput, IrError> {
+fn interaction_output(
+    value: DecodedInteraction,
+    accounting: Accounting,
+) -> Result<ManagedOutput, IrError> {
     let outcome = match value.provider_status.as_str() {
         "completed" => Outcome::Completed,
         "requires_action" => Outcome::AwaitingTools,
         _ => return Err(IrError::InvalidEventOrder),
     };
     Ok(ManagedOutput {
-        usage: value.response["usage"].clone(),
+        usage: accounting.usage.responses(),
+        accounting,
         response: value.response,
         native: NativeReplay::Gemini {
             version: 1,
@@ -112,6 +155,13 @@ impl ManagedAdapter {
         }
         Ok(())
     }
+    pub fn usage_profile(&self) -> gateway_usage_contract::Profile {
+        match self {
+            Self::Gemini(_) => gateway_usage_contract::Profile::GeminiInteractionsV1,
+            Self::Messages(_) => gateway_usage_contract::Profile::MessagesV1,
+            Self::Chat(p) => p.accounting_profile(),
+        }
+    }
     pub fn payload(&self) -> &Value {
         match self {
             Self::Gemini(p) => &p.payload,
@@ -121,7 +171,16 @@ impl ManagedAdapter {
     }
     pub fn decode_bytes(&self, bytes: &[u8], id: &str) -> Result<ManagedOutput, IrError> {
         match self {
-            Self::Gemini(p) => interaction_output(p.decode_bytes(bytes, id)?),
+            Self::Gemini(p) => {
+                let raw: Value = super::json::decode(bytes)?;
+                let accounting = Accounting::new(
+                    gateway_usage_contract::Profile::GeminiInteractionsV1,
+                    raw.get("usage"),
+                    &raw,
+                    gateway_usage_contract::Outcome::Completed,
+                );
+                interaction_output(p.decode(raw, id)?, accounting)
+            }
             Self::Messages(p) => p.decode_managed(super::json::decode(bytes)?),
             Self::Chat(p) => p.decode_managed(super::json::decode(bytes)?),
         }
@@ -147,6 +206,13 @@ impl ManagedStream<'_> {
             Self::Chat(s) => s.event(event),
         }
     }
+    pub fn accounting(&self) -> Accounting {
+        match self {
+            Self::Gemini(s) => s.accounting(),
+            Self::Messages(s) => s.accounting(),
+            Self::Chat(s) => s.accounting(),
+        }
+    }
     pub fn take_progress(&mut self) -> Vec<Value> {
         match self {
             Self::Gemini(s) => s.take_progress(),
@@ -163,7 +229,10 @@ impl ManagedStream<'_> {
     }
     pub fn finish(self) -> Result<ManagedOutput, IrError> {
         match self {
-            Self::Gemini(s) => interaction_output(s.finish()?),
+            Self::Gemini(s) => {
+                let accounting = s.accounting();
+                interaction_output(s.finish()?, accounting)
+            }
             Self::Messages(s) => s.finish(),
             Self::Chat(s) => s.finish(),
         }

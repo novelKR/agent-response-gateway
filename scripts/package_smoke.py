@@ -17,6 +17,8 @@ from urllib.request import Request, ProxyHandler, build_opener
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tests/codex"))
 import embedded_contract
+import reasoning_continuity as claude
+import reasoning_chat_continuity as chat
 
 
 class Upstream(BaseHTTPRequestHandler):
@@ -38,7 +40,8 @@ class Upstream(BaseHTTPRequestHandler):
             elif self.path == "/v1/chat/completions":
                 assert self.headers.get("Authorization") == "Bearer synthetic-upstream-key"
                 assert self.headers.get("x-api-key") is None and self.headers.get("anthropic-version") is None
-                assert body["messages"][0]["content"] == "synthetic-input"
+                first_user = next(m["content"] for m in body["messages"] if m["role"] == "user")
+                assert first_user == "synthetic-input" or first_user == [{"type":"text","text":"synthetic-input"}]
                 value = {"id":"synthetic", "object":"chat.completion", "created":0, "model":"synthetic-model", "choices":[{"index":0,"message":{"role":"assistant","content":"synthetic-output"},"finish_reason":"stop"}]}
             elif self.path == "/v1/interactions":
                 assert self.headers.get("x-goog-api-key") == "synthetic-upstream-key"
@@ -50,6 +53,21 @@ class Upstream(BaseHTTPRequestHandler):
                 assert self.path == "/v1/responses" and body["store"] is False and body["input"] == "synthetic-input"
                 assert self.headers.get("Authorization") == "Bearer synthetic-upstream-key"
                 value = {"object":"response", "id":"synthetic", "status":"completed", "output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"synthetic-output"}]}]}
+            if self.path == "/v1/messages" and "thinking" in body:
+                originals = [b for m in body["messages"] if m["role"] == "assistant" for b in m["content"]]
+                if originals: assert sum(b.get("signature") == "synthetic-native-signature" for b in originals) == 1
+                value["content"].insert(0, {"type":"thinking", "thinking":"synthetic-reasoning", "signature":"synthetic-native-signature"})
+                value["content"].insert(1, {"type":"redacted_thinking", "data":"synthetic-native-redacted"})
+            if self.path == "/v1/chat/completions" and ("thinking" in body or "reasoning" in body):
+                native = value["choices"][0]["message"]
+                originals = [m for m in body["messages"] if m["role"] == "assistant"]
+                if "thinking" in body:
+                    native["reasoning_content"] = "synthetic-reasoning"
+                    if originals: assert originals[0]["reasoning_content"] == "synthetic-reasoning"
+                else:
+                    assert body["provider"] == {"only":["synthetic/exact"], "allow_fallbacks":False, "require_parameters":True}
+                    native["reasoning_details"] = [{"type":"reasoning.text","text":"synthetic-reasoning","format":"anthropic-claude-v1","index":0}, {"type":"reasoning.encrypted","data":"synthetic-native-encrypted","format":"anthropic-claude-v1","index":1}]
+                    if originals: assert originals[0]["reasoning_details"] == native["reasoning_details"]
             self.server.requests.append(self.path)
             raw = json.dumps(value).encode()
             self.send_response(200)
@@ -103,6 +121,10 @@ def smoke(binary, state_dir):
                 text += 'messages_version="2023-06-01"\n'
         for api in ["messages", "chat_completions", "gemini_interactions"]:
             text += f'[capability_profiles.{api}]\nversion="1"\nprovider="mock"\nupstream_model="synthetic-model"\napi="{api}"\ncontext_window=4096\nmax_output_tokens=128\ntested_codex_version="0.154.0"\n'
+        contracts = ("claude_adaptive", "claude_manual", "deep_seek", "open_router")
+        for name in contracts:
+            fragment = claude.route("0.154.0", name=="claude_manual") if name.startswith("claude") else chat.route("0.154.0", name=="open_router")
+            text += f'[models.{name}]\nprovider="mock"\nupstream_model="synthetic-model"\n' + fragment.replace("synthetic-reasoning", name)
         store=(state_dir / "continuation").resolve();store.mkdir(mode=0o700)
         initialized=subprocess.run([str(binary),"init-continuation","--directory",str(store)],env=env,capture_output=True,timeout=10)
         assert initialized.returncode==0
@@ -141,6 +163,21 @@ def smoke(binary, state_dir):
             assert output["status"] == "completed" and output["output"][0]["content"][0]["text"] == "synthetic-output"
             if api=="gemini_interactions":replay_output=output["output"]
         assert not server.failed and len(server.requests) == 4
+        managed = {}
+        def managed_post(name, sid, history):
+            request = Request(ready["base_url"]+"/responses", data=json.dumps({"model":name,"input":history}).encode(), headers={"Authorization":"Bearer "+token,"Content-Type":"application/json","x-gateway-session":sid})
+            with client.open(request,timeout=5) as response: output=json.load(response)
+            assert output["status"]=="completed"
+            assert any(i.get("summary")==[{"type":"summary_text","text":"synthetic-reasoning"}] for i in output["output"])
+            assert sum(bool(i.get("encrypted_content")) for i in output["output"])==1
+            return output["output"]
+        first = [{"type":"message","role":"user","content":[{"type":"input_text","text":"synthetic-input"}]}]
+        for name in contracts:
+            declared = next(r for r in manifest["configuration"]["routes"] if r["alias"]==name)
+            origin = {"route":{k:v for k,v in declared.items() if k!="api_key_env"},"realm":"synthetic","generation":"1"}
+            create = Request(ready["base_url"].removesuffix("/v1")+"/__continuation/sessions", data=json.dumps({"origin":origin}).encode(), headers={"Authorization":"Bearer "+env["ARG_CONTROL_TOKEN"],"Content-Type":"application/json"})
+            with client.open(create,timeout=5) as response: current=json.load(response)
+            managed[name] = (current["id"], managed_post(name,current["id"],first))
         request_shutdown(process)
         assert process.wait(timeout=5) == 0
         process=launch();cleanup.callback(stop,process)
@@ -148,9 +185,11 @@ def smoke(binary, state_dir):
         history=[{"type":"message","role":"user","content":[{"type":"input_text","text":"synthetic-input"}]}]+replay_output+[{"type":"message","role":"user","content":[{"type":"input_text","text":"continue"}]}]
         request=Request(ready["base_url"]+"/responses",data=json.dumps({"model":"gemini_interactions","input":history}).encode(),headers={"Authorization":"Bearer "+token,"Content-Type":"application/json","x-gateway-session":session["id"]})
         with client.open(request,timeout=5) as response:assert json.load(response)["status"]=="completed"
-        assert not server.failed and len(server.requests)==5
+        for name, (sid, output) in managed.items():
+            managed_post(name, sid, first+output+[{"type":"message","role":"user","content":[{"type":"input_text","text":"continue"}]}])
+        assert not server.failed and len(server.requests)==13
         request_shutdown(process);assert process.wait(timeout=5)==0
-    return {"status":"passed", "routes":4, "durable_restart":"passed", "authentication":"passed", "manifest_ready_binding":"passed", "shutdown":"passed", "provider_probe":False}
+    return {"status":"passed", "routes":8, "managed_reasoning_contracts":4, "durable_restart":"passed", "authentication":"passed", "manifest_ready_binding":"passed", "shutdown":"passed", "provider_probe":False}
 
 
 if __name__ == "__main__":

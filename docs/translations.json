@@ -186,8 +186,8 @@
       "order": 1,
       "source": "docs/continuity.md",
       "translation": "docs/ko/continuity.md",
-      "source_sha256": "aa2f2abe2b1fe85b6df991599e4509dca5edcc66e5acde05d3c5dd98a6155f37",
-      "translation_sha256": "9941f0eab335529ac91b4f6a477c350c2da5c774cef0d3e5531135f500ec5f8f",
+      "source_sha256": "f76a646b24823204bed240be24f1d68ed4446a622521f934097a7373e5caec4a",
+      "translation_sha256": "38f6748a87c16f02997784e50a5b728a7d01becea524e27d328d8375b94c7326",
       "anchors": [
         "host-owned-continuity-contract",
         "reproducible-validation",
@@ -823,8 +823,8 @@
       "order": 30,
       "source": "docs/usage-accounting.md",
       "translation": "docs/ko/usage-accounting.md",
-      "source_sha256": "fdbf65c3f872dda35edc0d33fe68385b931f5bd8ced95a760fb7d3642be08e8d",
-      "translation_sha256": "fe9fbc47cf1de05020e02799964c458b37d81de829599073f1c2c0c6ac4e3a6d",
+      "source_sha256": "93b01fd7af319023b1ad8f534c920803579e80f9e0055614afef2dd91b90cd3a",
+      "translation_sha256": "68ca9542f6d379a646efb4fd03c22600ac4ec148c001728b4735b6024a51c7ce",
       "anchors": [
         "delivery-guarantees",
         "external-export",
@@ -848,8 +848,8 @@
       "order": 20,
       "source": "docs/interactions.md",
       "translation": "docs/ko/interactions.md",
-      "source_sha256": "ba672749703a14ddf2cfe24dd633f4dbf8230b07e3fab22179b0cc33655a3765",
-      "translation_sha256": "37c84b1b0bc1f44cf401e4828083a33cbf01713daa7e90596f76eed29ba710c5",
+      "source_sha256": "fbfa1b20b5b3dde9a68f27cc0fc30afd7de52ef02164349255b8332b344f3e4f",
+      "translation_sha256": "d93c050b9142d3b11a4a4b20414e01571a6694e3fd579996680e5130df27a652",
       "anchors": [
         "backup-and-failure-recovery",
         "configuration",
@@ -863,6 +863,30 @@
         "호스트-제어와-재개"
       ],
       "route": "/guide/interactions"
+    },
+    {
+      "id": "managed-continuation",
+      "section": "integration",
+      "order": 6,
+      "source": "docs/managed-continuation.md",
+      "translation": "docs/ko/managed-continuation.md",
+      "source_sha256": "455eedfa9724b835baee960e809aebef4f8c79bbca3ce30844ecb47488d4aab9",
+      "translation_sha256": "c8f3c21aa5595ed956b5ff23faec6870c3adb90aa208456513d513e16ae4a16b",
+      "anchors": [
+        "execution-and-display",
+        "host-configuration-and-compatibility",
+        "managed-reasoning-and-continuation",
+        "recovery-and-compaction",
+        "usage-recording-and-failures",
+        "validation-and-limits",
+        "검증과-한계",
+        "관리형-reasoning과-재개",
+        "복구와-압축",
+        "사용량-기록과-실패",
+        "실행과-표시",
+        "호스트-설정과-호환성"
+      ],
+      "route": "/guide/managed-continuation"
     }
   ]
 }

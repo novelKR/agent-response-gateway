@@ -133,7 +133,7 @@ pub(crate) async fn responses(
         .expect("configuration was validated");
     if route.managed {
         return crate::proxy_managed::responses(
-            state, payload, model_id, streaming, session_id, permit,
+            state, payload, model_id, streaming, session_id, permit, id.0,
         )
         .await;
     }
@@ -512,7 +512,7 @@ pub(crate) async fn responses(
     }
 }
 
-fn accounting_error() -> ApiError {
+pub(crate) fn accounting_error() -> ApiError {
     ApiError::new(
         StatusCode::SERVICE_UNAVAILABLE,
         "usage_recorder_unavailable",

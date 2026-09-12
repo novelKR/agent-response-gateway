@@ -110,11 +110,6 @@ async fn run(cli: Cli) -> Result<(), ConfigError> {
         .as_deref()
         .map(ExtensionPlan::load)
         .transpose()?;
-    if config.continuation.is_some() && extensions.is_some() {
-        return Err(ConfigError(
-            "Combined continuation and observer manifest is not supported".into(),
-        ));
-    }
     let manifest = config.manifest()?;
     let base_manifest = serde_json::to_value(&manifest).expect("manifest JSON");
     let extended_manifest = extensions
@@ -174,13 +169,12 @@ async fn run(cli: Cli) -> Result<(), ConfigError> {
     let mut readiness = json!({"event":"ready", "address":bound.to_string(), "base_url":format!("http://{bound}/v1"), "version":env!("CARGO_PKG_VERSION"),
         "schema":if continuation_enabled {"gateway-ready/v3"}else{READY_SCHEMA},"manifest_schema":if continuation_enabled {"gateway-embedded-manifest/v3"}else{MANIFEST_SCHEMA},"configuration_sha256":manifest.configuration_sha256()});
     if let Some(extended) = &extended_manifest {
-        readiness["schema"] = json!(extensions.as_ref().expect("extension plan").ready_schema());
-        readiness["manifest_schema"] = json!(
-            extensions
-                .as_ref()
-                .expect("extension plan")
-                .manifest_schema()
-        );
+        readiness["schema"] = json!(if continuation_enabled {
+            "gateway-extended-ready/v3"
+        } else {
+            extensions.as_ref().expect("extension plan").ready_schema()
+        });
+        readiness["manifest_schema"] = extended["schema"].clone();
         readiness["execution_sha256"] = extended["execution_sha256"].clone();
     }
     println!("{readiness}");

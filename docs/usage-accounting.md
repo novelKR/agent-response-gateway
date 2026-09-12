@@ -38,17 +38,18 @@ allowlisted numeric usage paths and their validity, never arbitrary provider JSO
 Negative, fractional, oversized and inconsistent counters remain invalid; valid
 independent fields remain available. The recorder uses exact integer arithmetic.
 
-Profiles `responses_v1`, `chat_v1`, and `messages_v1` define API-specific meaning.
+Profiles `responses_v1`, `chat_v1`, `messages_v1`, `gemini_interactions_v1` and
+`deep_seek_v1` define API/contract-specific meaning.
 A route may explicitly select its matching `usage_profile`; mismatched profiles
-are rejected. The default matches the route API. Profiles and the event contract
+are rejected. The default matches the route API and explicit reasoning contract. Profiles and the event contract
 are bound into the recorder execution manifest.
 
 Responses reads cached/write details and reasoning directly. Chat preserves cache
 reads and reasoning but leaves unreported cache writes unknown. Messages preserves
 ordinary input, cache reads, cache creation and supplied TTL details separately.
 The Messages profile conservatively leaves canonical total input unknown when a
-cache component is absent. Its existing client conversion still treats absent
-optional cache components as absent contributions to its legacy wire total.
+cache component is absent. Managed client conversion follows that rule too; the
+existing stateless conversion keeps its legacy optional-cache behavior.
 Client Responses usage includes supported cache details, not ledger-only fields.
 
 Messages ordinary input 10, cache read 5 and cache write 2 produce input 17.
@@ -208,3 +209,12 @@ Synthetic checks use `scripts/usage_smoke.py` and `scripts/usage_postgres_test.p
 The latter owns a disposable TLS PostgreSQL instance and stops it afterward.
 Neither synthetic conformance nor a passing local check proves actual provider
 billing accuracy or operational acceptance by an external host.
+
+Managed reasoning can use the recorder with the same admission and completion
+guarantees; see [managed execution](managed-continuation.md#usage-recording-and-failures).
+Gemini derives total output by adding reported regular output and thought tokens;
+if either is missing the whole output remains unknown. DeepSeek retains native
+cache hit/miss counters and validates their partition and any Chat cache alias.
+OpenRouter uses the standard Chat usage profile. None adds reasoning again to
+Chat or Messages output. The new managed combination declares extended manifest
+and readiness v3 while existing stateless extension configurations retain v2.

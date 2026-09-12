@@ -100,3 +100,27 @@ def validate_credential_split(manifest, gateway_env, codex_env, local_key_name, 
     require(not any(value in keys for value in codex_env.values()), "Upstream credential reached Codex environment")
     require(codex_env.get(local_key_name) == gateway_env.get(configuration["local_token_env"]) and codex_env.get(local_key_name) not in keys, "Local token separation failed")
     require(codex_env.get("CODEX_HOME") == str(home) and codex_env.get("HOME") == str(home), "Codex home is not isolated")
+
+
+def validate_extended_manifest(value):
+    require(isinstance(value,dict) and set(value)=={'schema','configuration','execution_sha256'}, 'Invalid extended manifest')
+    require(value['schema']=='gateway-extended-manifest/v3', 'Unsupported extended managed contract')
+    configuration=value['configuration']
+    require(set(configuration) in ({'gateway','extensions'}, {'gateway','extensions','usage_contract','usage_profiles'}), 'Invalid extended configuration')
+    base=validate_manifest(configuration['gateway'])
+    require(base['schema']=='gateway-embedded-manifest/v3', 'Managed base version mismatch')
+    if 'usage_contract' in configuration:
+        require(configuration['usage_contract']=='gateway-usage-event/v1' and configuration['usage_profiles']==['responses/v1','chat/v1','messages/v1','gemini_interactions/v1','deepseek/v1'], 'Unsupported usage profiles')
+    raw=json.dumps(configuration,ensure_ascii=False,sort_keys=True,separators=(',',':'),allow_nan=False).encode()
+    require(hashlib.sha256(raw).hexdigest()==value['execution_sha256'], 'Execution digest mismatch')
+    return value
+
+
+def parse_extended_ready_line(line, manifest):
+    validate_extended_manifest(manifest)
+    ready=load_json(line)
+    require(ready.get('schema')=='gateway-extended-ready/v3' and ready.get('manifest_schema')==manifest['schema'] and ready.get('execution_sha256')==manifest['execution_sha256'], 'Extended readiness binding mismatch')
+    base=dict(ready);base.pop('execution_sha256')
+    base['schema']='gateway-ready/v3';base['manifest_schema']='gateway-embedded-manifest/v3'
+    parse_ready_line(json.dumps(base)+'\n',manifest['configuration']['gateway'])
+    return ready

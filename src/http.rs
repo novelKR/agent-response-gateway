@@ -52,11 +52,6 @@ pub fn router_with_usage(
 ) -> Result<Router, ConfigError> {
     config.validate()?;
     secrets.validate(&config)?;
-    if usage.is_some() && config.continuation.is_some() {
-        return Err(ConfigError(
-            "Managed continuation with accounting requires the managed usage integration".into(),
-        ));
-    }
     let client = reqwest::Client::builder()
         .redirect(reqwest::redirect::Policy::none())
         .retry(reqwest::retry::never())

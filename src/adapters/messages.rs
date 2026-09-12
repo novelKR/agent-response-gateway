@@ -684,6 +684,12 @@ impl PreparedMessages {
             .clone();
         Ok(crate::adapters::managed::ManagedOutput {
             usage: response["usage"].clone(),
+            accounting: crate::adapters::managed::Accounting::new(
+                gateway_usage_contract::Profile::MessagesV1,
+                value.get("usage"),
+                &value,
+                gateway_usage_contract::Outcome::Completed,
+            ),
             outcome: if value["stop_reason"] == "tool_use" {
                 crate::continuation::Outcome::AwaitingTools
             } else {
@@ -700,40 +706,17 @@ impl PreparedMessages {
 }
 
 fn managed_usage(value: Option<&Value>) -> Result<Value, IrError> {
-    let missing = json!({});
-    let value = value.filter(|v| !v.is_null()).unwrap_or(&missing);
-    let fields = object(value)?;
-    let number = |key: &str| -> Result<Option<u64>, IrError> {
-        match fields.get(key) {
-            None | Some(Value::Null) => Ok(None),
-            Some(v) => v.as_u64().map(Some).ok_or(IrError::InvalidField("usage")),
-        }
-    };
-    let input = number("input_tokens")?;
-    let output = number("output_tokens")?;
-    let cached = number("cache_read_input_tokens")?;
-    let created = number("cache_creation_input_tokens")?;
-    let input = input
-        .map(|n| {
-            n.checked_add(cached.unwrap_or(0))
-                .and_then(|n| n.checked_add(created.unwrap_or(0)))
-                .ok_or(IrError::InvalidField("usage"))
-        })
-        .transpose()?;
-    let total = input
-        .zip(output)
-        .map(|(i, o)| i.checked_add(o).ok_or(IrError::InvalidField("usage")))
-        .transpose()?;
-    let mut result = json!({"input_tokens":input,"output_tokens":output,"total_tokens":total});
-    if let Some(cached) = cached {
-        result["input_tokens_details"] = json!({"cached_tokens":cached});
-        if let Some(created) = created {
-            result["input_tokens_details"]["cache_creation_tokens"] = json!(created);
-        }
+    let empty = json!({});
+    let raw = value.filter(|v| !v.is_null()).unwrap_or(&empty);
+    object(raw)?;
+    let canonical = gateway_usage_contract::normalize(
+        gateway_usage_contract::Profile::MessagesV1,
+        gateway_usage_contract::extract(gateway_usage_contract::Profile::MessagesV1, raw),
+    );
+    if !canonical.violations.is_empty() {
+        return Err(IrError::InvalidField("usage"));
     }
-    // The pinned Codex accepts omitted optional counters, not null integers
-    // inside details objects. Never invent zero for an unknown provider count.
-    Ok(result)
+    Ok(canonical.responses())
 }
 
 fn response_usage(raw: &Value, input: u64, output: u64, total: u64) -> Value {

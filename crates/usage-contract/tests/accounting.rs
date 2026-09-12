@@ -141,3 +141,63 @@ fn interactions_preserves_reported_paths_and_derives_output_without_double_count
     );
     assert!(invalid.violations.iter().any(|v| v == "invalid_counter"));
 }
+
+#[test]
+fn deepseek_cache_aliases_partition_and_reasoning_are_not_double_counted() {
+    let raw = json!({"prompt_tokens":10,"completion_tokens":12,"total_tokens":22,"prompt_cache_hit_tokens":4,"prompt_cache_miss_tokens":6,"completion_tokens_details":{"reasoning_tokens":5}});
+    let usage = normalized(Profile::DeepSeekV1, raw.clone());
+    assert!(usage.validate());
+    assert_eq!(usage.value("input_tokens"), Some(10));
+    assert_eq!(usage.value("output_tokens"), Some(12));
+    assert_eq!(usage.value("cache_read_input_tokens"), Some(4));
+    assert_eq!(usage.value("input_regular_tokens"), Some(6));
+    assert_eq!(usage.value("reasoning_output_tokens"), Some(5));
+    assert_eq!(
+        usage.reported["prompt_cache_hit_tokens"].source,
+        Source::Reported
+    );
+    let standard = normalized(Profile::ChatV1, raw.clone());
+    assert_eq!(standard.value("cache_read_input_tokens"), None);
+    let mut conflict = raw.clone();
+    conflict["prompt_tokens_details"] = json!({"cached_tokens":3});
+    assert!(
+        !normalized(Profile::DeepSeekV1, conflict)
+            .violations
+            .is_empty()
+    );
+    let mut conflict = raw;
+    conflict["prompt_cache_miss_tokens"] = json!(7);
+    assert!(
+        !normalized(Profile::DeepSeekV1, conflict)
+            .violations
+            .is_empty()
+    );
+}
+
+#[test]
+fn typed_counter_observation_matches_wire_and_rejects_other_profile_paths() {
+    let raw = json!({"input_tokens":10,"cache_read_input_tokens":5,"cache_creation_input_tokens":2,"cache_creation":{"ephemeral_5m_input_tokens":2,"ephemeral_1h_input_tokens":0}});
+    let mut wire = Accumulator::new(Profile::MessagesV1);
+    let mut typed = Accumulator::new(Profile::MessagesV1);
+    wire.observe(&raw);
+    typed.observe_counters(extract(Profile::MessagesV1, &raw));
+    assert_eq!(wire.usage, typed.usage);
+    let end = json!({"output_tokens":12});
+    wire.observe(&end);
+    typed.observe_counters(extract(Profile::MessagesV1, &end));
+    assert_eq!(wire.usage, typed.usage);
+    typed.observe_counters(extract(
+        Profile::DeepSeekV1,
+        &json!({"prompt_cache_hit_tokens":5}),
+    ));
+    assert!(typed.incomplete);
+    assert!(!typed.usage.reported.contains_key("prompt_cache_hit_tokens"));
+    typed.observe_counters(extract(Profile::MessagesV1, &json!({"output_tokens":1})));
+    assert!(
+        typed
+            .usage
+            .violations
+            .iter()
+            .any(|v| v == "counter_decreased")
+    );
+}

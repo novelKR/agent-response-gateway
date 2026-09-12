@@ -247,6 +247,29 @@ impl<'a> InteractionsStream<'a> {
         }
         Ok(())
     }
+    pub(crate) fn accounting(&self) -> crate::adapters::managed::Accounting {
+        let empty = json!({});
+        let meta = self.interaction.as_ref().unwrap_or(&empty);
+        crate::adapters::managed::Accounting::new(
+            gateway_usage_contract::Profile::GeminiInteractionsV1,
+            if self.terminal {
+                meta.get("usage")
+            } else {
+                self.cumulative_usage.as_ref()
+            },
+            meta,
+            if self.terminal
+                && matches!(
+                    meta["status"].as_str(),
+                    Some("completed" | "requires_action")
+                )
+            {
+                gateway_usage_contract::Outcome::Completed
+            } else {
+                gateway_usage_contract::Outcome::InProgress
+            },
+        )
+    }
     pub fn take_progress(&mut self) -> Vec<Value> {
         std::mem::take(&mut self.progress)
     }

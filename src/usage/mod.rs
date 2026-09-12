@@ -128,6 +128,33 @@ impl Attempt {
         }
         Ok(())
     }
+    /// Managed adapters provide only numeric counters and allowlisted identity.
+    pub async fn observe_managed(
+        &mut self,
+        snapshot: &crate::adapters::managed::Accounting,
+    ) -> Result<(), ()> {
+        if let Some(model) = &snapshot.model {
+            self.event.reported_model = Some(model.clone());
+        }
+        if let Some(id) = &snapshot.response_id {
+            self.event.provider_response_id = Some(id.clone());
+        }
+        self.event.upstream = snapshot.upstream;
+        if !self.finished
+            && self
+                .accumulator
+                .observe_counters(snapshot.usage.reported.clone())
+        {
+            self.next(EventKind::UsageUpdated);
+            self.event.finality = if self.accumulator.usage.observed() {
+                Finality::Partial
+            } else {
+                Finality::Unobserved
+            };
+            self.deliver(false).await?;
+        }
+        Ok(())
+    }
     pub fn incomplete(&mut self) {
         self.accumulator.incomplete = true;
         self.event.observation_incomplete = true;
@@ -232,3 +259,13 @@ pub(crate) async fn finish(attempt: &mut Option<Attempt>, outcome: Outcome) -> R
 
 #[cfg(test)]
 mod tests;
+
+pub(crate) async fn observe_managed(
+    attempt: &mut Option<Attempt>,
+    snapshot: &crate::adapters::managed::Accounting,
+) -> Result<(), ()> {
+    if let Some(a) = attempt {
+        a.observe_managed(snapshot).await?;
+    }
+    Ok(())
+}

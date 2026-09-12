@@ -5,6 +5,7 @@ use crate::{
     error::ApiError,
     http::GatewayState,
     ir::continuity::VerifiedProviderHistory as ProviderHistory,
+    usage::{self, Outcome as UsageOutcome},
 };
 use axum::{
     body::Body,
@@ -243,6 +244,7 @@ pub(crate) async fn responses(
     streaming: bool,
     session_id: Option<String>,
     permit: OwnedSemaphorePermit,
+    request_id: String,
 ) -> Result<Response, ApiError> {
     let runtime = state.continuation.clone().ok_or_else(rejected)?;
     let config = state.config.continuation.as_ref().ok_or_else(rejected)?;
@@ -306,6 +308,36 @@ pub(crate) async fn responses(
             .validate_pending_controls(&replay)
             .map_err(|_| rejected())?;
     }
+    let timestamp = usage::now();
+    let mut accounting = usage::Attempt::start(
+        state.usage.as_ref(),
+        usage::UsageEvent {
+            schema: usage::SCHEMA.into(),
+            producer_id: String::new(),
+            request_id: request_id.clone(),
+            attempt_id: uuid::Uuid::new_v4().to_string(),
+            event_id: uuid::Uuid::new_v4().to_string(),
+            revision: 0,
+            kind: usage::EventKind::AttemptStarted,
+            started_at_ms: timestamp,
+            observed_at_ms: timestamp,
+            provider: route.snapshot.provider_id.clone(),
+            model_alias: model.clone(),
+            upstream_model: route.snapshot.model.clone(),
+            reported_model: None,
+            provider_request_id: None,
+            provider_response_id: None,
+            profile: prepared.usage_profile(),
+            configuration_sha256: state.configuration_sha256.clone(),
+            upstream: UsageOutcome::Unknown,
+            gateway: UsageOutcome::Failed,
+            finality: usage::Finality::Unobserved,
+            observation_incomplete: false,
+            usage: Default::default(),
+        },
+    )
+    .await
+    .map_err(|_| crate::proxy::accounting_error())?;
     let s = session.clone();
     let reserve = state.config.limits.max_response_bytes as u64;
     let attempt_id = runtime
@@ -354,6 +386,7 @@ pub(crate) async fn responses(
         request = request.header("anthropic-beta", beta);
     }
     let request = request
+        .header("x-request-id", request_id)
         .header(header::ACCEPT_ENCODING, "identity")
         .header(
             header::ACCEPT,
@@ -365,14 +398,39 @@ pub(crate) async fn responses(
         )
         .json(prepared.payload())
         .send();
+    if let Some(a) = &mut accounting {
+        a.event.upstream = UsageOutcome::InProgress;
+    }
     let response = tokio::time::timeout(
         Duration::from_millis(state.config.limits.response_header_timeout_ms),
         request,
     )
     .await
-    .map_err(|_| upstream())?
-    .map_err(|_| upstream())?;
+    .map_err(|_| upstream())
+    .and_then(|r| r.map_err(|_| upstream()));
+    let response = match response {
+        Ok(response) => response,
+        Err(error) => {
+            if let Some(a) = &mut accounting {
+                a.event.upstream = UsageOutcome::TransportLost;
+            }
+            let _ = usage::finish(&mut accounting, UsageOutcome::Failed).await;
+            return Err(error);
+        }
+    };
+    if let Some(a) = &mut accounting {
+        a.event.provider_request_id = response
+            .headers()
+            .get("x-request-id")
+            .and_then(|v| v.to_str().ok())
+            .filter(|v| usage::safe_label(v))
+            .map(str::to_owned);
+    }
     if !response.status().is_success() {
+        if let Some(a) = &mut accounting {
+            a.event.upstream = UsageOutcome::Failed;
+        }
+        let _ = usage::finish(&mut accounting, UsageOutcome::Failed).await;
         return Err(ApiError::new(
             if response.status().is_redirection() {
                 StatusCode::BAD_GATEWAY
@@ -413,6 +471,9 @@ pub(crate) async fn responses(
     let idle = Duration::from_millis(state.config.limits.stream_idle_timeout_ms);
     let mut source = response.bytes_stream();
     if streaming {
+        if let Some(a) = &mut accounting {
+            a.event.gateway = UsageOutcome::InProgress;
+        }
         let stream = async_stream::stream! {
             let _capacity = permit;
             // Keep the durable attempt guard alive with the downstream stream.
@@ -431,6 +492,7 @@ pub(crate) async fn responses(
                         Err(_) => break 'read,
                     };
                     if adapter.event(event).is_err() { break 'read; }
+                    if usage::observe_managed(&mut accounting, &adapter.accounting()).await.is_err() { break 'read; }
                     for event in adapter.take_progress() {
                         let bytes = numbered(event, &mut sequence);
                         written = written.saturating_add(bytes.len());
@@ -441,10 +503,15 @@ pub(crate) async fn responses(
                 }
             }
             if !complete {
+                let _ = usage::finish(&mut accounting, UsageOutcome::ConversionFailed).await;
                 yield Err(std::io::Error::other("Managed stream interrupted"));
             } else {
                 match adapter.finish() {
                     Ok(mut decoded) => {
+                        if usage::observe_managed(&mut accounting, &decoded.accounting).await.is_err() {
+                            yield Err(std::io::Error::other("Usage observation failed"));
+                            return;
+                        }
                         decoded.project_usage();
                         let record = ReplayV2 {
                             schema: continuation::REPLAY_V2.into(), session: session.id.clone(),
@@ -466,14 +533,24 @@ pub(crate) async fn responses(
                         match result {
                             Ok(token) => {
                                 attempt.mark_finalized();
+                                if usage::finish(&mut accounting, UsageOutcome::Completed).await.is_err() {
+                                    yield Err(std::io::Error::other("Usage finalization failed"));
+                                    return;
+                                }
                                 for event in finalized_events(decoded.response, &token) {
                                     yield Ok(numbered(event, &mut sequence));
                                 }
                             }
-                            Err(_) => yield Err(std::io::Error::other("Continuation finalization failed")),
+                            Err(_) => {
+                                let _ = usage::finish(&mut accounting, UsageOutcome::ConversionFailed).await;
+                                yield Err(std::io::Error::other("Continuation finalization failed"));
+                            },
                         }
                     }
-                    _ => yield Err(std::io::Error::other("Managed output incomplete or invalid")),
+                    _ => {
+                        let _ = usage::finish(&mut accounting, UsageOutcome::ConversionFailed).await;
+                        yield Err(std::io::Error::other("Managed output incomplete or invalid"));
+                    },
                 }
             }
         };
@@ -499,6 +576,9 @@ pub(crate) async fn responses(
         let mut decoded = prepared
             .decode_bytes(&bytes, &attempt_id)
             .map_err(|_| upstream())?;
+        usage::observe_managed(&mut accounting, &decoded.accounting)
+            .await
+            .map_err(|_| crate::proxy::accounting_error())?;
         decoded.project_usage();
         let record = ReplayV2 {
             schema: continuation::REPLAY_V2.into(),
@@ -521,6 +601,9 @@ pub(crate) async fn responses(
             .await
             .map_err(|_| rejected())?;
         attempt.mark_finalized();
+        usage::finish(&mut accounting, UsageOutcome::Completed)
+            .await
+            .map_err(|_| crate::proxy::accounting_error())?;
         add_envelope(&mut decoded.response, &token);
         Response::builder()
             .status(200)

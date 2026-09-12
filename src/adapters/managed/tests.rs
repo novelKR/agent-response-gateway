@@ -71,7 +71,7 @@ pub(super) fn prepare(
 }
 fn message(blocks: Value, stop: &str) -> Value {
     json!({"id":"synthetic","type":"message","role":"assistant","model":"synthetic-model","content":blocks,"stop_reason":stop,"stop_sequence":null,
-        "usage":{"input_tokens":32,"cache_read_input_tokens":5,"output_tokens":12}})
+        "usage":{"input_tokens":32,"cache_read_input_tokens":5,"cache_creation_input_tokens":0,"output_tokens":12}})
 }
 fn blocks() -> Value {
     json!([
