@@ -76,7 +76,7 @@ class Provider(BaseHTTPRequestHandler):
         self.wfile.write(raw)
 
 
-def run(binary, recorder, compatibility_policy=False):
+def run(binary, recorder, compatibility_policy=False, profile_packs=False):
     parent = ROOT / '.local/managed-usage-smoke'; parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=parent) as temporary, contextlib.ExitStack() as cleanup:
         root = Path(temporary).resolve(); root.chmod(0o700)
@@ -103,8 +103,13 @@ def run(binary, recorder, compatibility_policy=False):
             env = {**os.environ, 'ARG_LOCAL_TOKEN': 'L'*40, 'SYNTHETIC_KEY': 'synthetic-key'}
             control_token = gemini.setup(folder, binary, config, env)
             args = ['--config', str(config), '--extensions-lock', str(store / 'active.json')]
+            if profile_packs:
+                from profile_pack_fixture import activate
+                packed, lock = activate(binary, folder / 'profiles', config.read_text())
+                config.write_text(packed)
+                args += ['--profile-packs-lock', str(lock)]
             manifest = contract.validate_extended_manifest(json.loads(subprocess.run([str(binary), 'manifest', *args], env=env, capture_output=True, check=True).stdout))
-            assert manifest['schema'] == ('gateway-extended-manifest/v4' if compatibility_policy else 'gateway-extended-manifest/v3')
+            assert manifest['schema'] == ('gateway-extended-manifest/v5' if profile_packs else 'gateway-extended-manifest/v4' if compatibility_policy else 'gateway-extended-manifest/v3')
             def start():
                 child = subprocess.Popen([str(binary), 'serve', *args], env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 try:
@@ -130,6 +135,37 @@ def run(binary, recorder, compatibility_policy=False):
                 for streaming in (False, True):
                     status, data = post(streaming)
                     assert status == 200 and b'arg-continuation-v2.' in data
+                if profile_packs and name == 'gemini':
+                    # An old durable session cannot cross changed package bytes after restart.
+                    stale_session = gemini.create_session(ready['base_url'], control_token, base_manifest)
+                    old_entry = json.loads(lock.read_text())['packs'][0]
+                    source_path = folder / 'profiles/source.json'
+                    source = json.loads(source_path.read_text())
+                    source['evidence'] = [{'description':'Changed synthetic package bytes', 'source_url':None, 'artifact_sha256':None}]
+                    changed_source, changed_pack = folder / 'changed-source.json', folder / 'changed-pack.json'
+                    changed_source.write_text(json.dumps(source))
+                    def pack_command(*options):
+                        return json.loads(subprocess.run([str(binary),'profile-pack',*map(str,options)],capture_output=True,check=True).stdout)
+                    changed = pack_command('package','--source',changed_source,'--output',changed_pack)
+                    pack_command('install','--package',changed_pack,'--store',lock.parent)
+                    def select(sha):
+                        pack_command('disable','--store',lock.parent,'--id',old_entry['id'])
+                        pack_command('enable','--store',lock.parent,'--id',old_entry['id'],'--version',old_entry['version'],'--sha256',sha)
+                    terminate(process)
+                    select(changed['package_sha256'])
+                    manifest = contract.validate_extended_manifest(json.loads(subprocess.run([str(binary),'manifest',*args],env=env,capture_output=True,check=True).stdout))
+                    process, ready = start()
+                    calls = upstream.calls
+                    request = Request(ready['base_url']+'/responses',encode({'model':'writer','input':'synthetic'}),{'Authorization':'Bearer '+'L'*40,'Content-Type':'application/json','x-gateway-session':stale_session['id']})
+                    try:
+                        client.open(request,timeout=15)
+                        raise AssertionError('Changed pack accepted old session')
+                    except urllib.error.HTTPError as error:
+                        assert error.code == 409 and upstream.calls == calls
+                    terminate(process)
+                    select(old_entry['package_sha256'])
+                    manifest = contract.validate_extended_manifest(json.loads(subprocess.run([str(binary),'manifest',*args],env=env,capture_output=True,check=True).stdout))
+                    process, ready = start()
                 upstream.decreasing_usage = True
                 status, data = post(True)
                 assert status == 200 and b'arg-continuation-v2.' not in data and b'response.output_item.done' not in data and b'response.completed' not in data
@@ -176,7 +212,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--gateway-bin', type=Path, required=True); parser.add_argument('--recorder-bin', type=Path, required=True)
     parser.add_argument('--compatibility-policy', action='store_true', help='Bind the existing managed rules through a selected policy and v4 manifest')
-    args = parser.parse_args(); print(json.dumps(run(args.gateway_bin.resolve(), args.recorder_bin.resolve(), args.compatibility_policy), sort_keys=True))
+    parser.add_argument('--profile-packs', action='store_true', help='Import the synthetic profiles and policies from an explicitly pinned data pack')
+    args = parser.parse_args(); print(json.dumps(run(args.gateway_bin.resolve(), args.recorder_bin.resolve(), args.compatibility_policy, args.profile_packs), sort_keys=True))
 
 
 if __name__ == '__main__':

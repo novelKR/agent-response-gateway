@@ -5,6 +5,7 @@ mod error;
 pub mod extensions;
 mod http;
 pub mod manifest;
+pub mod profile_packs;
 mod proxy;
 
 pub use config::{Config, Limits, Model, Provider, Secrets};

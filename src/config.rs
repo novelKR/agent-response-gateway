@@ -28,6 +28,12 @@ pub struct Config {
     #[serde(default)]
     pub compatibility_policies: BTreeMap<String, crate::compatibility::CompatibilityPolicy>,
     pub continuation: Option<crate::continuation::Configuration>,
+    #[serde(default)]
+    pub(crate) capability_profile_imports: BTreeMap<String, crate::profile_packs::CapabilityImport>,
+    #[serde(default)]
+    pub(crate) compatibility_policy_imports: BTreeMap<String, crate::profile_packs::PolicyImport>,
+    #[serde(skip)]
+    pub(crate) profile_packs: Option<crate::profile_packs::ProfilePackPlan>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -83,7 +89,7 @@ pub enum DeclaredSupport {
     Unsupported,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, serde::Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct ModelProfile {
     pub reasoning_contract: Option<crate::ir::reasoning::ReasoningContract>,
@@ -219,6 +225,7 @@ impl Config {
         }
     }
     pub fn validate(&self) -> Result<(), ConfigError> {
+        self.validate_profile_imports()?;
         for (id, policy) in &self.compatibility_policies {
             if !safe_label(id) {
                 return Err(ConfigError(
@@ -320,6 +327,7 @@ impl Config {
 
 impl Config {
     pub(crate) fn validate_route(&self, model: &Model) -> Result<(), ConfigError> {
+        self.validate_profile_imports()?;
         if let Some(id) = &model.compatibility_policy {
             if model.capability_profile.is_none() || model.auth.is_none() {
                 return Err(ConfigError(

@@ -200,3 +200,11 @@ remain explicit. Unselected policies do not change execution identity. Hosts mus
 recognize this version and compare the full configuration/execution digest before
 starting a child. Existing configurations without a selected policy retain their
 previous manifest version. See [tool policies](protocol.md#checked-responses-tools).
+
+Selecting `--profile-packs-lock` uses `gateway-embedded-manifest/v5` and
+`gateway-ready/v5`, or `gateway-extended-manifest/v5` and
+`gateway-extended-ready/v5` with native extensions. The frozen configuration
+includes exact data package digests and explicit host imports; selected export
+identities also bind affected route origins. A host must understand this version
+before starting its agent. See [profile packs](profile-packs.md) for the package,
+activation, no-override and restart contracts.

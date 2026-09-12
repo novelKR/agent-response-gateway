@@ -306,8 +306,8 @@
       "order": 0,
       "source": "docs/integration.md",
       "translation": "docs/ko/integration.md",
-      "source_sha256": "3c201e08a8ceeba67e37fc1073710de63d6ccca2bb9ab1512c0e07ad57107014",
-      "translation_sha256": "9ee95a15b87151cfb6cd1f6b4ebd927db7ccdca083f7fb05312ce730a4133e86",
+      "source_sha256": "5cc7bb237b5e5508c78217d745e7445833ba9c7a59037cde042eca47efa9fb3f",
+      "translation_sha256": "e0c401d87e3be8aac96921005256027157b3467dea0639f4e39e5df280ca1380",
       "anchors": [
         "application-integration",
         "calling-from-a-backend-service",
@@ -806,8 +806,8 @@
         "설치와-승인-및-활성화",
         "요구사항과-지원-범위"
       ],
-      "source_sha256": "e19928a3b48e501e69c904dfcc5ec17c6a8b3be3976e3737faade41f674013a1",
-      "translation_sha256": "ca29b9961df6788eb1c6ab39cadac7ce41f3ac9196b18b40585efb67ec530033"
+      "source_sha256": "d1a189d4dbbad09d6dcb2c5483a045f199f47491dc3e293010ce8dc4b5fa8af9",
+      "translation_sha256": "9da543bd3fe420a96d41fd56368741f5a35a56e77111cf0c3e269d03d0e01927"
     },
     {
       "id": "interactions-design",
@@ -892,6 +892,28 @@
         "호스트-설정과-호환성"
       ],
       "route": "/guide/managed-continuation"
+    },
+    {
+      "id": "profile-packs",
+      "section": "integration",
+      "order": 31,
+      "source": "docs/profile-packs.md",
+      "translation": "docs/ko/profile-packs.md",
+      "source_sha256": "3dcbcabee524fe9aed3c0c63709050b9fb4c03cd1c46c0fbe598963e23823f13",
+      "translation_sha256": "123233b29dde9eff31c6d36494756288606cfe14894f1f84c021f4ce3b7f5858",
+      "anchors": [
+        "change-versions-and-recover",
+        "compatibility-profile-packs",
+        "import-declarations-and-start",
+        "package-contract",
+        "prepare-and-activate-a-local-fixture",
+        "로컬-합성-패키지-준비와-활성화",
+        "버전-변경과-복구",
+        "선언-가져오기와-시작",
+        "패키지-계약",
+        "호환성-프로파일-팩"
+      ],
+      "route": "/guide/profile-packs"
     }
   ]
 }

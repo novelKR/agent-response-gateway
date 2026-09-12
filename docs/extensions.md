@@ -12,6 +12,8 @@ Install and enable an optional metadata observer without rebuilding the gateway 
 
 Use Linux or macOS, Python 3.11 or later, and an exact compatible gateway build. The source example needs the repository's pinned Rust 1.98.0 toolchain. Packages must match the host OS/architecture: `linux-x64`, `linux-arm64`, `macos-x64` or `macos-arm64`. CI exercises Linux x64/ARM64 and macOS ARM64; recognition of macOS x64 is not separate hosted acceptance. Windows extension execution is unsupported; ordinary gateway operation is unchanged.
 
+Non-executable [profile packs](profile-packs.md) use a separate data contract and portable CLI. They may be selected alongside an observer.
+
 This guide covers `gateway-observer/v1`. This observer receives HTTP header-status/timing metadata, not prompts, tokens, response bodies, account quotas or tool results. Codex Pool, dynamic provider adapters, hot reload, remote registries, automatic downloads and credential access are not supported by this package role. The source manager and reference observer are not included as ready-to-install extension binaries in the ordinary gateway binary package.
 
 Run the following example from a reviewed source checkout with absolute, non-symlink paths. It uses a unique private directory and a deliberately inactive loopback provider. No live credentials or paid requests are required. Installing or inspecting a package never starts its executable.
