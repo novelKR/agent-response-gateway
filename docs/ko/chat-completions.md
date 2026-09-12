@@ -29,7 +29,8 @@ Chat Completions의 별도 고유 사용자 정의 도구 형식은 지원하지
 | 엄격한 함수 스키마 | 지원을 선언한 경우 strict 필드 보존 |
 | JSON/text 출력 형식 | 원래 스키마 이름·규칙·선택적 strict 필드를 담은 response_format |
 | 추론 강도 | reasoning_effort의 none/minimal/low/medium/high/xhigh/max를 이름 변경·대체 없이 사용 |
-| 추론 요약·상태와 verbosity | 미지원 |
+| 추론 요약과 원본 상태 | 명시적인 managed DeepSeek/OpenRouter 계약에서만 지원; [관리형 reasoning](#managed-reasoning) 참고 |
+| verbosity | 미지원 |
 | 비스트리밍 출력 | 정확히 하나의 choice; 텍스트와 도구 출력 검사 |
 | stop/tool_calls 종료 | 도구 횟수와 선택이 일치할 때만 완료 |
 | length 종료 | Incomplete/max_output_tokens |
@@ -84,6 +85,93 @@ HTTP 시험은 자격 증명, 전송 전 거부, 취소와 동시 요청 슬롯 
 명시적 추론 강도·스키마 제어, 문법 거부, 승인 거절과 두 취소 방식을 검사한다.
 이 결과는 프로토콜 경로를 검증하며, 운영에는 선택한 실제 모델과 애플리케이션의
 시험이 필요하다.
+
+<a id="managed-reasoning"></a>
+
+## 관리형 reasoning
+
+표준 OpenAI Chat은 stateless를 유지하며 제공자별 reasoning 필드를 허용하지 않는다.
+reasoning dialect를 사용하려면 Chat 모델에 continuation_mode="managed"를 설정하고
+reasoning_contract를 명시한다. 먼저 [저장소·보호 키·호스트 세션](interactions.md#host-control-and-resume)을
+설정한다. DB나 알려진 endpoint/model 이름에서 dialect를 추론하지 않는다.
+capability profile에는 reasoning_summary="native"와 reasoning_items="native"가
+필요하며 effort를 요청하면 reasoning_effort="native"도 선언한다. 기존의
+provider/model/API 및 맥락·출력 한도 선언도 필요하다.
+
+DeepSeek 계약 설정 일부는 다음과 같다.
+
+```toml
+[capability_profiles.deepseek.reasoning_contract]
+kind = "deep_seek"
+version = 1
+efforts = ["low", "high", "max"]
+default_effort = "high"
+```
+
+thinking.type="enabled"와 native reasoning_effort를 사용한다. medium, xhigh,
+minimal과 같은 별칭은 제공자 재매핑을 수락하지 않고 거부한다. 출력 한도는
+max_tokens를 사용하며 프로필 한도와 393216을 넘지 않는다. temperature, 강제 도구,
+strict tool beta와 JSON-schema 출력은 이 계약에서 제외한다. top_p는 제공자의
+자동 상향을 피하도록 0.95 이상이어야 한다. text/json_object도 프로필의 명시적
+지원 범위를 따라야 한다.
+
+선행 system/developer 지시에는 instruction_hierarchy="bridged_chat_instruction_envelope"를
+사용한다. 명시적인 system 메시지 bridge가 지시의 역할·순서·텍스트를 기록하며,
+원래 지시 우선순위와 완전히 같다고 주장하지 않는다. 이 프로필은 대화 중간 지시를
+거부한다. parallel_tool_control="bridged_parallel_permission"은 미지원 필드인
+parallel_tool_calls를 보내지 않고 병렬 호출을 허용한다. false는 호스트 압축이나
+tool_choice="none"처럼 도구를 호출할 수 없는 경우에만 허용하며, 그 외에는 전송
+전에 거부한다. 호출 개수·정체성·인자·결과 연결은 계속 검사한다.
+
+OpenRouter 계약 설정 일부는 다음과 같다.
+
+```toml
+[capability_profiles.router.reasoning_contract]
+kind = "open_router"
+version = 1
+provider_endpoint = "YOUR_PROVIDER/YOUR_EXACT_ENDPOINT"
+efforts = ["low", "high"]
+default_effort = "high"
+formats = ["anthropic-claude-v1"]
+```
+
+provider/endpoint 부분이 있는, 별도로 검증한 정확한 endpoint slug를 고정한다.
+요청은 해당 값 하나를 가진 provider.only와 allow_fallbacks=false,
+require_parameters=true를 사용한다. OpenRouter 자동 모델명·라우팅 변형·다중 모델
+fallback은 제외한다. 고정한 model/endpoint에 맞는 efforts와 formats를 선택하며,
+게이트웨이가 제공자의 capability를 자동 탐색하지 않는다.
+
+고정 reasoning 토큰 예산을 사용하려면 reasoning_contract 표의 efforts/default_effort를
+max_tokens=2048로 교체한다. effort 정책과 토큰 예산을 한 계약에 혼용할 수 없으며,
+예산 프로필의 요청에 effort를 추가할 수도 없다. 예산은 모델 출력 한도보다 작아야 한다.
+OpenRouter에는 reasoning.enabled=true와 reasoning.exclude=false 및 한 가지 제어
+형식만 전달한다.
+
+DeepSeek는 후속 요청에 도구가 선언되면, 도구를 사용하지 않았던 과거 턴을 포함해
+assistant의 원래 reasoning_content를 재생한다. OpenRouter는 reasoning과 순서가
+있는 reasoning_details의 id·index·format·signature·암호화 데이터를 보존한다.
+등록된 detail type과 프로필이 선택한 format만 허용한다. details가 있으면 공개
+text/summary detail을 표시 기준으로 삼으며 평문 reasoning을 중복 표시하지 않는다.
+평문만 있는 스트림은 terminal에서 details가 없음을 확인할 때까지 표시를 보류한다.
+암호화 상태만 있으면 공개 텍스트를 만들어 내지 않는다. 두 dialect 모두
+reasoning.summary="auto"를 지원하며 concise/detailed는 거부한다.
+
+공개 summary와 원본 replay는 별개다. 응답의 첫 reasoning 항목에 인증된 gateway
+envelope 하나를 결합하며, 공개 텍스트가 없는 상태는 빈 항목으로 전달한다. 도구 완료와
+성공 terminal은 finalize 이후에만 공개한다. pending tool 턴에서는 reasoning 제어를
+유지해야 한다. 재시작·누락 payload 복원·호스트 관리 압축은 공통 continuation 계약을
+사용한다. dialect/model/route 변경에는 새 세션이 필요하며 제공자 상태를 자동 변환하지 않는다.
+
+usage는 보고된 수치 카운터를 공개 텍스트와 별도로 보존한다. reasoning 토큰은 이미
+completion 토큰에 포함되므로 다시 더하지 않는다. DeepSeek cache-hit는 prompt 토큰의
+일부이며 추가 입력이 아니다. 누락 카운터는 unknown으로 유지한다. 필수 합계가
+불완전하면 Codex용 usage 객체는 null이며 어댑터 수치 메타데이터에는 확인된 카운터를
+유지한다. 알 수 없는 선택적 상세값은 생략하고 텍스트 길이로 토큰 수를 추산하지 않는다.
+
+두 계약은 Codex 0.154.0과 합성 제공자로 reasoning 알림·도구·재시작·payload 복원·압축·
+명시 복구를 검사한다. [reasoning wire lock](../../tests/reasoning/wire-lock.json)과
+[DeepSeek API 보충 계약](../../tests/reasoning/deepseek-api-lock.json)을 참고한다. 실제 제공자
+모델 호환성·품질·비용 qualification은 별도이다.
 
 사용량 계측과 선택형 Recorder는 [토큰 사용량 계측 안내](usage-accounting.md)를
 참조한다. Recorder 설치·로컬 커밋 보장·외부 전달은 HTTP 메타데이터 관찰과

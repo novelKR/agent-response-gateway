@@ -2,7 +2,7 @@ use super::*;
 use crate::{Config, ir::continuity::NativeReplay, routing::AdmittedRequest};
 use serde_json::json;
 
-fn config(manual: bool) -> Config {
+pub(super) fn config(manual: bool) -> Config {
     let directory = serde_json::to_string(&std::env::temp_dir()).unwrap();
     let contract = if manual {
         "kind='claude_manual'\nversion=1\nbudget_tokens=2048\neffort_budgets={low=1024,medium=2048,high=4096}\ninterleaved_beta=true"
@@ -52,11 +52,11 @@ max_store_bytes=16777216
     ))
     .unwrap()
 }
-fn request() -> Value {
+pub(super) fn request() -> Value {
     json!({"model":"test","input":"synthetic question","reasoning":{"effort":"medium","summary":"auto"},
         "tools":[{"type":"function","name":"echo","parameters":{"type":"object","properties":{"text":{"type":"string"}},"required":["text"],"additionalProperties":false}}]})
 }
-fn prepare(
+pub(super) fn prepare(
     c: &Config,
     value: Value,
     history: &VerifiedProviderHistory,

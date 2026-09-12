@@ -683,6 +683,7 @@ impl PreparedMessages {
             .ok_or(unsupported())?
             .clone();
         Ok(crate::adapters::managed::ManagedOutput {
+            usage: response["usage"].clone(),
             outcome: if value["stop_reason"] == "tool_use" {
                 crate::continuation::Outcome::AwaitingTools
             } else {

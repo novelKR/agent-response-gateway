@@ -187,5 +187,5 @@ migration or ciphertext rewrite occurs. The manifest declares replay_versions as
 read [1, 2] and write 2. Old hosts reject the new manifest; old binaries cannot be
 assumed to read v2 records. Rollback requires a compatible binary, DB, key and
 Codex history together. Public reasoning summaries, when present, participate in
-the authenticated history digest separately from native provider state. Managed Messages uses an explicit Claude reasoning contract. Chat reasoning remains
-disabled until its explicit contracts are implemented.
+the authenticated history digest separately from native provider state. Managed Messages and Chat use explicit Claude, DeepSeek or OpenRouter reasoning
+contracts and the same execution/recovery boundary.

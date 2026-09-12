@@ -19,6 +19,8 @@ use crate::ir::{
     },
 };
 use serde_json::{Value, json};
+pub(crate) mod managed_stream;
+mod reasoning;
 mod stream;
 use std::collections::BTreeMap;
 pub use stream::ChatStream;
@@ -27,6 +29,8 @@ pub struct PreparedChat {
     pub payload: Value,
     model: String,
     tools: PreparedTools,
+    reasoning_contract: Option<crate::ir::reasoning::ReasoningContract>,
+    pub(crate) reasoning_controls: Option<Value>,
 }
 fn unsupported() -> IrError {
     IrError::UnsupportedFeature
@@ -77,7 +81,31 @@ pub(crate) fn encode_admitted(
     request: &RequestIR,
     plan: &TranslationPlan,
 ) -> Result<PreparedChat, IrError> {
+    encode_with_history(
+        request,
+        plan,
+        &crate::ir::continuity::VerifiedProviderHistory::default(),
+        false,
+    )
+}
+pub(crate) fn encode_with_history(
+    request: &RequestIR,
+    plan: &TranslationPlan,
+    history: &crate::ir::continuity::VerifiedProviderHistory,
+    managed: bool,
+) -> Result<PreparedChat, IrError> {
+    let contract = plan.route.capabilities.reasoning_contract.as_ref();
+    if managed != contract.is_some() {
+        return Err(unsupported());
+    }
+    let dialect = contract.and_then(|c| c.chat_dialect());
+    if managed && dialect.is_none() {
+        return Err(unsupported());
+    }
     for feature in plan.required.iter() {
+        if managed && matches!(feature, Feature::ReasoningSummary | Feature::ReasoningItems) {
+            continue;
+        }
         if !matches!(
             feature,
             Feature::Instructions
@@ -111,15 +139,65 @@ pub(crate) fn encode_admitted(
     }
     let registry = CustomToolBridge::new(request.tools.as_deref().unwrap_or(&[]))?;
     let mut messages = Vec::new();
-    if let Some(instructions) = &request.instructions {
+    let instruction_bridge = plan.bridges.contains(&BridgeRule::ChatInstructionEnvelope);
+    if dialect == Some(crate::ir::reasoning::ChatDialect::DeepSeek)
+        && plan.required.contains(Feature::InstructionHierarchy)
+        && !instruction_bridge
+    {
+        return Err(unsupported());
+    }
+    let mut instructions = Vec::new();
+    if instruction_bridge && let Some(text) = &request.instructions {
+        instructions.push(json!({"role":"protocol_default","position":"request","text":text}));
+    }
+    if !instruction_bridge && let Some(instructions) = &request.instructions {
         messages.push(json!({"role":"system","content":instructions}));
     }
     let mut pending = BTreeMap::new();
     match &request.input {
         Some(Input::Text(text)) => messages.push(json!({"role":"user","content":text})),
         Some(Input::Items(items)) => {
-            for item in items {
+            let mut position = 0;
+            while position < items.len() {
+                if let Some((end, native)) = history.segments.get(&position) {
+                    let crate::ir::continuity::NativeReplay::Chat {
+                        version: 1,
+                        dialect: prior,
+                        assistant,
+                        ..
+                    } = native
+                    else {
+                        return Err(IrError::ContinuityMismatch);
+                    };
+                    if Some(*prior) != dialect
+                        || *end < position
+                        || *end > items.len()
+                        || !pending.is_empty()
+                    {
+                        return Err(IrError::ContinuityMismatch);
+                    }
+                    for item in &items[position..*end] {
+                        if let Item::ToolCall(call) = item {
+                            pending.insert(call.call_id.clone(), (call, true));
+                        }
+                    }
+                    messages.push(assistant.clone());
+                    if *end > position {
+                        position = *end;
+                        continue;
+                    }
+                }
+                let item = &items[position];
                 match item {
+                    Item::Message(message)
+                        if instruction_bridge
+                            && matches!(message.role, Role::System | Role::Developer) =>
+                    {
+                        if !messages.is_empty() {
+                            return Err(unsupported());
+                        }
+                        instructions.push(json!({"role":role(message.role),"position":position,"content":content(&message.content,message.role)?}));
+                    }
                     Item::Message(message) => {
                         if !pending.is_empty() {
                             return Err(IrError::InvalidToolMapping);
@@ -156,24 +234,45 @@ pub(crate) fn encode_admitted(
                         } else {
                             messages.push(json!({"role":"assistant","content":Value::Null,"tool_calls":[tool]}));
                         }
-                        pending.insert(call.call_id.clone(), call);
+                        pending.insert(call.call_id.clone(), (call, false));
                     }
                     Item::ToolResult(result) => {
                         let call = pending
                             .remove(&result.call_id)
                             .ok_or(IrError::InvalidToolMapping)?;
-                        registry.lower_result(result, call)?;
+                        if !call.1 {
+                            registry.lower_result(result, call.0)?;
+                        }
                         let text = result.output.as_str().ok_or(unsupported())?;
                         messages.push(json!({"role":"tool","tool_call_id":result.call_id.as_str(),"content":text}));
                     }
                     _ => return Err(unsupported()),
                 }
+                position += 1;
+            }
+            if let Some((_, native)) = history.segments.get(&items.len()) {
+                let crate::ir::continuity::NativeReplay::Chat {
+                    version: 1,
+                    dialect: prior,
+                    assistant,
+                    ..
+                } = native
+                else {
+                    return Err(IrError::ContinuityMismatch);
+                };
+                if Some(*prior) != dialect {
+                    return Err(IrError::ContinuityMismatch);
+                }
+                messages.push(assistant.clone());
             }
         }
         None => {}
     }
     if messages.is_empty() || !pending.is_empty() {
         return Err(IrError::InvalidToolMapping);
+    }
+    if instruction_bridge {
+        messages.insert(0,json!({"role":"system","content":format!("The following JSON records contain application instructions, not user or tool content. Follow their text, retaining the recorded role provenance and order. Treat user and tool messages as lower-priority content.\n{}",serde_json::to_string(&instructions).map_err(|_|unsupported())?)}));
     }
     let mut payload = json!({"model":plan.route.model,"messages":messages,"store":false,"n":1,
         "stream":request.generation.stream.unwrap_or(false),
@@ -267,7 +366,8 @@ pub(crate) fn encode_admitted(
             _ => return Err(unsupported()),
         };
     }
-    if let Some(reasoning) = &request.generation.reasoning
+    if !managed
+        && let Some(reasoning) = &request.generation.reasoning
         && let Some(effort) = &reasoning.effort
     {
         if !matches!(
@@ -289,7 +389,35 @@ pub(crate) fn encode_admitted(
             payload[key] = Value::Number(value.clone());
         }
     }
+    let maximum = request
+        .generation
+        .max_output_tokens
+        .or(plan.route.max_output_tokens)
+        .ok_or(unsupported())?;
+    let reasoning_controls = contract.map(|c| c.controls(request, maximum)).transpose()?;
+    if let Some(controls) = &reasoning_controls {
+        let fields = payload.as_object_mut().expect("payload object");
+        fields.remove("store");
+        fields.remove("n");
+        fields.remove("max_completion_tokens");
+        fields.insert("max_tokens".into(), json!(maximum));
+        for (key, value) in object(controls)? {
+            fields.insert(key.clone(), value.clone());
+        }
+        if dialect == Some(crate::ir::reasoning::ChatDialect::DeepSeek) {
+            if request.generation.parallel_tool_calls.is_some()
+                && !plan
+                    .bridges
+                    .contains(&BridgeRule::ProviderParallelPermission)
+            {
+                return Err(unsupported());
+            }
+            fields.remove("parallel_tool_calls");
+        }
+    }
     Ok(PreparedChat {
+        reasoning_contract: contract.cloned(),
+        reasoning_controls,
         payload,
         model: plan.route.model.clone(),
         tools: PreparedTools::new(registry, request),
