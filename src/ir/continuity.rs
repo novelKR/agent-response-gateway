@@ -129,6 +129,13 @@ pub enum Outcome {
 pub enum NativeReplay {
     #[serde(rename = "gemini_steps")]
     Gemini { version: u32, steps: Vec<Value> },
+    #[serde(rename = "chat_assistant")]
+    Chat {
+        version: u32,
+        dialect: super::reasoning::ChatDialect,
+        assistant: Value,
+        controls: Value,
+    },
     #[serde(rename = "messages_content")]
     Messages {
         version: u32,
@@ -140,6 +147,12 @@ impl NativeReplay {
     pub fn validate(&self) -> std::result::Result<(), IrError> {
         match self {
             Self::Gemini { version: 1, steps } if !steps.is_empty() => Ok(()),
+            Self::Chat {
+                version: 1,
+                assistant,
+                controls,
+                ..
+            } if assistant.is_object() && controls.is_object() => Ok(()),
             Self::Messages {
                 version: 1,
                 blocks,

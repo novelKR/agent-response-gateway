@@ -41,6 +41,8 @@ pub enum BridgeRule {
     CodexPatchGrammar,
     MessagesInstructionEnvelope,
     GeminiInstructionEnvelope,
+    ProviderParallelPermission,
+    ChatInstructionEnvelope,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Support {
@@ -73,6 +75,16 @@ impl CapabilityProfile {
         }
         for (feature, support) in &self.support {
             match support {
+                Support::Bridged(BridgeRule::ChatInstructionEnvelope)
+                    if *feature == Feature::InstructionHierarchy
+                        && self.protocol == ApiProtocol::ChatCompletions => {}
+                Support::Bridged(BridgeRule::ProviderParallelPermission)
+                    if *feature == Feature::ParallelToolControl
+                        && self.protocol == ApiProtocol::ChatCompletions
+                        && matches!(
+                            self.reasoning_contract,
+                            Some(super::reasoning::ReasoningContract::DeepSeek { .. })
+                        ) => {}
                 Support::Bridged(BridgeRule::CustomToolJson)
                     if *feature == Feature::CustomTools => {}
                 Support::Bridged(BridgeRule::ToolNamespace)
@@ -357,9 +369,14 @@ pub(crate) fn plan_translation_with_history(
         }
         match route.capabilities.support(feature) {
             Support::Native => {}
+            Support::Bridged(BridgeRule::ProviderParallelPermission) => {
+                super::reasoning::validate_parallel_permission(request)?;
+                bridges.push(BridgeRule::ProviderParallelPermission);
+            }
             Support::Bridged(
                 rule @ (BridgeRule::MessagesInstructionEnvelope
-                | BridgeRule::GeminiInstructionEnvelope),
+                | BridgeRule::GeminiInstructionEnvelope
+                | BridgeRule::ChatInstructionEnvelope),
             ) => {
                 bridges.push(rule);
             }

@@ -444,13 +444,14 @@ pub(crate) async fn responses(
                 yield Err(std::io::Error::other("Managed stream interrupted"));
             } else {
                 match adapter.finish() {
-                    Ok(decoded) => {
+                    Ok(mut decoded) => {
+                        decoded.project_usage();
                         let record = ReplayV2 {
                             schema: continuation::REPLAY_V2.into(), session: session.id.clone(),
                             epoch: session.epoch, origin: session.origin.clone(), response: attempt_id.clone(),
                             parent: session.head.clone(), input_len, input_sha256: input_sha256.clone(),
                             outcome: decoded.outcome, native: decoded.native,
-                            output: decoded.response["output"].as_array().cloned().expect("validated output"),
+                            output: public_output(&decoded.response).expect("validated output"),
                         };
                         let checked_response = decoded.response.clone();
                         let saved_sequence = sequence;
@@ -498,6 +499,7 @@ pub(crate) async fn responses(
         let mut decoded = prepared
             .decode_bytes(&bytes, &attempt_id)
             .map_err(|_| upstream())?;
+        decoded.project_usage();
         let record = ReplayV2 {
             schema: continuation::REPLAY_V2.into(),
             session: session.id,
@@ -509,10 +511,7 @@ pub(crate) async fn responses(
             input_sha256,
             outcome: decoded.outcome,
             native: decoded.native,
-            output: decoded.response["output"]
-                .as_array()
-                .cloned()
-                .ok_or_else(upstream)?,
+            output: public_output(&decoded.response).ok_or_else(upstream)?,
         };
         let checked_response = decoded.response.clone();
         let token = runtime
@@ -530,7 +529,29 @@ pub(crate) async fn responses(
             .map_err(|_| upstream())
     }
 }
+fn public_output(response: &Value) -> Option<Vec<Value>> {
+    Some(
+        response["output"]
+            .as_array()?
+            .iter()
+            .filter(|item| {
+                !(item["type"] == "reasoning"
+                    && item["summary"].as_array().is_some_and(Vec::is_empty))
+            })
+            .cloned()
+            .collect(),
+    )
+}
 fn add_envelope(response: &mut Value, token: &str) {
+    if let Some(item) = response["output"]
+        .as_array_mut()
+        .expect("validated output")
+        .iter_mut()
+        .find(|item| item["type"] == "reasoning")
+    {
+        item["encrypted_content"] = json!(token);
+        return;
+    }
     let id = response["id"].as_str().unwrap_or("response").to_owned();
     response["output"].as_array_mut().expect("validated output").push(json!({"type":"reasoning","id":format!("rs_{id}"),"summary":[],"encrypted_content":token}));
 }

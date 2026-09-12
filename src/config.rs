@@ -73,6 +73,8 @@ pub enum DeclaredSupport {
     BridgedCodexPatchGrammar,
     BridgedInstructionEnvelope,
     BridgedGeminiInstructionEnvelope,
+    BridgedParallelPermission,
+    BridgedChatInstructionEnvelope,
     Unsupported,
 }
 
@@ -106,6 +108,12 @@ impl ModelProfile {
                         *feature,
                         match support {
                             DeclaredSupport::Native => Support::Native,
+                            DeclaredSupport::BridgedChatInstructionEnvelope => {
+                                Support::Bridged(BridgeRule::ChatInstructionEnvelope)
+                            }
+                            DeclaredSupport::BridgedParallelPermission => {
+                                Support::Bridged(BridgeRule::ProviderParallelPermission)
+                            }
                             DeclaredSupport::BridgedCustomToolJson => {
                                 Support::Bridged(BridgeRule::CustomToolJson)
                             }
@@ -331,6 +339,17 @@ impl Config {
             {
                 return Err(ConfigError(
                     "Reasoning requires an explicit managed adapter contract".into(),
+                ));
+            }
+            if matches!(
+                profile.reasoning_contract,
+                Some(crate::ir::reasoning::ReasoningContract::OpenRouter { .. })
+            ) && (model.upstream_model.starts_with('~')
+                || model.upstream_model.starts_with("openrouter/")
+                || model.upstream_model.contains(':'))
+            {
+                return Err(ConfigError(
+                    "Automatic OpenRouter model routing is unsupported".into(),
                 ));
             }
             if profile.api != model.api

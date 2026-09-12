@@ -57,6 +57,12 @@ impl Config {
                         .to_owned();
                     let value = match support {
                         Support::Native => "native",
+                        Support::Bridged(BridgeRule::ChatInstructionEnvelope) => {
+                            "bridged_chat_instruction_envelope"
+                        }
+                        Support::Bridged(BridgeRule::ProviderParallelPermission) => {
+                            "bridged_parallel_permission"
+                        }
                         Support::Bridged(BridgeRule::GeminiInstructionEnvelope) => {
                             "bridged_gemini_instruction_envelope"
                         }
@@ -97,6 +103,15 @@ impl Config {
                 route_projection["wire_contract_sha256"] = json!(crate::continuation::hex(
                     &crate::digest::sha256(include_bytes!("../tests/reasoning/wire-lock.json"))
                 ));
+            }
+            if matches!(
+                snapshot.capabilities.reasoning_contract,
+                Some(crate::ir::reasoning::ReasoningContract::DeepSeek { .. })
+            ) {
+                route_projection["wire_supplement_sha256"] =
+                    json!(crate::continuation::hex(&crate::digest::sha256(
+                        include_bytes!("../tests/reasoning/deepseek-api-lock.json")
+                    )));
             }
             routes.push(route_projection);
         }

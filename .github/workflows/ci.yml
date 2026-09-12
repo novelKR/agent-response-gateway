@@ -186,6 +186,14 @@ jobs:
           python3 -B tests/codex/reasoning_continuity.py --manual --opaque-only
           python3 -B tests/codex/reasoning_continuity.py --http-only
           python3 -B tests/codex/reasoning_continuity.py --manual --http-only
+      - name: Require managed Chat reasoning display and recovery
+        run: |
+          python3 -B tests/codex/reasoning_chat_continuity.py
+          python3 -B tests/codex/reasoning_chat_continuity.py --router
+          python3 -B tests/codex/reasoning_chat_continuity.py --opaque-only
+          python3 -B tests/codex/reasoning_chat_continuity.py --router --opaque-only
+          python3 -B tests/codex/reasoning_chat_continuity.py --http-only
+          python3 -B tests/codex/reasoning_chat_continuity.py --router --http-only
       - name: Build the immutable Gemini v1 writer
         run: |
           git fetch --no-tags origin 7bb42c064a4e0aa26a17c821f8fe1c2e35d4175e

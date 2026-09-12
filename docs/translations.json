@@ -85,12 +85,14 @@
       "order": 2,
       "source": "docs/chat-completions.md",
       "translation": "docs/ko/chat-completions.md",
-      "source_sha256": "30857811966c98f9651cd30bb32e28abe12fc9615f87de4ea7ea2c4068c8f9d3",
-      "translation_sha256": "05948ce994327a6082fcd52fcac4514b2391f590290ff9eee5f94c735541030c",
+      "source_sha256": "7002cb0c67d625e8541230b6b9e3517af3ba241010cf58163b0210bb843b029c",
+      "translation_sha256": "ad0044abf4d45c453ae68c437aea473df1db6ab7fe3626e37f2eab1530dde080",
       "anchors": [
         "chat-completions-adapter-support",
         "chat-completions-어댑터-지원",
+        "managed-reasoning",
         "streaming-contract",
+        "관리형-reasoning",
         "스트리밍-계약"
       ],
       "route": "/guide/chat-completions"
@@ -831,8 +833,8 @@
       "order": 20,
       "source": "docs/interactions.md",
       "translation": "docs/ko/interactions.md",
-      "source_sha256": "81d8de952fea81b6fe0931dd4ce14d9dd7283925f49891563d865513ff541e3b",
-      "translation_sha256": "6c70f6d292ee9ce68a2ba6c96698763fd764d9e6d8d10bc8ff9f62c3571ce3f6",
+      "source_sha256": "ba672749703a14ddf2cfe24dd633f4dbf8230b07e3fab22179b0cc33655a3765",
+      "translation_sha256": "37c84b1b0bc1f44cf401e4828083a33cbf01713daa7e90596f76eed29ba710c5",
       "anchors": [
         "backup-and-failure-recovery",
         "configuration",

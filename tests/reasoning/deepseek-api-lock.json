@@ -1,0 +1,17 @@
+{
+  "schema": "gateway-provider-contract-supplement/v1",
+  "contract": "deep_seek",
+  "version": 1,
+  "revision": "2026-09-12",
+  "url": "https://api-docs.deepseek.com/api/create-chat-completion/",
+  "sha256": "a09b0e9c9b74a8cb1f62e1006b4931320be9c640cc274af54aa72f0e053b64a5",
+  "size": 147737,
+  "scope": [
+    "enabled thinking with native low/high/max effort",
+    "max_tokens in 1..393216",
+    "no parallel_tool_calls field; explicit permission bridge only",
+    "leading instruction-role envelope for the system/user/assistant/tool role contract",
+    "thinking rejects forced tools and ineffective temperature; top_p must not require clamping",
+    "text/json_object only; strict schema and strict-tool beta are excluded"
+  ]
+}
