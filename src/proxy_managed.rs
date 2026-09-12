@@ -1,6 +1,7 @@
 //! Common managed dispatch. Durable attempts outlive HTTP connections.
 use crate::{
-    adapters::{managed::ManagedAdapter, sse::SseDecoder},
+    adapters::sse::SseDecoder,
+    codecs::dispatch::ManagedDispatch,
     continuation::{self, ReplayV2, Session},
     error::ApiError,
     http::GatewayState,
@@ -296,18 +297,28 @@ pub(crate) async fn responses(
     let crate::routing::AdmittedRequest::Translated { request, plan } = admitted else {
         return Err(rejected());
     };
-    let prepared = ManagedAdapter::encode(&request, &plan, &replay).map_err(|_| {
+    let mut prepared = ManagedDispatch::prepare(
+        state.config.models[&model]
+            .api_codec
+            .as_ref()
+            .and_then(|id| state.config.codecs.get(id)),
+        &request,
+        &plan,
+        &replay,
+        session.pending_tools,
+        state.config.limits.max_response_bytes,
+        state
+            .config
+            .resolved_usage_profile(&state.config.models[&model]),
+    )
+    .await
+    .map_err(|_| {
         ApiError::new(
             StatusCode::BAD_REQUEST,
             "unsupported_request",
             "Request cannot be represented by the pinned managed contract",
         )
     })?;
-    if session.pending_tools {
-        prepared
-            .validate_pending_controls(&replay)
-            .map_err(|_| rejected())?;
-    }
     let timestamp = usage::now();
     let mut accounting = usage::Attempt::start(
         state.usage.as_ref(),
@@ -479,7 +490,7 @@ pub(crate) async fn responses(
             // Keep the durable attempt guard alive with the downstream stream.
             let _hold = &attempt;
             let mut decoder = SseDecoder::new(max).expect("validated limit");
-            let mut adapter = prepared.stream(max, attempt_id.clone());
+            let mut adapter = match prepared.stream(max, attempt_id.clone()).await {Ok(s)=>s,Err(_)=>{let _=usage::finish(&mut accounting,UsageOutcome::ConversionFailed).await;yield Err(std::io::Error::other("Codec stream initialization failed"));return;}};
             let mut complete = false;
             let mut written = 0usize;
             let mut sequence = 0u64;
@@ -491,7 +502,7 @@ pub(crate) async fn responses(
                         Ok(None) => break,
                         Err(_) => break 'read,
                     };
-                    if adapter.event(event).is_err() { break 'read; }
+                    if adapter.event(event).await.is_err() { break 'read; }
                     if usage::observe_managed(&mut accounting, &adapter.accounting()).await.is_err() { break 'read; }
                     for event in adapter.take_progress() {
                         let bytes = numbered(event, &mut sequence);
@@ -506,7 +517,7 @@ pub(crate) async fn responses(
                 let _ = usage::finish(&mut accounting, UsageOutcome::ConversionFailed).await;
                 yield Err(std::io::Error::other("Managed stream interrupted"));
             } else {
-                match adapter.finish() {
+                match adapter.finish().await {
                     Ok(mut decoded) => {
                         if usage::observe_managed(&mut accounting, &decoded.accounting).await.is_err() {
                             yield Err(std::io::Error::other("Usage observation failed"));
@@ -575,6 +586,7 @@ pub(crate) async fn responses(
         }
         let mut decoded = prepared
             .decode_bytes(&bytes, &attempt_id)
+            .await
             .map_err(|_| upstream())?;
         usage::observe_managed(&mut accounting, &decoded.accounting)
             .await

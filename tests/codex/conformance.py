@@ -465,7 +465,7 @@ def stop_process(process):
             stream.close()
 
 
-def run_scenario(name, binary, gateway_binary, api="responses", managed_contract=None, native_custom=False, profile_packs=False):
+def run_scenario(name, binary, gateway_binary, api="responses", managed_contract=None, native_custom=False, profile_packs=False, codec_binary=None):
     local = ROOT / ".local/conformance"
     local.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix=name + "-", dir=local) as temporary, contextlib.ExitStack() as cleanup:
@@ -504,10 +504,16 @@ def run_scenario(name, binary, gateway_binary, api="responses", managed_contract
             packed, pack_lock = activate(gateway_binary, root / "profile-packs", config.read_text())
             config.write_text(packed)
             gateway_args += ["--profile-packs-lock", str(pack_lock)]
+        if codec_binary:
+            from codec_fixture import activate as activate_codec
+            encoded,codec_lock=activate_codec(codec_binary,root/'codec',config.read_text())
+            config.write_text(encoded)
+            gateway_args += ['--extensions-lock',str(codec_lock)]
         manifest = embedded_contract.inspect_manifest(gateway_binary, config, env, gateway_args[2:])
         gateway = subprocess.Popen([str(gateway_binary), "serve", *gateway_args], env=gateway_env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
         cleanup.callback(stop_process, gateway)
         ready = embedded_contract.read_ready(gateway, manifest)
+        if codec_binary: manifest=manifest["configuration"]["gateway"]
         (home / "config.toml").write_text(f'model="gpt-5.4"\nmodel_provider="gateway"\nweb_search="disabled"\nmodel_context_window=32768\nmodel_auto_compact_token_limit=24576\n[model_providers.gateway]\nname="Synthetic gateway"\nbase_url="{ready["base_url"]}"\nwire_api="responses"\nenv_key="ARG_CODEX_TEST_TOKEN"\nrequires_openai_auth=false\nsupports_websockets=false\nrequest_max_retries=0\nstream_max_retries=0\n')
         if api == "gemini_interactions" or managed_contract:
             session=ih.create_session(ready["base_url"],host_token,manifest)
@@ -629,6 +635,8 @@ def run_scenario(name, binary, gateway_binary, api="responses", managed_contract
             result["first_client_text_ms"] = first_text_ms
         if interrupt_at is not None:
             result["interrupt_to_upstream_close_ms"] = round((state.disconnected_at - interrupt_at) * 1000, 3)
+        if codec_binary:
+            result["external_codec"] = True
         if profile_packs:
             result["profile_packs"] = True
             result["gateway_configuration_sha256"] = manifest["configuration_sha256"]
@@ -645,6 +653,7 @@ def main():
     parser.add_argument("--scenario", choices=("text", "function_tool", "namespace_tool", "custom_patch", "approval_denial", "cancellation", "cancellation_heartbeat", "transport_failure", "parallel_tools", "grammar_failure", "text_followup", "output_controls", "mixed_tool_text", "multi_tool_turns"), action="append")
     parser.add_argument("--responses-native-custom", action="store_true", help="Retain native custom input while checking the registered grammar output")
     parser.add_argument("--profile-packs", action="store_true", help="Import synthetic declarations from pinned non-executable packages")
+    parser.add_argument("--codec-bin", type=Path)
     args = parser.parse_args()
     require(not args.profile_packs or (args.api and "responses" not in args.api), "profile pack fixture requires an explicitly profiled API")
     require(not args.responses_native_custom or args.api == ["responses_checked"], "native custom fixture requires checked Responses")
@@ -660,7 +669,7 @@ def main():
         for name in scenarios:
             try:
                 require(api != "responses" or name not in {"parallel_tools", "grammar_failure", "text_followup", "mixed_tool_text"}, "scenario requires converted API")
-                result = run_scenario(name, binary, args.gateway_bin.resolve(), api, native_custom=args.responses_native_custom, profile_packs=args.profile_packs)
+                result = run_scenario(name, binary, args.gateway_bin.resolve(), api, native_custom=args.responses_native_custom, profile_packs=args.profile_packs, codec_binary=args.codec_bin)
             except Exception as error:
                 failures += 1
                 result = {"api": api, "scenario": name, "status": "failed", "error_class": type(error).__name__}

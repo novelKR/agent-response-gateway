@@ -196,3 +196,9 @@ origin에도 결합된다. 실행 확장을 사용하면 외부 계약은
 선택한 export의 식별도 영향을 받는 경로 origin에 결합된다. 호스트는 에이전트를
 시작하기 전에 이 버전을 이해해야 한다. 패키지·활성화·덮어쓰기 금지·재시작 계약은
 [프로파일 팩](profile-packs.md)을 참고한다.
+
+외부 API codec을 선택하면 `gateway-embedded-manifest/v6`와 `gateway-ready/v6`,
+확장 wrapper에는 `gateway-extended-manifest/v6`와 `gateway-extended-ready/v6`를
+사용한다. 선택한 패키지 식별은 영향을 받는 각 경로 origin에 결합된다.
+전송·자격 증명 선택·숫자 사용량 기록·보호된 replay 저장 권한은 코어에 남는다.
+권한, IPC, 한도와 복구는 [외부 API codec](api-codecs.md)을 참고한다.

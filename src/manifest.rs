@@ -40,6 +40,7 @@ impl EmbeddedManifest {
     }
     pub fn ready_schema(&self) -> &'static str {
         match self.schema {
+            "gateway-embedded-manifest/v6" => "gateway-ready/v6",
             "gateway-embedded-manifest/v5" => "gateway-ready/v5",
             "gateway-embedded-manifest/v4" => "gateway-ready/v4",
             "gateway-embedded-manifest/v3" => "gateway-ready/v3",
@@ -103,6 +104,9 @@ impl Config {
                 "context_window":snapshot.context_window,"max_output_tokens":snapshot.max_output_tokens,
                 "tested_codex_version":route.tested_codex_version,
             });
+            if let Some(id) = &self.models[&route.alias].api_codec {
+                route_projection["api_codec"] = self.codecs[id].projection();
+            }
             if let Some(packs) = self.route_pack_projection(&self.models[&route.alias]) {
                 route_projection["profile_packs"] = packs;
             }
@@ -178,7 +182,9 @@ impl Config {
             .map(|byte| format!("{byte:02x}"))
             .collect();
         Ok(EmbeddedManifest {
-            schema: if self.profile_packs.is_some() {
+            schema: if self.models.values().any(|m| m.api_codec.is_some()) {
+                "gateway-embedded-manifest/v6"
+            } else if self.profile_packs.is_some() {
                 "gateway-embedded-manifest/v5"
             } else if self
                 .models

@@ -19,7 +19,7 @@ capability admission, origin binding, item identity, event order and terminal
 validation. This does not require dynamic adapter registration or a particular
 repository or process layout.
 
-The gateway supports explicitly installed, trusted native metadata observers and an optional usage recorder. This design keeps model transport in a small Rust core and separates package management from process execution. Account pooling, credential plugins and dynamic protocol adapters are future extensions, not capabilities of the current observer protocol.
+The gateway supports explicitly installed, trusted native metadata observers and an optional usage recorder. This design keeps model transport in a small Rust core and separates package management from process execution. Account pooling, credential plugins and additional protocol registration remain separate work. [External API codecs](api-codecs.md) have their own payload-aware role and versioned IPC; they are not capabilities of the observer protocol.
 
 <a id="선택한-방식과-대안"></a>
 

@@ -28,6 +28,8 @@ pub struct Config {
     #[serde(default)]
     pub compatibility_policies: BTreeMap<String, crate::compatibility::CompatibilityPolicy>,
     pub continuation: Option<crate::continuation::Configuration>,
+    #[serde(skip)]
+    pub(crate) codecs: BTreeMap<String, crate::codecs::Binding>,
     #[serde(default)]
     pub(crate) capability_profile_imports: BTreeMap<String, crate::profile_packs::CapabilityImport>,
     #[serde(default)]
@@ -60,6 +62,7 @@ pub struct Model {
     pub auth: Option<UpstreamAuth>,
     pub capability_profile: Option<String>,
     pub compatibility_policy: Option<String>,
+    pub api_codec: Option<String>,
     pub messages_version: Option<String>,
     pub continuation_mode: Option<ContinuationMode>,
 
@@ -328,6 +331,14 @@ impl Config {
 impl Config {
     pub(crate) fn validate_route(&self, model: &Model) -> Result<(), ConfigError> {
         self.validate_profile_imports()?;
+        if let Some(id) = &model.api_codec
+            && (!self.codecs.contains_key(id)
+                || model.capability_profile.is_none()
+                || model.auth.is_none()
+                || (model.api == ApiProtocol::Responses && model.compatibility_policy.is_none()))
+        {
+            return Err(ConfigError("External codec requires an activated package, explicit profile/auth and checked Responses policy".into()));
+        }
         if let Some(id) = &model.compatibility_policy {
             if model.capability_profile.is_none() || model.auth.is_none() {
                 return Err(ConfigError(

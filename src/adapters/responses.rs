@@ -30,6 +30,36 @@ pub struct PreparedResponses {
     tools: PreparedTools,
     profile: crate::ir::capability::CapabilityProfile,
     model: String,
+    preserve_item_order: bool,
+}
+
+/// Core-side validation of already restored client output. This does not encode a provider request.
+pub(crate) fn output_verifier(
+    request: &RequestIR,
+    plan: &TranslationPlan,
+) -> Result<PreparedResponses, IrError> {
+    let mut profile = plan.route.capabilities.clone();
+    profile.protocol = ApiProtocol::Responses;
+    for feature in [
+        Feature::FunctionTools,
+        Feature::CustomTools,
+        Feature::NamespacedTools,
+        Feature::CustomGrammar,
+    ] {
+        profile.support.insert(feature, Support::Native);
+    }
+    let registry =
+        CustomToolBridge::for_responses(request.tools.as_deref().unwrap_or(&[]), &profile)?;
+    let original = responses::encode(request, None)?;
+    Ok(PreparedResponses {
+        payload: Value::Null,
+        echoes: original.clone(),
+        original,
+        tools: PreparedTools::new(registry, request),
+        profile,
+        model: request.model.clone(),
+        preserve_item_order: true,
+    })
 }
 
 pub(crate) fn encode_admitted(
@@ -78,6 +108,7 @@ pub(crate) fn encode_admitted(
         .filter_map(|k| payload.get(k).map(|v| (k.to_owned(), v.clone())))
         .collect::<serde_json::Map<_, _>>();
     Ok(PreparedResponses {
+        preserve_item_order: false,
         payload,
         original,
         echoes: Value::Object(echoes),
@@ -181,6 +212,30 @@ fn validate_request(request: &RequestIR) -> Result<(), IrError> {
 }
 
 impl PreparedResponses {
+    pub(crate) fn verify_progress(&self, events: &[Value]) -> Result<(), IrError> {
+        for event in events {
+            if event["type"] == "response.created" {
+                let response = &event["response"];
+                known_fields(response, &["id", "object", "status", "output"])?;
+                ResponseId::new(string(response, "id")?)?;
+                if response["object"] != "response"
+                    || event["response"]["status"] != "in_progress"
+                    || event["response"]["output"] != json!([])
+                {
+                    return Err(IrError::InvalidEventOrder);
+                }
+            }
+            if (event["item"]["type"] == "reasoning"
+                || event["type"]
+                    .as_str()
+                    .is_some_and(|v| v.starts_with("response.reasoning_")))
+                && self.profile.support(Feature::ReasoningItems) != Support::Native
+            {
+                return Err(IrError::UnsupportedFeature);
+            }
+        }
+        Ok(())
+    }
     pub fn encode(
         request: &RequestIR,
         target: &crate::ir::continuity::ContinuityBinding,
@@ -381,6 +436,9 @@ impl PreparedResponses {
                     return Err(IrError::InvalidEventOrder);
                 }
                 let custom = item["type"] == "custom_tool_call";
+                if !custom {
+                    decode(string(item, "arguments")?.as_bytes())?;
+                }
                 if item
                     .get(if custom { "arguments" } else { "input" })
                     .is_some()

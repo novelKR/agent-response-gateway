@@ -76,7 +76,7 @@ class Provider(BaseHTTPRequestHandler):
         self.wfile.write(raw)
 
 
-def run(binary, recorder, compatibility_policy=False, profile_packs=False):
+def run(binary, recorder, compatibility_policy=False, profile_packs=False, codec_binary=None):
     parent = ROOT / '.local/managed-usage-smoke'; parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=parent) as temporary, contextlib.ExitStack() as cleanup:
         root = Path(temporary).resolve(); root.chmod(0o700)
@@ -108,8 +108,15 @@ def run(binary, recorder, compatibility_policy=False, profile_packs=False):
                 packed, lock = activate(binary, folder / 'profiles', config.read_text())
                 config.write_text(packed)
                 args += ['--profile-packs-lock', str(lock)]
+            if codec_binary:
+                from codec_fixture import activate as activate_codec
+                if name=='gemini':
+                    encoded,unused=activate_codec(codec_binary,folder/'codec',config.read_text(),store)
+                else:
+                    encoded=config.read_text().replace('[models.writer]','[models.writer]\napi_codec="reference-codec"')
+                config.write_text(encoded)
             manifest = contract.validate_extended_manifest(json.loads(subprocess.run([str(binary), 'manifest', *args], env=env, capture_output=True, check=True).stdout))
-            assert manifest['schema'] == ('gateway-extended-manifest/v5' if profile_packs else 'gateway-extended-manifest/v4' if compatibility_policy else 'gateway-extended-manifest/v3')
+            assert manifest['schema'] == ('gateway-extended-manifest/v6' if codec_binary else 'gateway-extended-manifest/v5' if profile_packs else 'gateway-extended-manifest/v4' if compatibility_policy else 'gateway-extended-manifest/v3')
             def start():
                 child = subprocess.Popen([str(binary), 'serve', *args], env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 try:
@@ -213,7 +220,8 @@ def main():
     parser.add_argument('--gateway-bin', type=Path, required=True); parser.add_argument('--recorder-bin', type=Path, required=True)
     parser.add_argument('--compatibility-policy', action='store_true', help='Bind the existing managed rules through a selected policy and v4 manifest')
     parser.add_argument('--profile-packs', action='store_true', help='Import the synthetic profiles and policies from an explicitly pinned data pack')
-    args = parser.parse_args(); print(json.dumps(run(args.gateway_bin.resolve(), args.recorder_bin.resolve(), args.compatibility_policy, args.profile_packs), sort_keys=True))
+    parser.add_argument("--codec-bin",type=Path)
+    args = parser.parse_args(); print(json.dumps(run(args.gateway_bin.resolve(), args.recorder_bin.resolve(), args.compatibility_policy, args.profile_packs, args.codec_bin), sort_keys=True))
 
 
 if __name__ == '__main__':

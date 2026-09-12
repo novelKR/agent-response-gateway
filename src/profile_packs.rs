@@ -330,6 +330,15 @@ impl Config {
         let mut config: Self = toml::from_str(raw).map_err(|_| {
             ConfigError("Invalid TOML configuration or unknown configuration field".into())
         })?;
+        config.import_profile_packs(plan)?;
+        config.validate()?;
+        Ok(config)
+    }
+    pub(crate) fn import_profile_packs(
+        &mut self,
+        plan: ProfilePackPlan,
+    ) -> Result<(), ConfigError> {
+        let config = self;
         for (id, import) in &config.capability_profile_imports {
             let package = plan.selected(&import.pack, &import.export)?;
             let template = package
@@ -360,8 +369,7 @@ impl Config {
             }
         }
         config.profile_packs = Some(plan);
-        config.validate()?;
-        Ok(config)
+        Ok(())
     }
 
     pub(crate) fn validate_profile_imports(&self) -> Result<(), ConfigError> {

@@ -16,7 +16,8 @@ use serde_json::Value;
 use tokio::sync::OwnedSemaphorePermit;
 
 use crate::{
-    adapters::{PreparedAdapter, sse::SseDecoder},
+    adapters::sse::SseDecoder,
+    codecs::dispatch::Dispatch,
     config::UpstreamAuth,
     error::ApiError,
     http::{GatewayState, RequestId},
@@ -131,7 +132,7 @@ pub(crate) async fn responses(
         .config
         .resolve_route(&model_id)
         .expect("configuration was validated");
-    if route.compatibility.is_some() {
+    if route.compatibility.is_some() || state.config.models[&model_id].api_codec.is_some() {
         crate::adapters::json::decode(&raw).map_err(|_| {
             bad(
                 "invalid_json",
@@ -151,10 +152,23 @@ pub(crate) async fn responses(
             "Request is invalid or exceeds the declared route capabilities or limits",
         )
     })?;
-    let (payload, prepared) = match admitted {
+    let (payload, mut prepared) = match admitted {
         AdmittedRequest::Native(payload) => (Value::Object(payload), None),
         AdmittedRequest::Translated { request, plan } => {
-            let mut prepared = PreparedAdapter::encode(&request, &plan).map_err(|_| {
+            let mut prepared = Dispatch::prepare(
+                state.config.models[&model_id]
+                    .api_codec
+                    .as_ref()
+                    .and_then(|id| state.config.codecs.get(id)),
+                &request,
+                &plan,
+                state.config.limits.max_response_bytes,
+                state
+                    .config
+                    .resolved_usage_profile(&state.config.models[&model_id]),
+            )
+            .await
+            .map_err(|_| {
                 bad(
                     "unsupported_request",
                     "Request cannot be represented by the declared API profile",
@@ -348,7 +362,10 @@ pub(crate) async fn responses(
             let _hold = &lease;
             let mut framing = SseDecoder::new(maximum).expect("positive configured byte limit");
             let mut observation = state.usage.as_ref().map(|_| SseDecoder::new(maximum).expect("positive limit"));
-            let mut converted = prepared.as_ref().map(|p| p.stream(maximum).expect("positive configured byte limit"));
+            let mut converted = match prepared.as_mut() {
+                Some(p)=>match p.stream(maximum).await {Ok(s)=>Some(s),Err(_)=>{let _=usage::finish(&mut attempt,Outcome::ConversionFailed).await;yield Err(io::Error::other("Codec stream initialization failed"));return;}},
+                None=>None,
+            };
             'upstream: loop {
                 match tokio::time::timeout(idle, source.next()).await {
                     Ok(Some(Ok(chunk))) => {
@@ -367,7 +384,7 @@ pub(crate) async fn responses(
                                 if let Ok(payload) = crate::adapters::json::decode(event.data.as_bytes()) {
                                     if usage::observe_payload(&mut attempt, &payload).await.is_err() { lease.mark("usage_record_failed"); yield Err(io::Error::other("Usage record failed")); break 'upstream; }
                                 } else if event.data.trim() != "[DONE]" && let Some(a) = &mut attempt { a.incomplete(); }
-                                let events = match converted.event(event) {
+                                let events = match converted.event(event).await {
                                     Ok(events) => events,
                                     Err(_) => {
                                         lease.mark("upstream_invalid_stream");
@@ -499,8 +516,8 @@ pub(crate) async fn responses(
         } else if let Some(a) = &mut attempt {
             a.incomplete();
         }
-        if let Some(prepared) = prepared {
-            let decoded = prepared.decode_bytes(&data);
+        if let Some(mut prepared) = prepared {
+            let decoded = prepared.decode_bytes(&data).await;
             if decoded.is_err() {
                 let _ = usage::finish(&mut attempt, Outcome::ConversionFailed).await;
             }
