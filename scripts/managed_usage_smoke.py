@@ -62,6 +62,12 @@ class Provider(BaseHTTPRequestHandler):
             frames = chat.frames(assistant, 1)
             last = json.loads(frames[-2].decode().split('data: ', 1)[1]); last['usage'] = usage
             frames[-2] = b'data: ' + encode(last) + b'\n\n'
+        if streaming and getattr(self.server, 'decreasing_usage', False):
+            first = json.loads(frames[0].decode().split('data: ', 1)[1])
+            if name == 'gemini': first['interaction']['usage'] = {'total_output_tokens': 20}
+            elif name.startswith('claude'): first['message']['usage']['output_tokens'] = 20
+            else: first['usage'] = {'completion_tokens': 20}
+            frames[0] = frames[0].split(b'data: ', 1)[0] + b'data: ' + encode(first) + b'\n\n'
         raw = b''.join(frames) if streaming else encode(value)
         self.send_response(200)
         self.send_header('Content-Type', 'text/event-stream' if streaming else 'application/json')
@@ -121,6 +127,10 @@ def run(binary, recorder):
                 for streaming in (False, True):
                     status, data = post(streaming)
                     assert status == 200 and b'arg-continuation-v2.' in data
+                upstream.decreasing_usage = True
+                status, data = post(True)
+                assert status == 200 and b'arg-continuation-v2.' not in data and b'response.output_item.done' not in data and b'response.completed' not in data
+                upstream.decreasing_usage = False
                 # A durable accounting admission failure must precede both inference and continuation begin.
                 with sqlite3.connect(db_path) as db:
                     db.execute("CREATE TRIGGER synthetic_fail BEFORE INSERT ON usage_events WHEN NEW.kind='attempt_started' BEGIN SELECT RAISE(ABORT,'synthetic'); END")
@@ -141,8 +151,11 @@ def run(binary, recorder):
                 terminate(process)
         with sqlite3.connect(db_path) as db:
             rows = [json.loads(r[0]) for r in db.execute("SELECT payload FROM usage_current WHERE kind='attempt_finished'")]
-            assert len(rows) == 10
-            for row in rows:
+            assert len(rows) == 15
+            assert sum(r['gateway'] == 'conversion_failed' for r in rows) == 5
+            completed = [r for r in rows if r['gateway'] == 'completed']
+            assert len(completed) == 10
+            for row in completed:
                 assert row['upstream'] == 'completed' and row['gateway'] == 'completed' and row['finality'] == 'final'
                 assert row['provider_response_id'] in {'synthetic_1', 'provider_1'}
                 counters = row['usage']['counters']; profile = row['profile']
@@ -152,8 +165,8 @@ def run(binary, recorder):
                 if profile == 'deep_seek_v1': assert counters['cache_read_input_tokens']['value'] == 4
                 serialized = json.dumps(row)
                 assert not any(text in serialized for text in ('synthetic-private', 'SYNTHETIC_PUBLIC', 'arg-continuation-', 'synthetic_signature', 'synthetic_encrypted'))
-        assert upstream.calls == 20
-        return {'schema': 'gateway-managed-usage-smoke/v1', 'contracts': 5, 'successful_requests': 10, 'admission_failures': 5, 'finalization_failures': 10, 'provider_requests': upstream.calls, 'status': 'passed'}
+        assert upstream.calls == 25
+        return {'schema': 'gateway-managed-usage-smoke/v1', 'contracts': 5, 'successful_requests': 10, 'invalid_usage_failures': 5, 'admission_failures': 5, 'finalization_failures': 10, 'provider_requests': upstream.calls, 'status': 'passed'}
 
 
 def main():

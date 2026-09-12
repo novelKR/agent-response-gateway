@@ -170,7 +170,7 @@ impl ManagedAdapter {
         }
     }
     pub fn decode_bytes(&self, bytes: &[u8], id: &str) -> Result<ManagedOutput, IrError> {
-        match self {
+        let output = match self {
             Self::Gemini(p) => {
                 let raw: Value = super::json::decode(bytes)?;
                 let accounting = Accounting::new(
@@ -183,59 +183,111 @@ impl ManagedAdapter {
             }
             Self::Messages(p) => p.decode_managed(super::json::decode(bytes)?),
             Self::Chat(p) => p.decode_managed(super::json::decode(bytes)?),
-        }
+        }?;
+        checked_usage(output)
     }
     pub fn stream(&self, limit: usize, id: String) -> ManagedStream<'_> {
-        match self {
-            Self::Gemini(p) => ManagedStream::Gemini(p.stream(limit, id)),
-            Self::Messages(p) => ManagedStream::Messages(NativeMessagesStream::new(p, limit)),
-            Self::Chat(p) => ManagedStream::Chat(NativeChatStream::new(p, limit)),
+        let native = match self {
+            Self::Gemini(p) => NativeManagedStream::Gemini(p.stream(limit, id)),
+            Self::Messages(p) => NativeManagedStream::Messages(NativeMessagesStream::new(p, limit)),
+            Self::Chat(p) => NativeManagedStream::Chat(NativeChatStream::new(p, limit)),
+        };
+        ManagedStream {
+            native,
+            counters: gateway_usage_contract::Accumulator::new(self.usage_profile()),
+            invalid: false,
         }
     }
 }
-pub(crate) enum ManagedStream<'a> {
+fn checked_usage(mut output: ManagedOutput) -> Result<ManagedOutput, IrError> {
+    if !output.accounting.usage.violations.is_empty() {
+        return Err(IrError::InvalidField("usage"));
+    }
+    output.usage = output.accounting.usage.responses();
+    output.response["usage"] = output.usage.clone();
+    Ok(output)
+}
+pub(crate) struct ManagedStream<'a> {
+    native: NativeManagedStream<'a>,
+    counters: gateway_usage_contract::Accumulator,
+    invalid: bool,
+}
+enum NativeManagedStream<'a> {
     Gemini(InteractionsStream<'a>),
     Messages(NativeMessagesStream<'a>),
     Chat(NativeChatStream<'a>),
 }
 impl ManagedStream<'_> {
     pub fn event(&mut self, event: SseEvent) -> Result<(), IrError> {
-        match self {
-            Self::Gemini(s) => s.event(event),
-            Self::Messages(s) => s.event(event),
-            Self::Chat(s) => s.event(event),
+        if self.invalid {
+            return Err(IrError::InvalidEventOrder);
         }
+        let result = match &mut self.native {
+            NativeManagedStream::Gemini(s) => s.event(event),
+            NativeManagedStream::Messages(s) => s.event(event),
+            NativeManagedStream::Chat(s) => s.event(event),
+        };
+        if result.is_err() {
+            self.invalid = true;
+            return result;
+        }
+        self.counters
+            .observe_counters(self.accounting().usage.reported);
+        // Partial snapshots can update related counters in separate events.
+        // Reject malformed/decreasing reported values now; validate cross-counter
+        // relationships against the assembled terminal snapshot in finish().
+        if self.counters.incomplete
+            || self
+                .counters
+                .usage
+                .reported
+                .values()
+                .any(|c| c.source == gateway_usage_contract::Source::Invalid)
+        {
+            self.invalid = true;
+            return Err(IrError::InvalidField("usage"));
+        }
+        Ok(())
     }
     pub fn accounting(&self) -> Accounting {
-        match self {
-            Self::Gemini(s) => s.accounting(),
-            Self::Messages(s) => s.accounting(),
-            Self::Chat(s) => s.accounting(),
+        match &self.native {
+            NativeManagedStream::Gemini(s) => s.accounting(),
+            NativeManagedStream::Messages(s) => s.accounting(),
+            NativeManagedStream::Chat(s) => s.accounting(),
         }
     }
     pub fn take_progress(&mut self) -> Vec<Value> {
-        match self {
-            Self::Gemini(s) => s.take_progress(),
-            Self::Messages(s) => s.take_progress(),
-            Self::Chat(s) => s.take_progress(),
+        if self.invalid {
+            return vec![];
+        }
+        match &mut self.native {
+            NativeManagedStream::Gemini(s) => s.take_progress(),
+            NativeManagedStream::Messages(s) => s.take_progress(),
+            NativeManagedStream::Chat(s) => s.take_progress(),
         }
     }
     pub fn is_complete(&self) -> bool {
-        match self {
-            Self::Gemini(s) => s.is_complete(),
-            Self::Messages(s) => s.is_complete(),
-            Self::Chat(s) => s.is_complete(),
-        }
+        !self.invalid
+            && match &self.native {
+                NativeManagedStream::Gemini(s) => s.is_complete(),
+                NativeManagedStream::Messages(s) => s.is_complete(),
+                NativeManagedStream::Chat(s) => s.is_complete(),
+            }
     }
     pub fn finish(self) -> Result<ManagedOutput, IrError> {
-        match self {
-            Self::Gemini(s) => {
+        if self.invalid {
+            return Err(IrError::InvalidEventOrder);
+        }
+        let mut output = match self.native {
+            NativeManagedStream::Gemini(s) => {
                 let accounting = s.accounting();
                 interaction_output(s.finish()?, accounting)
             }
-            Self::Messages(s) => s.finish(),
-            Self::Chat(s) => s.finish(),
-        }
+            NativeManagedStream::Messages(s) => s.finish(),
+            NativeManagedStream::Chat(s) => s.finish(),
+        }?;
+        output.accounting.usage = self.counters.usage;
+        checked_usage(output)
     }
 }
 

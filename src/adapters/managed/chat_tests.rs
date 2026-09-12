@@ -427,3 +427,26 @@ fn earlier_assistant_reasoning_without_tools_is_preserved_before_a_later_tool_tu
         assert_eq!(p.payload()["messages"][3], second["choices"][0]["message"]);
     }
 }
+
+#[test]
+fn partial_related_usage_updates_are_checked_together_at_terminal() {
+    for router in [false, true] {
+        let c = config(router);
+        let p = super::tests::prepare(&c, request(), &VerifiedProviderHistory::default()).unwrap();
+        let raw = response(assistant(router));
+        let mut frames = events(&raw);
+        frames[0]["usage"] = json!({"prompt_tokens":1,"completion_tokens":0,"total_tokens":1});
+        frames.insert(
+            1,
+            json!({"object":"chat.completion.chunk","choices":[],"usage":{"prompt_tokens":32}}),
+        );
+        let mut stream = p.stream(200000, "attempt".into());
+        for event in frames {
+            push(&mut stream, &event).unwrap();
+        }
+        done(&mut stream).unwrap();
+        let output = stream.finish().unwrap();
+        assert_eq!(output.usage["total_tokens"], 44);
+        assert_eq!(output.accounting.usage.value("output_tokens"), Some(12));
+    }
+}
