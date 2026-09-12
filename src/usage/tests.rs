@@ -1,6 +1,6 @@
 use super::*;
 use axum::{Router, response::IntoResponse, routing::post};
-use serde_json::json;
+use serde_json::{Value, json};
 use std::{collections::BTreeMap, sync::Mutex};
 struct Server {
     url: String,
@@ -28,6 +28,15 @@ async fn run_policy(
     ack: bool,
     fail_final: bool,
 ) -> (u16, Vec<u8>, Vec<UsageEvent>, u64) {
+    run_request(wire, stream, ack, fail_final, false).await
+}
+async fn run_request(
+    wire: &str,
+    stream: bool,
+    ack: bool,
+    fail_final: bool,
+    checked: bool,
+) -> (u16, Vec<u8>, Vec<UsageEvent>, u64) {
     let bytes = wire.as_bytes().to_vec();
     let wire = bytes.clone();
     let calls = Arc::new(AtomicU64::new(0));
@@ -54,7 +63,42 @@ async fn run_policy(
         }),
     ))
     .await;
-    let config=crate::Config::parse(&format!("[providers.mock]\nbase_url=\"{}/v1\"\napi_key_env=\"UNUSED\"\n[models.writer]\nprovider=\"mock\"\nupstream_model=\"actual-model\"",upstream.url)).unwrap();
+    let mut config=crate::Config::parse(&format!("[providers.mock]\nbase_url=\"{}/v1\"\napi_key_env=\"UNUSED\"\n[models.writer]\nprovider=\"mock\"\nupstream_model=\"actual-model\"",upstream.url)).unwrap();
+    if checked {
+        config.models.get_mut("writer").unwrap().auth = Some(crate::config::UpstreamAuth::Bearer);
+        config.models.get_mut("writer").unwrap().capability_profile = Some("checked".into());
+        config
+            .models
+            .get_mut("writer")
+            .unwrap()
+            .compatibility_policy = Some("checked".into());
+        let declarations = crate::Config::parse(
+            r#"
+[providers.mock]
+base_url="http://127.0.0.1:1/v1"
+api_key_env="UNUSED"
+[models.writer]
+provider="mock"
+upstream_model="actual-model"
+[compatibility_policies.checked]
+version=1
+[capability_profiles.checked]
+version="1"
+provider="mock"
+upstream_model="actual-model"
+api="responses"
+context_window=32768
+max_output_tokens=1024
+tested_codex_version="0.154.0"
+[capability_profiles.checked.support]
+function_tools="native"
+"#,
+        )
+        .unwrap();
+        config.compatibility_policies = declarations.compatibility_policies;
+        config.capability_profiles = declarations.capability_profiles;
+        config.validate().unwrap();
+    }
     let secrets = crate::Secrets {
         local_token: "L".repeat(40),
         upstream_keys: BTreeMap::from([("mock".into(), "U".repeat(40))]),
@@ -78,15 +122,28 @@ async fn run_policy(
     };
     let gateway =
         server(crate::router_with_usage(config, secrets, None, Some(sink)).unwrap()).await;
+    let mut request = json!({"model":"writer","input":"synthetic","stream":stream});
+    if checked {
+        request["tools"] =
+            json!([{"type":"function","name":"inspect","parameters":{"type":"object"}}]);
+    }
     let response = reqwest::Client::new()
         .post(format!("{}/v1/responses", gateway.url))
         .bearer_auth("L".repeat(40))
-        .json(&json!({"model":"writer","input":"synthetic","stream":stream}))
+        .json(&request)
         .send()
         .await
         .unwrap();
     let status = response.status().as_u16();
-    let body = response.bytes().await.unwrap().to_vec();
+    use futures_util::StreamExt;
+    let mut chunks = response.bytes_stream();
+    let mut body = Vec::new();
+    while let Some(chunk) = chunks.next().await {
+        match chunk {
+            Ok(bytes) => body.extend(bytes),
+            Err(_) => break,
+        }
+    }
     let result = events.lock().unwrap().clone();
     worker.abort();
     (status, body, result, calls.load(Ordering::SeqCst))
@@ -152,4 +209,53 @@ async fn duplicate_usage_keys_are_not_adopted_by_native_accounting() {
     let e = events.last().unwrap();
     assert!(e.observation_incomplete);
     assert_eq!(e.usage.value("input_tokens"), None);
+}
+
+#[tokio::test]
+async fn checked_tool_completion_waits_for_durable_final_accounting() {
+    let tool = json!({"id":"item_1","type":"function_call","name":"inspect","call_id":"call_1","arguments":"{}","status":"completed"});
+    let response = json!({"id":"response_1","object":"response","created_at":1,"model":"actual-model","status":"completed","output":[tool],"usage":{"input_tokens":2,"output_tokens":1,"total_tokens":3}});
+    let mut created = response.clone();
+    created["output"] = json!([]);
+    created["status"] = json!("in_progress");
+    created["usage"] = Value::Null;
+    let mut start = tool.clone();
+    start["arguments"] = json!("");
+    start["status"] = json!("in_progress");
+    let frames = [
+        json!({"type":"response.created","response":created}),
+        json!({"type":"response.output_item.added","output_index":0,"item":start}),
+        json!({"type":"response.function_call_arguments.delta","output_index":0,"item_id":"item_1","delta":"{}"}),
+        json!({"type":"response.function_call_arguments.done","output_index":0,"item_id":"item_1","arguments":"{}"}),
+        json!({"type":"response.output_item.done","output_index":0,"item":tool}),
+        json!({"type":"response.completed","response":response}),
+    ];
+    let wire = frames
+        .into_iter()
+        .enumerate()
+        .map(|(n, mut event)| {
+            event["sequence_number"] = json!(n);
+            format!(
+                "event: {}
+data: {event}
+
+",
+                event["type"].as_str().unwrap()
+            )
+        })
+        .collect::<String>();
+    for fail_final in [false, true] {
+        let (status, body, events, calls) = run_request(&wire, true, true, fail_final, true).await;
+        assert_eq!(status, 200);
+        assert_eq!(calls, 1);
+        let text = String::from_utf8(body).unwrap();
+        assert_eq!(text.contains("response.output_item.added"), !fail_final);
+        assert_eq!(
+            text.contains("response.function_call_arguments.done"),
+            !fail_final
+        );
+        assert_eq!(text.contains("response.completed"), !fail_final);
+        assert_eq!(events.last().unwrap().kind, EventKind::AttemptFinished);
+        assert_eq!(events.last().unwrap().usage.value("input_tokens"), Some(2));
+    }
 }

@@ -35,6 +35,16 @@ impl EmbeddedManifest {
     pub fn configuration_sha256(&self) -> &str {
         &self.configuration_sha256
     }
+    pub fn schema(&self) -> &'static str {
+        self.schema
+    }
+    pub fn ready_schema(&self) -> &'static str {
+        match self.schema {
+            "gateway-embedded-manifest/v4" => "gateway-ready/v4",
+            "gateway-embedded-manifest/v3" => "gateway-ready/v3",
+            _ => READY_SCHEMA,
+        }
+    }
 }
 impl Config {
     /// Resolve the same validated route/default rules as serve, without reading any secret.
@@ -71,6 +81,9 @@ impl Config {
                         Support::Bridged(BridgeRule::CodexPatchGrammar) => {
                             "bridged_codex_patch_grammar"
                         }
+                        Support::Bridged(BridgeRule::RegisteredGrammarValidation) => {
+                            "registered_grammar_output_validation"
+                        }
                         Support::Bridged(BridgeRule::MessagesInstructionEnvelope) => {
                             "bridged_instruction_envelope"
                         }
@@ -89,6 +102,20 @@ impl Config {
                 "context_window":snapshot.context_window,"max_output_tokens":snapshot.max_output_tokens,
                 "tested_codex_version":route.tested_codex_version,
             });
+            if let Some(policy) = &route.compatibility {
+                let profile_id = self.models[&route.alias]
+                    .capability_profile
+                    .as_ref()
+                    .expect("checked profile");
+                route_projection["compatibility"] = json!({
+                    "id": policy.id,
+                    "policy": policy.policy,
+                    "admission": "checked",
+                    "on_unsupported": "reject",
+                    "provider_support": self.capability_profiles[profile_id].support,
+                    "contract": "gateway-tool-compatibility/v1",
+                });
+            }
             if snapshot.api == crate::ir::ApiProtocol::GeminiInteractions {
                 route_projection["wire_contract_sha256"] =
                     json!("5aad40046c3245d672393942f1554e35a293179d145ce8e6e2aad08bbc79ceb4");
@@ -143,7 +170,13 @@ impl Config {
             .map(|byte| format!("{byte:02x}"))
             .collect();
         Ok(EmbeddedManifest {
-            schema: if self.continuation.is_some() {
+            schema: if self
+                .models
+                .values()
+                .any(|m| m.compatibility_policy.is_some())
+            {
+                "gateway-embedded-manifest/v4"
+            } else if self.continuation.is_some() {
                 "gateway-embedded-manifest/v3"
             } else {
                 MANIFEST_SCHEMA

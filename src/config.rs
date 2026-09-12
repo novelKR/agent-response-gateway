@@ -25,6 +25,8 @@ pub struct Config {
     pub models: BTreeMap<String, Model>,
     #[serde(default)]
     pub capability_profiles: BTreeMap<String, ModelProfile>,
+    #[serde(default)]
+    pub compatibility_policies: BTreeMap<String, crate::compatibility::CompatibilityPolicy>,
     pub continuation: Option<crate::continuation::Configuration>,
 }
 
@@ -51,6 +53,7 @@ pub struct Model {
     pub api: ApiProtocol,
     pub auth: Option<UpstreamAuth>,
     pub capability_profile: Option<String>,
+    pub compatibility_policy: Option<String>,
     pub messages_version: Option<String>,
     pub continuation_mode: Option<ContinuationMode>,
 
@@ -66,7 +69,7 @@ pub enum UpstreamAuth {
     GoogleApiKey,
 }
 
-#[derive(Clone, Copy, Debug, Deserialize)]
+#[derive(Clone, Copy, Debug, Deserialize, serde::Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DeclaredSupport {
     Native,
@@ -216,6 +219,14 @@ impl Config {
         }
     }
     pub fn validate(&self) -> Result<(), ConfigError> {
+        for (id, policy) in &self.compatibility_policies {
+            if !safe_label(id) {
+                return Err(ConfigError(
+                    "Invalid compatibility policy identifier".into(),
+                ));
+            }
+            policy.validate()?;
+        }
         if let Some(c) = &self.continuation {
             c.validate()?;
         }
@@ -309,6 +320,16 @@ impl Config {
 
 impl Config {
     pub(crate) fn validate_route(&self, model: &Model) -> Result<(), ConfigError> {
+        if let Some(id) = &model.compatibility_policy {
+            if model.capability_profile.is_none() || model.auth.is_none() {
+                return Err(ConfigError(
+                    "Compatibility policies require explicit auth and capability_profile".into(),
+                ));
+            }
+            if !self.compatibility_policies.contains_key(id) {
+                return Err(ConfigError("Unknown compatibility_policy".into()));
+            }
+        }
         let converted = model.api != ApiProtocol::Responses;
         let managed =
             model

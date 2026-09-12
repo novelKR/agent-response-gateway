@@ -1,0 +1,43 @@
+# Illustrative declarations only. Replace and qualify the provider/model/limits.
+# Keep actual keys in the host environment.
+listen = "127.0.0.1:0"
+local_token_env = "ARG_LOCAL_TOKEN"
+
+[providers.example]
+base_url = "https://provider.example/v1"
+api_key_env = "ARG_EXAMPLE_API_KEY"
+
+[models."example/writer"]
+provider = "example"
+upstream_model = "replace-with-your-verified-model"
+api = "responses"
+auth = "bearer"
+capability_profile = "provider-facts"
+compatibility_policy = "tool-compatibility"
+
+[compatibility_policies.tool-compatibility]
+version = 1
+
+[compatibility_policies.tool-compatibility.tools]
+custom_input = "function_json"
+namespaces = "flatten"
+grammar = "registered_output_validation"
+
+[capability_profiles.provider-facts]
+version = "1"
+provider = "example"
+upstream_model = "replace-with-your-verified-model"
+api = "responses"
+context_window = 32768
+max_output_tokens = 1024
+tested_codex_version = "replace-with-your-verified-version"
+
+[capability_profiles.provider-facts.support]
+instructions = "native"
+instruction_hierarchy = "native"
+function_tools = "native"
+tool_choice = "native"
+parallel_tool_control = "native"
+max_output_tokens = "native"
+# Absent custom/namespace/grammar support means unsupported by the provider.
+# The separately selected policy declares the implemented gateway bridges.

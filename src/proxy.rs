@@ -131,6 +131,14 @@ pub(crate) async fn responses(
         .config
         .resolve_route(&model_id)
         .expect("configuration was validated");
+    if route.compatibility.is_some() {
+        crate::adapters::json::decode(&raw).map_err(|_| {
+            bad(
+                "invalid_json",
+                "Checked requests require unique JSON object keys",
+            )
+        })?;
+    }
     if route.managed {
         return crate::proxy_managed::responses(
             state, payload, model_id, streaming, session_id, permit, id.0,
@@ -368,6 +376,13 @@ pub(crate) async fn responses(
                                         break 'upstream;
                                     }
                                 };
+                                // Checked Responses releases executable items only with a fully
+                                // validated terminal; commit accounting before the entire batch.
+                                if converted.gates_tool_completion()
+                                    && let Some(terminal) = events.iter().find(|e|matches!(e["type"].as_str(),Some("response.completed"|"response.incomplete"|"response.failed"))) {
+                                    if let Some(a) = &mut attempt { a.event.upstream = match terminal["type"].as_str() {Some("response.completed")=>Outcome::Completed,Some("response.incomplete")=>Outcome::Incomplete,_=>Outcome::Failed}; }
+                                    if usage::finish(&mut attempt,Outcome::Completed).await.is_err() {lease.mark("usage_record_failed");yield Err(io::Error::other("Usage record failed"));break 'upstream;}
+                                }
                                 for event in events {
                                     let kind = event["type"].as_str().expect("constructed Responses event type");
                                     if matches!(kind, "response.completed" | "response.incomplete" | "response.failed") {
@@ -497,6 +512,15 @@ pub(crate) async fn responses(
                 )
             })?;
             data = serde_json::to_vec(&output).expect("constructed JSON response");
+            if route.compatibility.is_some() && data.len() > state.config.limits.max_response_bytes
+            {
+                let _ = usage::finish(&mut attempt, Outcome::ConversionFailed).await;
+                return Err(ApiError::new(
+                    StatusCode::BAD_GATEWAY,
+                    "upstream_response_too_large",
+                    "Converted response exceeds the configured limit",
+                ));
+            }
         } else if serde_json::from_slice::<Value>(&data).is_err() {
             return Err(ApiError::new(
                 StatusCode::BAD_GATEWAY,

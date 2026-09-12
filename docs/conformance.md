@@ -81,3 +81,14 @@ recovery, and host-managed compaction into a new Codex thread followed by restar
 These tests establish protocol compatibility with mock providers. Before production
 use, test the actual model, application permissions and recovery under the
 [embedding](embedded-design.md) and [continuity](continuity-design.md) contracts.
+
+The separate checked Responses mode adds 13 synthetic scenarios using
+`python3 -B tests/codex/conformance.py --api responses_checked`.
+It checks custom/function/namespace history restoration, parallel tools, registered
+grammar rejection, mixed text/tool output, approval denial and cancellation through
+the pinned Codex. Add `--responses-native-custom` to retain native custom input
+while validating the registered grammar locally. The default original-route run
+does not activate these policies. Codec tests also validate public reasoning summary
+lifecycles, arbitrary UTF-8 splits, inconsistent done/terminal values and the durable
+usage commit barrier. This evidence concerns the checked subset in
+[tool policies](protocol.md#checked-responses-tools), not real-provider qualification.

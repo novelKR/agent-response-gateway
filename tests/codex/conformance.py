@@ -45,7 +45,10 @@ def text_item():
     return {"id": "msg_fixture", "type": "message", "role": "assistant", "status": "completed", "content": [{"type": "output_text", "text": "Synthetic complete.", "annotations": []}]}
 
 
-def converted_route(api):
+def converted_route(api, native_custom=False):
+    if api == "responses_checked":
+        import responses_compatibility
+        return responses_compatibility.route(native_custom)
     route = """api="messages"
 auth="api_key"
 messages_version="2023-06-01"
@@ -118,6 +121,9 @@ def chat_chunk(delta, number, finish=None):
 
 
 def converted_frames(state, blocks):
+    if state.api == "responses_checked":
+        import responses_compatibility
+        return responses_compatibility.frames(blocks, state.requests, state)
     if state.api == "messages":
         return messages_frames(blocks, state.requests)
     frames = [chat_chunk({"role":"assistant","content":""}, state.requests)]
@@ -193,7 +199,10 @@ def converted_response(state, body):
     require(body.get("model") == "synthetic-model" and body.get("stream") is True, "converted routing/stream differs")
     if state.name == "output_controls" and not getattr(state, "managed_contract", None):
         check_controls(body, state.api)
-    if state.api == "chat_completions":
+    if state.api == "responses_checked":
+        import responses_compatibility
+        body = responses_compatibility.fixture_view(body, state)
+    elif state.api == "chat_completions":
         body = chat_fixture_view(body, getattr(state,"managed_contract",None))
     else:
         require(body.get("max_tokens") == getattr(state,"output_limit",1024), "Messages output limit differs")
@@ -324,7 +333,7 @@ class UpstreamHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         state = self.server.scenario
         try:
-            require(self.path == {"messages":"/v1/messages", "chat_completions":"/v1/chat/completions", "responses":"/v1/responses", "gemini_interactions":"/v1/interactions"}[state.api], "unexpected upstream endpoint")
+            require(self.path == {"messages":"/v1/messages", "chat_completions":"/v1/chat/completions", "responses":"/v1/responses", "responses_checked":"/v1/responses", "gemini_interactions":"/v1/interactions"}[state.api], "unexpected upstream endpoint")
             if state.api == "gemini_interactions":
                 require(self.headers.get("x-goog-api-key") == "synthetic-upstream-key" and self.headers.get("Authorization") is None, "Interactions authentication differs")
             elif state.api == "messages":
@@ -365,6 +374,15 @@ class UpstreamHandler(BaseHTTPRequestHandler):
                     ]
                 if getattr(state,"managed_contract",None) and state.name == "cancellation_heartbeat":
                     partial_frames=[]
+                checked_sequence = 1
+                if state.api == "responses_checked":
+                    def checked_frame(frame):
+                        nonlocal checked_sequence
+                        value = json.loads(frame.split(b"data: ",1)[1])
+                        value["sequence_number"] = checked_sequence
+                        checked_sequence += 1
+                        return event(value.pop("type"), **value)
+                    partial_frames = [checked_frame(frame) for frame in partial_frames]
                 for frame in partial_frames:
                     self.wfile.write(frame)
                 self.wfile.flush()
@@ -377,6 +395,8 @@ class UpstreamHandler(BaseHTTPRequestHandler):
                         frame = event("content_block_delta", index=0, delta={"type":"text_delta","text":" synthetic"})
                     else:
                         frame = event("response.output_text.delta", item_id="msg_fixture", output_index=0, content_index=0, delta=" synthetic")
+                    if state.api == "responses_checked" and not frame.startswith(b":"):
+                        frame = checked_frame(frame)
                     self.wfile.write(frame)
                     self.wfile.flush()
             elif state.name == "transport_failure":
@@ -445,7 +465,7 @@ def stop_process(process):
             stream.close()
 
 
-def run_scenario(name, binary, gateway_binary, api="responses", managed_contract=None):
+def run_scenario(name, binary, gateway_binary, api="responses", managed_contract=None, native_custom=False):
     local = ROOT / ".local/conformance"
     local.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix=name + "-", dir=local) as temporary, contextlib.ExitStack() as cleanup:
@@ -455,6 +475,8 @@ def run_scenario(name, binary, gateway_binary, api="responses", managed_contract
         home = root / "codex-home"
         home.mkdir()
         state = Scenario(name, workspace, api)
+        state.native_custom=native_custom
+        state.native_custom_names=set()
         state.managed_contract=managed_contract
         state.output_limit=8192 if managed_contract else 1024
         server = MockServer(("127.0.0.1", 0), UpstreamHandler)
@@ -472,7 +494,7 @@ def run_scenario(name, binary, gateway_binary, api="responses", managed_contract
             import reasoning_conformance
             config.write_text(config.read_text() + reasoning_conformance.route(managed_contract))
         elif api != "responses":
-            config.write_text(config.read_text() + converted_route(api))
+            config.write_text(config.read_text() + converted_route(api, native_custom))
         if api == "gemini_interactions" or managed_contract:
             import interactions_harness as ih
             host_token=ih.setup(root,gateway_binary,config,gateway_env)
@@ -610,9 +632,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--gateway-bin", type=Path, default=ROOT / "target/debug/agent-response-gateway")
     parser.add_argument("--codex-bundle", type=Path, default=runtime.BUNDLE)
-    parser.add_argument("--api", choices=("responses", "messages", "chat_completions", "gemini_interactions"), action="append")
+    parser.add_argument("--api", choices=("responses", "responses_checked", "messages", "chat_completions", "gemini_interactions"), action="append")
     parser.add_argument("--scenario", choices=("text", "function_tool", "namespace_tool", "custom_patch", "approval_denial", "cancellation", "cancellation_heartbeat", "transport_failure", "parallel_tools", "grammar_failure", "text_followup", "output_controls", "mixed_tool_text", "multi_tool_turns"), action="append")
+    parser.add_argument("--responses-native-custom", action="store_true", help="Retain native custom input while checking the registered grammar output")
     args = parser.parse_args()
+    require(not args.responses_native_custom or args.api == ["responses_checked"], "native custom fixture requires checked Responses")
     lock = json.loads(runtime.LOCK.read_text())
     binary = runtime.verify_bundle(args.codex_bundle, lock)
     failures = 0
@@ -625,7 +649,7 @@ def main():
         for name in scenarios:
             try:
                 require(api != "responses" or name not in {"parallel_tools", "grammar_failure", "text_followup", "mixed_tool_text"}, "scenario requires converted API")
-                result = run_scenario(name, binary, args.gateway_bin.resolve(), api)
+                result = run_scenario(name, binary, args.gateway_bin.resolve(), api, native_custom=args.responses_native_custom)
             except Exception as error:
                 failures += 1
                 result = {"api": api, "scenario": name, "status": "failed", "error_class": type(error).__name__}

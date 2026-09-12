@@ -78,3 +78,14 @@ probe, 재시작, payload 유실 복원, 실행 기록 유실·pending 차단, �
 이 시험은 모의 공급자를 사용한 프로토콜 호환성을 확인한다. 운영 전에는
 [내장](embedded-design.md)과 [연속성](continuity-design.md) 계약에 따라
 실제 모델, 애플리케이션 권한과 복구를 시험해야 한다.
+
+별도의 checked Responses 모드는
+`python3 -B tests/codex/conformance.py --api responses_checked`로 실행하는
+합성 시나리오 13개를 추가한다. 고정된 Codex를 통해 custom/function/namespace
+이력 복원, 병렬 도구, 등록된 grammar 거절, 혼합 텍스트·도구 출력, 승인 거절과
+취소를 검사한다. `--responses-native-custom`을 추가하면 native custom 입력을
+유지하며 등록된 grammar를 로컬에서 검증한다. 기존 경로의 기본 실행은 이 정책을
+활성화하지 않는다. 코덱 테스트는 공개 reasoning 요약의 생명주기, 임의 UTF-8 분할,
+불일치하는 done·최종 값과 durable 사용량 커밋 대기도 검증한다. 이 근거는
+[도구 정책](protocol.md#checked-responses-tools)의 checked 부분집합에 관한 것이며
+실제 공급자의 적합성 입증이 아니다.

@@ -50,8 +50,8 @@ an online availability check either.
 
 ## Requests and responses
 
-Requests must be JSON objects with a registered string `model`. Native Responses
-replaces the model with its upstream name, preserving other JSON values except
+Requests must be JSON objects with a registered string `model`. A Responses route without
+a selected compatibility policy replaces the model with its upstream name, preserving other JSON values except
 for the restrictions below. Messages and Chat Completions translate the registered
 feature subset and reject unsupported fields before sending. The original-value
 rules in this table describe the native route. `stream:true` selects SSE; omission
@@ -83,6 +83,63 @@ inventing successful completion. Consumers must not treat a stream ending withou
 a terminal completion event as successful. The gateway requests
 `Accept-Encoding: identity` and rejects compressed bodies with 502. Arbitrary-
 precision JSON parsing preserves large integer and decimal values.
+
+<a id="checked-responses-tools"></a>
+<a id="명시적-도구-호환성-정책"></a>
+
+## Explicit tool compatibility policies
+
+A model selects a versioned policy with `compatibility_policy`; merely defining
+`[compatibility_policies.NAME]` does not activate it. An explicit `auth` and
+`capability_profile` are required. The provider profile declares support;
+the policy selects gateway transformations. These declarations do not qualify
+a real provider. See the [configuration example](../config.checked-responses.example.toml).
+
+| Policy field | Values | Effect |
+|---|---|---|
+| `version` | `1` | Reject unknown policy versions |
+| `tools.custom_input` | `preserve`, `function_json` | Preserve custom input or wrap its exact string in a function JSON object |
+| `tools.namespaces` | `preserve`, `flatten` | Preserve namespace groups or map members to collision-free function names |
+| `tools.grammar` | `preserve`, `registered_output_validation` | Preserve the declared format or validate a registered grammar's output locally |
+
+Omitted choices inherit existing bridge declarations. An explicit choice must
+agree with an existing bridge; a conversion conflicting with declared native
+support is rejected. A policy does not turn unsupported preservation into native
+support. Function wrapping and namespace flattening require native function-tool
+support. Grammar validation requires either the custom JSON wrapper or native
+Responses custom input. Wrapping cannot retain native custom grammar generation.
+
+Selecting a policy on a Responses route enables checked admission and conversion.
+Without a selected policy, the original Responses value/byte forwarding contract
+remains in effect. Messages, Chat Completions and Interactions use the same selected
+tool rules within their existing protocol and continuation contracts.
+The request-scoped registry handles definitions, descriptions, named choices,
+history calls/results and returned identities together; it never executes tools.
+
+| Checked Responses surface | Support and limits |
+|---|---|
+| Requests/history | Declared text/images, instructions, function/custom tools and matched string results; unknown semantic fields and opaque history reject |
+| Output controls | Declared output limits, sampling, reasoning options and structured formats retain their values; schema validation remains a host responsibility |
+| Custom format | Omitted format, exact text format, or the registered Codex patch grammar; unknown grammars reject before dispatch |
+| JSON output | Validate response identity, model, item/call uniqueness, tool choice, parallel count, wrapper shape and usage counters before delivery |
+| SSE output | Validate event sequence, item/part lifecycles, deltas, done values and the terminal output; text and public reasoning summaries progress incrementally |
+| Tool completion | Hold tool lifecycle events until the complete terminal validates; with durable usage recording, also wait for its final local commit |
+| Unsupported output | Opaque reasoning, nonempty annotations/logprobs, unknown items/events, inconsistent or unfinished terminal items reject explicitly |
+
+The checked route is stateless. It retains recognized metadata/cache hints and the
+optional `include:["reasoning.encrypted_content"]` request hint, but does not
+accept encrypted reasoning output or replay. Select a separately supported managed
+route when opaque continuation is required. Public reasoning summaries require
+their declared capabilities. Message `phase` preserves `commentary`,
+`final_answer` or null across output and history. A failed stream closes without
+a synthetic success. The checked event subset follows the
+[Responses streaming reference](https://developers.openai.com/api/reference/resources/responses/streaming-events).
+
+The grammar rule validates syntax after generation; it does not provide constrained
+decoding, approval or file applicability. It preserves the grammar in the lowered
+description and restores the original tool definitions in response echoes. Buffer
+and event limits apply to checked output, so large tool calls can fail before
+completion is exposed. No policy retries, chooses a fallback or weakens a rule.
 
 <a id="자원과-실패"></a>
 
@@ -208,8 +265,8 @@ declare the approved bridged_instruction_envelope. See the optional profile in
 Profiled routes reject requested `max_output_tokens` unless it is a positive
 integer within the declared bound. Input-token counting is not implemented or
 qualified; `context_window` is a host-configuration contract. Unprofiled native
-Responses retains unqualified passthrough. Profiled native routes still preserve
-original JSON/SSE; feature-by-feature semantic admission applies to converted routes.
+Responses retains unqualified passthrough. Profiled Responses routes preserve original JSON/SSE unless a compatibility policy
+is selected; selected policies also enable feature-by-feature semantic admission.
 
 Each HTTP request fixes its resolved provider, model, API, credential reference,
 profile and limits once. An environment-variable name selects credentials for that

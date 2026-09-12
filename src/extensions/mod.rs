@@ -336,7 +336,8 @@ impl ExtensionPlan {
     }
 
     pub fn manifest(&self, base_manifest: &Value) -> Result<Value, ConfigError> {
-        let managed = base_manifest["schema"] == "gateway-embedded-manifest/v3";
+        let compatibility = base_manifest["schema"] == "gateway-embedded-manifest/v4";
+        let managed = base_manifest["configuration"].get("continuation").is_some();
         let mut configuration = json!({"gateway":base_manifest,"extensions":self.configuration});
         if self.activation.recorder.is_some() {
             configuration["usage_contract"] = json!("gateway-usage-event/v1");
@@ -354,7 +355,7 @@ impl ExtensionPlan {
         }
         let execution_sha256 = hash(&canonical(&configuration)?);
         Ok(
-            json!({"schema":if managed { "gateway-extended-manifest/v3" } else { self.manifest_schema() }, "configuration":configuration,
+            json!({"schema":if compatibility { "gateway-extended-manifest/v4" } else if managed { "gateway-extended-manifest/v3" } else { self.manifest_schema() }, "configuration":configuration,
             "execution_sha256":execution_sha256}),
         )
     }
