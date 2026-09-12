@@ -7,7 +7,7 @@ This list does not claim every entry is linked into the final executable.
 A separate project agreement does not replace third-party permissions or notices.
 Original texts may include alternative licenses; unselected alternatives are not all applied together.
 
-Cargo.lock SHA-256: `032e6047d39aded8a8b38760c60d68761b3eeda9a40b51181bc13ffbb2248e4a`
+Cargo.lock SHA-256: `24d6bde95dc819e240b767c276cf19e1c20bfc3ec0029b8c07a8160b4e753443`
 
 Policy SHA-256: `f8425fad837308702f565004c0c67a2cce95b526ded3541a2cb436ea4dcf197a`
 
@@ -1511,24 +1511,24 @@ Original package SHA-256: `494815d09bf52b5548659851081238f0ca39ff638363907596da7
 
 - [LICENSE](texts/253cd04c6714889df2d32f3f64d669179a1c95c76ac43c40882c52eb06bc3552.txt) — `253cd04c6714889df2d32f3f64d669179a1c95c76ac43c40882c52eb06bc3552`
 
-## toml 0.9.12+spec-1.1.0
+## toml 1.1.5+spec-1.1.0
 
 Declared: `MIT OR Apache-2.0`
 
 Selected: `MIT`
 
-Original package SHA-256: `cf92845e79fc2e2def6a5d828f0801e29a2f8acc037becc5ab08595c7d5e9863`
+Original package SHA-256: `12c0ba9680044b4ce98d391a62094047eada0d64860b80166c39f4a6b5640785`
 
 - [LICENSE-APACHE](texts/c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08.txt) — `c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08`
 - [LICENSE-MIT](texts/6efb0476a1cc085077ed49357026d8c173bf33017278ef440f222fb9cbcb66e6.txt) — `6efb0476a1cc085077ed49357026d8c173bf33017278ef440f222fb9cbcb66e6`
 
-## toml_datetime 0.7.5+spec-1.1.0
+## toml_datetime 1.1.1+spec-1.1.0
 
 Declared: `MIT OR Apache-2.0`
 
 Selected: `MIT`
 
-Original package SHA-256: `92e1cfed4a3038bc5a127e35a2d360f145e1f4b971b551a2ba5fd7aedf7e1347`
+Original package SHA-256: `3165f65f62e28e0115a00b2ebdd37eb6f3b641855f9d636d3cd4103767159ad7`
 
 - [LICENSE-APACHE](texts/c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08.txt) — `c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08`
 - [LICENSE-MIT](texts/6efb0476a1cc085077ed49357026d8c173bf33017278ef440f222fb9cbcb66e6.txt) — `6efb0476a1cc085077ed49357026d8c173bf33017278ef440f222fb9cbcb66e6`
@@ -1996,16 +1996,6 @@ Original package SHA-256: `589f6da84c646204747d1270a2a5661ea66ed1cced2631d546fdf
 
 - [license-apache-2.0](texts/c16f8dcf1a368b83be78d826ea23de4079fe1b4469a0ab9ee20563f37ff3d44b.txt) — `c16f8dcf1a368b83be78d826ea23de4079fe1b4469a0ab9ee20563f37ff3d44b`
 - [license-mit](texts/c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383.txt) — `c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383`
-
-## winnow 0.7.15
-
-Declared: `MIT`
-
-Selected: `MIT`
-
-Original package SHA-256: `df79d97927682d2fd8adb29682d1140b343be4ac0f08fd68b7765d9c059d3945`
-
-- [LICENSE-MIT](texts/cb5aedb296c5246d1f22e9099f925a65146f9f0d6b4eebba97fd27a6cdbbab2d.txt) — `cb5aedb296c5246d1f22e9099f925a65146f9f0d6b4eebba97fd27a6cdbbab2d`
 
 ## winnow 1.0.4
 

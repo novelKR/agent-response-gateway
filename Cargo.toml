@@ -21,7 +21,7 @@ serde_json = { version = "1", features = ["arbitrary_precision"] }
 subtle = "2"
 thiserror = "2"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "signal", "time", "sync"] }
-toml = "0.9"
+toml = "1.1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt"] }
 url = "2"

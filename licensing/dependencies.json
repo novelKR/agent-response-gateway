@@ -1,5 +1,5 @@
 {
-  "cargo_lock_sha256": "032e6047d39aded8a8b38760c60d68761b3eeda9a40b51181bc13ffbb2248e4a",
+  "cargo_lock_sha256": "24d6bde95dc819e240b767c276cf19e1c20bfc3ec0029b8c07a8160b4e753443",
   "packages": [
     {
       "checksum": "824a212faf96e9acacdbd09febd34438f8f711fb84e09a8916013cd7815ca28d",
@@ -2947,7 +2947,7 @@
       "version": "0.7.19"
     },
     {
-      "checksum": "cf92845e79fc2e2def6a5d828f0801e29a2f8acc037becc5ab08595c7d5e9863",
+      "checksum": "12c0ba9680044b4ce98d391a62094047eada0d64860b80166c39f4a6b5640785",
       "declared_license": "MIT OR Apache-2.0",
       "name": "toml",
       "notices": [
@@ -2966,10 +2966,10 @@
         "MIT"
       ],
       "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "version": "0.9.12+spec-1.1.0"
+      "version": "1.1.5+spec-1.1.0"
     },
     {
-      "checksum": "92e1cfed4a3038bc5a127e35a2d360f145e1f4b971b551a2ba5fd7aedf7e1347",
+      "checksum": "3165f65f62e28e0115a00b2ebdd37eb6f3b641855f9d636d3cd4103767159ad7",
       "declared_license": "MIT OR Apache-2.0",
       "name": "toml_datetime",
       "notices": [
@@ -2988,7 +2988,7 @@
         "MIT"
       ],
       "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "version": "0.7.5+spec-1.1.0"
+      "version": "1.1.1+spec-1.1.0"
     },
     {
       "checksum": "1d38ac1cf9b95face32296c0a3ede1fdc270627c9d9c02a7274dd6d960dc4d56",
@@ -3888,23 +3888,6 @@
       ],
       "source": "registry+https://github.com/rust-lang/crates.io-index",
       "version": "0.52.6"
-    },
-    {
-      "checksum": "df79d97927682d2fd8adb29682d1140b343be4ac0f08fd68b7765d9c059d3945",
-      "declared_license": "MIT",
-      "name": "winnow",
-      "notices": [
-        {
-          "origin": "crate_archive",
-          "path": "LICENSE-MIT",
-          "sha256": "cb5aedb296c5246d1f22e9099f925a65146f9f0d6b4eebba97fd27a6cdbbab2d"
-        }
-      ],
-      "selected_licenses": [
-        "MIT"
-      ],
-      "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "version": "0.7.15"
     },
     {
       "checksum": "23b97319f7b8343df12cc98938e5c3eb436064524c8d2b4e30a1d3a36eecdf81",
