@@ -819,8 +819,8 @@
       "order": 30,
       "source": "docs/usage-accounting.md",
       "translation": "docs/ko/usage-accounting.md",
-      "source_sha256": "085e1149077962c756361144e54ea3d2cb0378391b24897d64ad5dfcd4d2cd87",
-      "translation_sha256": "7e42ea4dc6d61f5fb1ae347ad270c0b3dcd56c71ce12fe573cc997bd4cf992ff",
+      "source_sha256": "fdbf65c3f872dda35edc0d33fe68385b931f5bd8ced95a760fb7d3642be08e8d",
+      "translation_sha256": "fe9fbc47cf1de05020e02799964c458b37d81de829599073f1c2c0c6ac4e3a6d",
       "anchors": [
         "delivery-guarantees",
         "external-export",

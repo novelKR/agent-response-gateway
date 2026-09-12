@@ -113,6 +113,8 @@ pub(super) fn spawn(
     let handle=std::thread::Builder::new().name("usage-recorder".into()).spawn(move||{
         let _child=child;
         loop {
+            // Do not multiply the shutdown bound by queued ACK deadlines.
+            if stopped.load(Ordering::Relaxed) { break; }
             let delivery=match receiver.try_recv(){Ok(v)=>v,Err(tokio::sync::mpsc::error::TryRecvError::Empty)=>{if stopped.load(Ordering::Relaxed){break}std::thread::sleep(Duration::from_millis(10));continue},Err(_)=>break};
             let result=(||->Result<(),ConfigError>{
                 let mut bytes=delivery.event.bytes().map_err(|_|fail())?;
@@ -125,6 +127,7 @@ pub(super) fn spawn(
             let ok=result.is_ok();let _=delivery.ack.send(ok);
             if !ok {lost.fetch_add(1,Ordering::Relaxed);tracing::warn!("usage_recorder_unavailable");break}
         }
+        lost.fetch_add(receiver.len() as u64,Ordering::Relaxed);
     }).map_err(|_|fail())?;
     Ok((
         UsageSink {

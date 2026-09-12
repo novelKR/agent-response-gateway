@@ -192,6 +192,23 @@ def run(binary, recorder):
         terminate(process2)
         report = subprocess.run([str(recorder), 'aggregate', '--store', str(ledger), '--timezone', 'Asia/Seoul'], check=True, capture_output=True)
         assert sum(g['calls'] for g in json.loads(report.stdout)['groups']) == 7
+        # A slow best-effort recorder must not extend shutdown by every queued ACK.
+        fixture = root / 'slow-recorder'
+        fixture.write_text('#!' + sys.executable + '\n' + "import sys,json,time,hashlib\nprint(json.dumps({'type':'ready','protocol':'gateway-usage-recorder/v1','producer_id':'fixture'}),flush=True)\nfor line in sys.stdin:\n raw=line.rstrip('\\n').encode(); event=json.loads(raw); time.sleep(0.1)\n print(json.dumps({'type':'committed','event_id':event['event_id'],'sha256':hashlib.sha256(raw).hexdigest()}),flush=True)\n")
+        fixture.chmod(0o500)
+        slow_package = root / 'slow-package'
+        slow_sha = manager.package_binary(fixture, ROOT / 'LICENSE', slow_package, 'usage-recorder', '0.1.2', 'usage_recorder')
+        manager.install(extension_store, slow_package, slow_sha)
+        slow_binding = {**binding, 'mode': 'best_effort'}
+        manager.enable(extension_store, 'usage-recorder', '0.1.2', slow_sha, manager.RECORDER_PERMISSIONS, slow_binding)
+        slow = subprocess.Popen(args, env=env, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+        cleanup.callback(terminate, slow)
+        slow_ready = read_ready(slow)
+        for _ in range(40):
+            request = Request(slow_ready['base_url'] + '/responses', data=encode({'model':'responses','input':'synthetic-input'}), headers={'Authorization':'Bearer ' + 'L' * 40,'Content-Type':'application/json'})
+            with client.open(request, timeout=5) as response:
+                response.read()
+        terminate(slow)
     print('usage-smoke: PASS; three APIs, JSON/SSE, incomplete observation, durable IPC, HTTP ACK replay, upgrade, CLI')
 
 

@@ -86,7 +86,8 @@ waits for a termination-record ACK at normal EOF, but cannot guarantee a commit
 before the client's final event. Transport limits and protocol conversion errors
 still apply. Cancellation does not drain the upstream to obtain usage. A forced
 process exit can lose uncommitted observations; started calls lacking a terminal
-record remain visibly unknown after restart.
+record remain visibly unknown after restart. Shutdown waits only for the current
+IPC deadline, not every queued event; uncommitted queued events may be discarded.
 
 Local commit means SQLite transaction completion, not remote delivery. SQLite uses
 WAL, `synchronous=FULL`, a single ledger writer and a busy timeout. Filesystem and
