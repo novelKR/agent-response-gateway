@@ -1,7 +1,7 @@
 //! Host-owned listener, runtime and shutdown around the ordinary validated router.
 //! Run only with an explicitly prepared config and environment; tests compile this example.
 use agent_response_gateway::{Config, Secrets, router};
-use std::{error::Error, future::Future};
+use std::{error::Error, future::Future, io::Write};
 
 async fn serve_hosted(
     listener: tokio::net::TcpListener,
@@ -9,7 +9,17 @@ async fn serve_hosted(
     secrets: Secrets,
     shutdown: impl Future<Output = ()> + Send + 'static,
 ) -> Result<(), Box<dyn Error>> {
+    let manifest = config.manifest()?;
+    let address = listener.local_addr()?;
     let app = router(config, secrets)?;
+    println!(
+        "{}",
+        serde_json::json!({"event":"ready","address":address.to_string(),
+        "base_url":format!("http://{address}/v1"),"version":env!("CARGO_PKG_VERSION"),
+        "schema":manifest.ready_schema(),"manifest_schema":manifest.schema(),
+        "configuration_sha256":manifest.configuration_sha256()})
+    );
+    std::io::stdout().flush()?;
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown)
         .await?;

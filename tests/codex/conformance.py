@@ -474,7 +474,7 @@ def stop_process(process):
             stream.close()
 
 
-def run_scenario(name, binary, gateway_binary, api="responses", managed_contract=None, native_custom=False, profile_packs=False, codec_binary=None, editing=False, code_mode=False, normalization=False, operations=False, file_conflict=False):
+def run_scenario(name, binary, gateway_binary, api="responses", managed_contract=None, native_custom=False, profile_packs=False, codec_binary=None, editing=False, code_mode=False, normalization=False, operations=False, file_conflict=False, embedded_binary=None):
     local = ROOT / ".local/conformance"
     local.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix=name + "-", dir=local) as temporary, contextlib.ExitStack() as cleanup:
@@ -535,7 +535,7 @@ def run_scenario(name, binary, gateway_binary, api="responses", managed_contract
             config.write_text(encoded)
             gateway_args += ['--extensions-lock',str(codec_lock)]
         manifest = embedded_contract.inspect_manifest(gateway_binary, config, env, gateway_args[2:])
-        gateway = subprocess.Popen([str(gateway_binary), "serve", *gateway_args], env=gateway_env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+        gateway = subprocess.Popen(([str(embedded_binary), str(config)] if embedded_binary else [str(gateway_binary), "serve", *gateway_args]), env=gateway_env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
         cleanup.callback(stop_process, gateway)
         ready = embedded_contract.read_ready(gateway, manifest)
         if codec_binary: manifest=manifest["configuration"]["gateway"]

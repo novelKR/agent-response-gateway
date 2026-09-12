@@ -264,3 +264,7 @@ Descriptor·정책 변경은 경로 origin을 바꾼다. 기존 인증 replay v2
 합성 fixture는 네 작업·다음 턴 입력 동일성·승인 거부·문자열 경로 의존·파일 문맥
 충돌·managed replay·기록기 재시작을 검증한다. 순수 컴파일러 시험은 호스트 권한이나
 실제 공급자 적합성을 의미하지 않는다. 정책 선택은 DB migration 없이 경로 origin을 바꾼다.
+
+호스트가 소유하는 Rust 예제는 같은 검증 manifest에서 readiness를 생성한다.
+합성 Codex 시험은 CLI 서버와 별도로 이 예제의 라이브러리 router를 통해
+실제 파일 작업·거부·이력을 검증한다.

@@ -288,3 +288,7 @@ The synthetic fixture covers all four operations, next-turn input identity,
 approval denial, lexical dependencies, file-context conflicts, managed replay and
 recorder restart. Pure compiler tests do not imply host permission or real-provider
 qualification. Policy selection changes route origin without a database migration.
+
+The host-owned Rust example emits readiness from the same validated manifest.
+Synthetic Codex tests use that example to verify actual file operations, denial
+and history through the library router, independently of the CLI server.
