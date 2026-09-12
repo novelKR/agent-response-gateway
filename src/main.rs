@@ -201,7 +201,9 @@ async fn run(cli: Cli) -> Result<(), ConfigError> {
     let mut readiness = json!({"event":"ready", "address":bound.to_string(), "base_url":format!("http://{bound}/v1"), "version":env!("CARGO_PKG_VERSION"),
         "schema":manifest.ready_schema(),"manifest_schema":manifest.schema(),"configuration_sha256":manifest.configuration_sha256()});
     if let Some(extended) = &extended_manifest {
-        readiness["schema"] = json!(if extended["schema"] == "gateway-extended-manifest/v6" {
+        readiness["schema"] = json!(if extended["schema"] == "gateway-extended-manifest/v7" {
+            "gateway-extended-ready/v7"
+        } else if extended["schema"] == "gateway-extended-manifest/v6" {
             "gateway-extended-ready/v6"
         } else if manifest.schema() == "gateway-embedded-manifest/v5" {
             "gateway-extended-ready/v5"

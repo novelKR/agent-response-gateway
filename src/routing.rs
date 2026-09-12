@@ -16,6 +16,7 @@ use crate::{
 
 #[derive(Clone, Debug)]
 pub struct ResolvedRoute {
+    pub editing: Option<crate::editing::Policy>,
     pub compatibility: Option<crate::compatibility::BoundPolicy>,
     pub managed: bool,
     pub alias: String,
@@ -97,10 +98,24 @@ impl Config {
                 snapshot.adapter_version, self.codecs[id].package_sha256
             );
         }
+        let editing = model
+            .editing_policy
+            .as_ref()
+            .map(|id| self.editing_policies[id].clone());
+        if let Some(policy) = &editing {
+            snapshot.adapter_version = format!(
+                "{}/editing/1/{}",
+                snapshot.adapter_version,
+                crate::continuation::hex(&crate::digest::sha256(
+                    &serde_json::to_vec(policy).expect("editing policy")
+                ))
+            );
+        }
         snapshot
             .validate()
             .map_err(|_| ConfigError("Invalid route snapshot".into()))?;
         Ok(ResolvedRoute {
+            editing,
             compatibility,
             managed: model.continuation_mode.unwrap_or(
                 if model.api == ApiProtocol::GeminiInteractions {
@@ -153,7 +168,8 @@ impl ResolvedRoute {
                 route: self.snapshot.clone(),
                 scope: "stateless-request".into(),
             };
-            let plan = plan_translation_with_history(&request, &target, history)?;
+            let mut plan = plan_translation_with_history(&request, &target, history)?;
+            plan.editing = self.editing.clone();
             return Ok(AdmittedRequest::Translated {
                 request: Box::new(request),
                 plan: Box::new(plan),
@@ -187,7 +203,8 @@ impl ResolvedRoute {
             route: self.snapshot.clone(),
             scope: "stateless-request".into(),
         };
-        let plan = plan_translation_with_history(&request, &target, history)?;
+        let mut plan = plan_translation_with_history(&request, &target, history)?;
+        plan.editing = self.editing.clone();
         Ok(AdmittedRequest::Translated {
             request: Box::new(request),
             plan: Box::new(plan),

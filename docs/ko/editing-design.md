@@ -10,8 +10,8 @@
 
 [English](../editing-design.md) | [한국어](editing-design.md)
 
-이 설계는 선택형 편집 호환 기능을 정의한다. 여기서 설명하는 편집 정책은 아직
-런타임에 제공되지 않는다. 기존 custom 문자열 브리지가 기본값이다. 합성 fixture는
+이 계약은 구현된 직접 문맥 편집과 별도로 계획된 helper·정규화·작업 묶음 표현을
+구분한다. 기존 custom 문자열 브리지가 기본값이다. 합성 fixture는
 고정 Codex 0.154.0의 직접 패치와 Code Mode helper 실행을 검증하며 실제 공급자를
 검증하지 않는다.
 
@@ -85,3 +85,45 @@ JavaScript를 실행하거나 일반적으로 해석하지 않는다. 생성한 
 적용과 승인 거부를 확인한다. 공개 fixture에는 계약 hash와 합성 메타데이터만
 있으며 런타임 프롬프트는 복사하지 않는다. 구현 시 내장·외부 codec, 인라인·가져온
 정책, stateless·managed 이력은 같은 공개 계약을 보존해야 한다.
+
+<a id="using-direct-context-editing"></a>
+<a id="직접-문맥-편집-사용"></a>
+
+## 직접 문맥 편집 사용
+
+다음 모델 설정 일부에는 별도로 정의한 공급자와 기능 프로필이 필요하다. 프로필은
+native 함수 지원과 기존 custom·문법 브리지를 선언한다. 값은 합성이며 검증된
+실제 공급자 설정이 아니다.
+
+```toml
+[models.writer]
+provider="mock"
+upstream_model="synthetic-model"
+api="messages"
+auth="api_key"
+messages_version="2023-06-01"
+capability_profile="verified-functions"
+editing_policy="line-edit"
+
+[editing_policies.line-edit]
+version=1
+client_contract="codex-direct-custom/v1"
+representation="context-lines/v1"
+patch_dialect="codex-patch/1"
+normalization="none"
+```
+
+`old_lines`는 한 줄 이상이어야 한다. 이 버전은 기존 줄 블록을 교체하거나 제거하며
+삽입만 하는 편집은 원래 패치 도구를 사용한다. 전체 16384줄과 컴파일된 패치
+8 MiB로 제한한다. 공백 제거나 개행 보정은 하지 않는다. 이 구현은 Code Mode,
+정규화·작업 묶음·외부 codec·가져온 팩을 활성화하지 않는다.
+
+합성 이름은 원래 도구 정체성과 정책으로 결정한다. 이름 충돌 시 과거 공급자
+이름을 재배정하지 않고 거부한다. 정규 패치는 정확히 역변환하며 기존 비정규
+패치는 원래 도구 경로로 유지한다. 공급자 원본과 복원된 공개 출력은 기존 replay v2에
+표현되므로 이 표현은 새 replay 필드를 추가하지 않고 v3 지원을 주장하지 않는다.
+편집 정책은 경로 origin에 결합하며 변경 시 새 세션이 필요하다.
+
+CLI와 라이브러리 호출자는 같은 Config·라우터 경로를 구성한다. 정책 선택 시
+예약된 manifest/readiness v7 계약을 사용한다. 순수 컴파일러 출력은 라우터의
+허용 판정·출력 검증·호스트 승인을 우회할 권한이 아니다.

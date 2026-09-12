@@ -150,7 +150,8 @@ pub(crate) fn encode_with_history(
             return Err(unsupported());
         }
     }
-    let registry = CustomToolBridge::new(request.tools.as_deref().unwrap_or(&[]))?;
+    let registry = CustomToolBridge::new(request.tools.as_deref().unwrap_or(&[]))?
+        .with_editing(plan.editing.as_ref(), request)?;
     let mut envelope = Vec::new();
     if instruction_bridge && let Some(text) = &request.instructions {
         envelope.push(json!({"role":"protocol_default", "position":"request", "text":text}));

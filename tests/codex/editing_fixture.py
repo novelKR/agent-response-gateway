@@ -1,0 +1,44 @@
+"""Synthetic structured-edit admission and real-Codex execution fixture."""
+import argparse
+import json
+from pathlib import Path
+import conformance as c
+
+
+def configure(raw):
+    raw = raw.replace('capability_profile=', 'editing_policy="synthetic-edit"\ncapability_profile=', 1)
+    return raw + '''
+[editing_policies.synthetic-edit]
+version=1
+client_contract="codex-direct-custom/v1"
+representation="context-lines/v1"
+patch_dialect="codex-patch/1"
+normalization="none"
+'''
+
+
+def block(tools, invalid=False):
+    choices = [t for t in tools if "before_context" in t.get("input_schema", {}).get("properties", {})]
+    c.require(len(choices) == 1, "synthetic edit missing")
+    return {"type":"tool_use", "id":"call_fixture", "name":choices[0]["name"], "input":{
+        "path":"fixture.txt", "before_context":[], "old_lines":["synthetic-old"],
+        "new_lines":["synthetic-old" if invalid else "synthetic-content"], "after_context":[]}}
+
+
+def main():
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--gateway-bin',type=Path,required=True)
+    parser.add_argument('--runtime-dir',type=Path,default=c.runtime.BUNDLE)
+    args=parser.parse_args()
+    binary=c.runtime.verify_bundle(args.runtime_dir.resolve(),json.loads(c.runtime.LOCK.read_text()))
+    for api in ['messages','chat_completions','responses_checked','gemini_interactions']:
+        for scenario in ['custom_patch','approval_denial','grammar_failure']:
+            print(json.dumps(c.run_scenario(scenario,binary,args.gateway_bin.resolve(),api,editing=True)),flush=True)
+
+    for contract in ['claude_adaptive','claude_manual','deep_seek','open_router']:
+        api='messages' if contract.startswith('claude_') else 'chat_completions'
+        for scenario in ['custom_patch','approval_denial','grammar_failure']:
+            print(json.dumps(c.run_scenario(scenario,binary,args.gateway_bin.resolve(),api,managed_contract=contract,editing=True)),flush=True)
+
+
+if __name__=='__main__': main()

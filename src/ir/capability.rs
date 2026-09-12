@@ -331,6 +331,7 @@ pub fn requirements(request: &RequestIR) -> Result<RequiredCapabilities, IrError
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TranslationPlan {
+    pub editing: Option<crate::editing::Policy>,
     pub route: RouteSnapshot,
     pub required: RequiredCapabilities,
     pub bridges: Vec<BridgeRule>,
@@ -447,6 +448,7 @@ pub(crate) fn plan_translation_with_history(
         }
     }
     Ok(TranslationPlan {
+        editing: None,
         route: route.clone(),
         retains_source_extensions: required.contains(Feature::Extensions),
         required,

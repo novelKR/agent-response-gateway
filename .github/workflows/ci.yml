@@ -200,6 +200,8 @@ jobs:
       - run: python3 -B scripts/codex_runtime.py verify
       - run: python3 -B scripts/codex_runtime.py schema --profile experimental
       - run: cargo +1.98.0 build --locked
+      - name: Verify structured editing with pinned Codex
+        run: python3 -B tests/codex/editing_fixture.py --gateway-bin target/debug/agent-response-gateway
       - name: Verify pinned direct and Code Mode editing contracts
         run: python3 -B tests/codex/editing_contract.py --gateway-bin target/debug/agent-response-gateway
       - name: Run every synthetic Codex scenario

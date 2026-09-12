@@ -5,6 +5,7 @@ use serde_json::json;
 use super::{IrError, ToolIdentity, ToolKind, grammar::Grammar, request::*};
 
 struct Binding {
+    structured: bool,
     original: ToolIdentity,
     grammar: Option<Grammar>,
     wrapped: bool,
@@ -159,6 +160,7 @@ impl CustomToolBridge {
             reverse.insert(
                 alias,
                 Binding {
+                    structured: false,
                     original: tool.identity,
                     grammar,
                     wrapped,
@@ -189,6 +191,72 @@ impl CustomToolBridge {
             reverse,
             definitions,
         })
+    }
+
+    pub(crate) fn with_editing(
+        mut self,
+        policy: Option<&crate::editing::Policy>,
+        request: &RequestIR,
+    ) -> Result<Self, IrError> {
+        let Some(policy) = policy else {
+            return Ok(self);
+        };
+        policy.validate()?;
+        let mut originals = Vec::new();
+        for (original, alias) in &self.forward {
+            if original.name != "apply_patch"
+                || original
+                    .namespace
+                    .as_deref()
+                    .is_some_and(|n| n != "functions")
+            {
+                continue;
+            }
+            let binding = &self.reverse[alias];
+            if binding.grammar != Some(Grammar::CodexPatchV1) {
+                return Err(IrError::InvalidToolMapping);
+            }
+            originals.push(original.clone());
+        }
+        if matches!(
+            request.generation.tool_choice,
+            Some(ToolChoice::Named { .. } | ToolChoice::None)
+        ) {
+            return Ok(self);
+        }
+        for original in originals {
+            let encoded =
+                serde_json::to_vec(&(original.namespace.as_deref(), &original.name, policy))
+                    .map_err(|_| IrError::InvalidToolMapping)?;
+            let digest = crate::continuation::hex(&crate::digest::sha256(&encoded));
+            let name = format!("arg_edit_{}", &digest[..32]);
+            // A stable synthetic identity is required by native replay. Refuse a collision
+            // instead of silently assigning a different historical tool name.
+            if self
+                .reverse
+                .keys()
+                .chain(self.forward.keys())
+                .any(|t| t.name == name)
+            {
+                return Err(IrError::InvalidToolMapping);
+            }
+            let alias = ToolIdentity::new(None, name)?;
+            self.definitions.push(ToolDefinition {
+                identity: alias.clone(), description: Some("Propose one context-based line edit. The host checks the supplied context and applies the patch; this is not replace-all. Use the original patch tool for other operations.".into()),
+                kind: ToolDefinitionKind::Function { parameters: Some(crate::editing::ContextEdit::schema()), strict: None },
+                extensions: Extensions::responses(),
+            });
+            self.reverse.insert(
+                alias,
+                Binding {
+                    structured: true,
+                    original,
+                    grammar: Some(Grammar::CodexPatchV1),
+                    wrapped: true,
+                },
+            );
+        }
+        Ok(self)
     }
 
     pub fn definitions(&self) -> &[ToolDefinition] {
@@ -226,6 +294,24 @@ impl CustomToolBridge {
         ) {
             return Err(IrError::InvalidToolMapping);
         }
+        if let ToolInput::Freeform(text) = &original.input
+            && let Ok(edit) = crate::editing::ContextEdit::from_patch(text)
+            && let Some((alias, _)) = self
+                .reverse
+                .iter()
+                .find(|(_, b)| b.structured && b.original == original.tool)
+        {
+            return Ok(ToolCall {
+                status: original.status,
+                item_id: original.item_id.clone(),
+                call_id: original.call_id.clone(),
+                tool: alias.clone(),
+                input: ToolInput::Json(
+                    serde_json::to_string(&edit).map_err(|_| IrError::InvalidToolMapping)?,
+                ),
+                extensions: Extensions::responses(),
+            });
+        }
         let binding = self.binding(&original.tool)?;
         let input = match (&original.input, binding.grammar) {
             (ToolInput::Freeform(text), Some(grammar)) => {
@@ -257,7 +343,12 @@ impl CustomToolBridge {
             .reverse
             .get(&lowered.tool)
             .ok_or(IrError::InvalidToolMapping)?;
-        let input = if let Some(grammar) = binding.grammar {
+        let input = if binding.structured {
+            let ToolInput::Json(raw) = &lowered.input else {
+                return Err(IrError::InvalidToolMapping);
+            };
+            ToolInput::Freeform(crate::editing::ContextEdit::from_json(raw)?.compile()?)
+        } else if let Some(grammar) = binding.grammar {
             if !binding.wrapped {
                 let ToolInput::Freeform(text) = &lowered.input else {
                     return Err(IrError::InvalidToolMapping);
@@ -353,13 +444,13 @@ impl CustomToolBridge {
         call: &ToolCall,
         restore: bool,
     ) -> Result<ToolResult, IrError> {
-        self.lower_call(call)?;
+        let lowered = self.lower_call(call)?;
         let kind = if self.binding(&call.tool)?.grammar.is_some() {
             ToolKind::Custom
         } else {
             ToolKind::Function
         };
-        let lowered_kind = if self.binding(&call.tool)?.wrapped {
+        let lowered_kind = if matches!(lowered.input, ToolInput::Json(_)) {
             ToolKind::Function
         } else {
             kind
