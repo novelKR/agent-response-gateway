@@ -7,6 +7,7 @@ use super::{IrError, ToolIdentity, ToolKind, grammar::Grammar, request::*};
 struct Binding {
     original: ToolIdentity,
     grammar: Option<Grammar>,
+    wrapped: bool,
 }
 
 /// One deterministic request-scoped registry for definitions, choices, history and output.
@@ -20,6 +21,31 @@ pub struct CustomToolBridge {
 
 impl CustomToolBridge {
     pub fn new(tools: &[ToolDefinition]) -> Result<Self, IrError> {
+        Self::build(tools, true, true, false)
+    }
+
+    /// Responses may independently retain custom input and namespace representations.
+    pub fn for_responses(
+        tools: &[ToolDefinition],
+        profile: &super::capability::CapabilityProfile,
+    ) -> Result<Self, IrError> {
+        use super::capability::{BridgeRule, Feature, Support};
+        Self::build(
+            tools,
+            profile.support(Feature::CustomTools) == Support::Bridged(BridgeRule::CustomToolJson),
+            profile.support(Feature::NamespacedTools)
+                == Support::Bridged(BridgeRule::ToolNamespace),
+            profile.support(Feature::CustomGrammar)
+                == Support::Bridged(BridgeRule::RegisteredGrammarValidation),
+        )
+    }
+
+    fn build(
+        tools: &[ToolDefinition],
+        wrap_custom: bool,
+        flatten_namespaces: bool,
+        strip_grammar: bool,
+    ) -> Result<Self, IrError> {
         let mut leaves = Vec::new();
         let mut groups = BTreeSet::new();
         for tool in tools {
@@ -41,7 +67,7 @@ impl CustomToolBridge {
                         return Err(IrError::InvalidToolMapping);
                     }
                     let mut child = child.clone();
-                    if let Some(description) = &tool.description {
+                    if flatten_namespaces && let Some(description) = &tool.description {
                         child.description = Some(json!({"namespace":tool.identity.name,
                             "namespace_description":description,"tool_description":child.description}).to_string());
                     }
@@ -72,7 +98,8 @@ impl CustomToolBridge {
                 ToolDefinitionKind::Function { .. } => None,
                 ToolDefinitionKind::Namespace { .. } => return Err(IrError::InvalidToolMapping),
             };
-            let alias = if grammar.is_some() || tool.identity.namespace.is_some() {
+            let wrapped = grammar.is_some() && wrap_custom;
+            let alias = if wrapped || (flatten_namespaces && tool.identity.namespace.is_some()) {
                 loop {
                     let prefix = if grammar.is_some() {
                         "arg_custom"
@@ -82,7 +109,14 @@ impl CustomToolBridge {
                     let candidate = format!("{prefix}_{sequence}");
                     sequence += 1;
                     if occupied.insert(candidate.clone()) {
-                        break ToolIdentity::new(None, candidate)?;
+                        break ToolIdentity::new(
+                            if flatten_namespaces {
+                                None
+                            } else {
+                                tool.identity.namespace.clone()
+                            },
+                            candidate,
+                        )?;
                     }
                 }
             } else {
@@ -90,7 +124,9 @@ impl CustomToolBridge {
             };
             let mut definition = tool.clone();
             definition.identity = alias.clone();
-            if let ToolDefinitionKind::Custom { format } = &tool.kind {
+            if let ToolDefinitionKind::Custom { format } = &tool.kind
+                && wrapped
+            {
                 let mut input = json!({"type":"string"});
                 if grammar == Some(Grammar::CodexPatchV1) {
                     input["description"] = json!(format!(
@@ -104,6 +140,20 @@ impl CustomToolBridge {
                     ),
                     strict: None,
                 };
+            } else if strip_grammar && grammar == Some(Grammar::CodexPatchV1) {
+                definition.description = Some(
+                    json!({
+                        "tool_description": tool.description,
+                        "registered_grammar": match &tool.kind {
+                            ToolDefinitionKind::Custom { format } => format,
+                            _ => unreachable!(),
+                        },
+                    })
+                    .to_string(),
+                );
+                definition.kind = ToolDefinitionKind::Custom {
+                    format: Some(json!({"type":"text"})),
+                };
             }
             forward.insert(tool.identity.clone(), alias.clone());
             reverse.insert(
@@ -111,9 +161,28 @@ impl CustomToolBridge {
                 Binding {
                     original: tool.identity,
                     grammar,
+                    wrapped,
                 },
             );
             definitions.push(definition);
+        }
+        if !flatten_namespaces {
+            let mut flat = definitions.into_iter();
+            definitions = tools
+                .iter()
+                .map(|tool| {
+                    if let ToolDefinitionKind::Namespace { tools: children } = &tool.kind {
+                        let mut group = tool.clone();
+                        group.kind = ToolDefinitionKind::Namespace {
+                            tools: flat.by_ref().take(children.len()).collect(),
+                        };
+                        group
+                    } else {
+                        flat.next()
+                            .expect("one lowered definition per original leaf")
+                    }
+                })
+                .collect();
         }
         Ok(Self {
             forward,
@@ -161,7 +230,11 @@ impl CustomToolBridge {
         let input = match (&original.input, binding.grammar) {
             (ToolInput::Freeform(text), Some(grammar)) => {
                 grammar.validate(text)?;
-                ToolInput::Json(json!({"input":text}).to_string())
+                if binding.wrapped {
+                    ToolInput::Json(json!({"input":text}).to_string())
+                } else {
+                    ToolInput::Freeform(text.clone())
+                }
             }
             (ToolInput::Json(raw), None) => ToolInput::Json(raw.clone()),
             _ => return Err(IrError::InvalidToolMapping),
@@ -177,9 +250,6 @@ impl CustomToolBridge {
     }
 
     pub fn restore_call(&self, lowered: &ToolCall) -> Result<ToolCall, IrError> {
-        let ToolInput::Json(raw) = &lowered.input else {
-            return Err(IrError::InvalidToolMapping);
-        };
         if !lowered.extensions.fields.is_empty() {
             return Err(IrError::UnsupportedExtension);
         }
@@ -188,17 +258,31 @@ impl CustomToolBridge {
             .get(&lowered.tool)
             .ok_or(IrError::InvalidToolMapping)?;
         let input = if let Some(grammar) = binding.grammar {
-            #[derive(serde::Deserialize)]
-            #[serde(deny_unknown_fields)]
-            struct Envelope {
-                input: String,
+            if !binding.wrapped {
+                let ToolInput::Freeform(text) = &lowered.input else {
+                    return Err(IrError::InvalidToolMapping);
+                };
+                grammar.validate(text)?;
+                ToolInput::Freeform(text.clone())
+            } else {
+                let ToolInput::Json(raw) = &lowered.input else {
+                    return Err(IrError::InvalidToolMapping);
+                };
+                #[derive(serde::Deserialize)]
+                #[serde(deny_unknown_fields)]
+                struct Envelope {
+                    input: String,
+                }
+                // Parse directly from raw JSON so duplicate wrapper fields cannot be erased.
+                let envelope: Envelope =
+                    serde_json::from_str(raw).map_err(|_| IrError::InvalidToolMapping)?;
+                grammar.validate(&envelope.input)?;
+                ToolInput::Freeform(envelope.input)
             }
-            // Parse directly from raw JSON so duplicate wrapper fields cannot be erased.
-            let envelope: Envelope =
-                serde_json::from_str(raw).map_err(|_| IrError::InvalidToolMapping)?;
-            grammar.validate(&envelope.input)?;
-            ToolInput::Freeform(envelope.input)
         } else {
+            let ToolInput::Json(raw) = &lowered.input else {
+                return Err(IrError::InvalidToolMapping);
+            };
             if !serde_json::from_str::<serde_json::Value>(raw)
                 .map_err(|_| IrError::InvalidJsonArguments)?
                 .is_object()
@@ -237,7 +321,11 @@ impl CustomToolBridge {
                 }
                 Ok(ToolChoice::Named {
                     tool: self.alias(tool)?.clone(),
-                    kind: ToolKind::Function,
+                    kind: if self.binding(tool)?.wrapped {
+                        ToolKind::Function
+                    } else {
+                        *kind
+                    },
                     extensions: Extensions::responses(),
                 })
             }
@@ -271,8 +359,13 @@ impl CustomToolBridge {
         } else {
             ToolKind::Function
         };
+        let lowered_kind = if self.binding(&call.tool)?.wrapped {
+            ToolKind::Function
+        } else {
+            kind
+        };
         if result.call_id != call.call_id
-            || result.kind != if restore { ToolKind::Function } else { kind }
+            || result.kind != if restore { lowered_kind } else { kind }
         {
             return Err(IrError::InvalidToolMapping);
         }
@@ -280,7 +373,7 @@ impl CustomToolBridge {
             return Err(IrError::UnsupportedExtension);
         }
         let mut converted = result.clone();
-        converted.kind = if restore { kind } else { ToolKind::Function };
+        converted.kind = if restore { kind } else { lowered_kind };
         Ok(converted)
     }
 }

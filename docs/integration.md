@@ -189,3 +189,14 @@ digest alone; resume needs a separate credential generation. Follow the
 Usage accounting and the optional recorder are described in the
 [token usage accounting guide](usage-accounting.md). Recorder installation,
 local commit guarantees and external delivery are separate from HTTP metadata observation.
+
+Selecting a tool compatibility policy emits `gateway-embedded-manifest/v4` and
+`gateway-ready/v4`. The configuration includes the policy ID, version, choices,
+source provider support and effective route support. Policy identity also binds
+the route adapter version and managed continuation origin. With executable extensions,
+the outer contracts are `gateway-extended-manifest/v4` and
+`gateway-extended-ready/v4`; recorder usage contracts and managed replay versions
+remain explicit. Unselected policies do not change execution identity. Hosts must
+recognize this version and compare the full configuration/execution digest before
+starting a child. Existing configurations without a selected policy retain their
+previous manifest version. See [tool policies](protocol.md#checked-responses-tools).

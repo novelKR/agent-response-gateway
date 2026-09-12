@@ -76,7 +76,7 @@ class Provider(BaseHTTPRequestHandler):
         self.wfile.write(raw)
 
 
-def run(binary, recorder):
+def run(binary, recorder, compatibility_policy=False):
     parent = ROOT / '.local/managed-usage-smoke'; parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=parent) as temporary, contextlib.ExitStack() as cleanup:
         root = Path(temporary).resolve(); root.chmod(0o700)
@@ -96,12 +96,15 @@ def run(binary, recorder):
         for name in ('gemini', 'claude_adaptive', 'claude_manual', 'deep_seek', 'open_router'):
             folder = root / name; folder.mkdir(mode=0o700); upstream.contract = name
             route = gemini.route('0.154.0') if name == 'gemini' else claude.route('0.154.0', name == 'claude_manual') if name.startswith('claude') else chat.route('0.154.0', name == 'open_router')
+            if compatibility_policy:
+                route = 'compatibility_policy="checked"\n' + route + '\n[compatibility_policies.checked]\nversion=1\n'
             config = folder / 'gateway.toml'
             config.write_text(f'listen="127.0.0.1:0"\n[providers.mock]\nbase_url="http://127.0.0.1:{upstream.server_port}/v1"\napi_key_env="SYNTHETIC_KEY"\n[models.writer]\nprovider="mock"\nupstream_model="synthetic-model"\n'+route)
             env = {**os.environ, 'ARG_LOCAL_TOKEN': 'L'*40, 'SYNTHETIC_KEY': 'synthetic-key'}
             control_token = gemini.setup(folder, binary, config, env)
             args = ['--config', str(config), '--extensions-lock', str(store / 'active.json')]
             manifest = contract.validate_extended_manifest(json.loads(subprocess.run([str(binary), 'manifest', *args], env=env, capture_output=True, check=True).stdout))
+            assert manifest['schema'] == ('gateway-extended-manifest/v4' if compatibility_policy else 'gateway-extended-manifest/v3')
             def start():
                 child = subprocess.Popen([str(binary), 'serve', *args], env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 try:
@@ -172,7 +175,8 @@ def run(binary, recorder):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--gateway-bin', type=Path, required=True); parser.add_argument('--recorder-bin', type=Path, required=True)
-    args = parser.parse_args(); print(json.dumps(run(args.gateway_bin.resolve(), args.recorder_bin.resolve()), sort_keys=True))
+    parser.add_argument('--compatibility-policy', action='store_true', help='Bind the existing managed rules through a selected policy and v4 manifest')
+    args = parser.parse_args(); print(json.dumps(run(args.gateway_bin.resolve(), args.recorder_bin.resolve(), args.compatibility_policy), sort_keys=True))
 
 
 if __name__ == '__main__':

@@ -7,7 +7,6 @@ use std::{
 use agent_response_gateway::{
     Config, ConfigError, Secrets,
     extensions::{ExtensionPlan, ExtensionRuntime},
-    manifest::{MANIFEST_SCHEMA, READY_SCHEMA},
 };
 use clap::{Parser, Subcommand};
 use serde_json::json;
@@ -144,6 +143,7 @@ async fn run(cli: Cli) -> Result<(), ConfigError> {
     }
     let secrets = Secrets::from_env(&config)?;
     let continuation_enabled = config.continuation.is_some();
+    let compatibility_enabled = manifest.schema() == "gateway-embedded-manifest/v4";
     let address = config.listen;
     let grace = Duration::from_millis(config.limits.shutdown_grace_ms);
     let listener = tokio::net::TcpListener::bind(address)
@@ -167,9 +167,11 @@ async fn run(cli: Cli) -> Result<(), ConfigError> {
             .and_then(ExtensionRuntime::usage_sink),
     )?;
     let mut readiness = json!({"event":"ready", "address":bound.to_string(), "base_url":format!("http://{bound}/v1"), "version":env!("CARGO_PKG_VERSION"),
-        "schema":if continuation_enabled {"gateway-ready/v3"}else{READY_SCHEMA},"manifest_schema":if continuation_enabled {"gateway-embedded-manifest/v3"}else{MANIFEST_SCHEMA},"configuration_sha256":manifest.configuration_sha256()});
+        "schema":manifest.ready_schema(),"manifest_schema":manifest.schema(),"configuration_sha256":manifest.configuration_sha256()});
     if let Some(extended) = &extended_manifest {
-        readiness["schema"] = json!(if continuation_enabled {
+        readiness["schema"] = json!(if compatibility_enabled {
+            "gateway-extended-ready/v4"
+        } else if continuation_enabled {
             "gateway-extended-ready/v3"
         } else {
             extensions.as_ref().expect("extension plan").ready_schema()

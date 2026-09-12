@@ -39,6 +39,7 @@ pub enum BridgeRule {
     CustomToolJson,
     ToolNamespace,
     CodexPatchGrammar,
+    RegisteredGrammarValidation,
     MessagesInstructionEnvelope,
     GeminiInstructionEnvelope,
     ProviderParallelPermission,
@@ -91,6 +92,10 @@ impl CapabilityProfile {
                     if *feature == Feature::NamespacedTools => {}
                 Support::Bridged(BridgeRule::CodexPatchGrammar)
                     if *feature == Feature::CustomGrammar => {}
+                Support::Bridged(BridgeRule::RegisteredGrammarValidation)
+                    if *feature == Feature::CustomGrammar
+                        && self.protocol == ApiProtocol::Responses
+                        && self.support(Feature::CustomTools) == Support::Native => {}
                 Support::Bridged(BridgeRule::GeminiInstructionEnvelope)
                     if *feature == Feature::InstructionHierarchy
                         && self.protocol == ApiProtocol::GeminiInteractions => {}
@@ -369,6 +374,9 @@ pub(crate) fn plan_translation_with_history(
         }
         match route.capabilities.support(feature) {
             Support::Native => {}
+            Support::Bridged(BridgeRule::RegisteredGrammarValidation) => {
+                bridges.push(BridgeRule::RegisteredGrammarValidation);
+            }
             Support::Bridged(BridgeRule::ProviderParallelPermission) => {
                 super::reasoning::validate_parallel_permission(request)?;
                 bridges.push(BridgeRule::ProviderParallelPermission);
@@ -400,11 +408,20 @@ pub(crate) fn plan_translation_with_history(
     if bridges.iter().any(|rule| {
         matches!(
             rule,
-            BridgeRule::CustomToolJson | BridgeRule::ToolNamespace | BridgeRule::CodexPatchGrammar
+            BridgeRule::CustomToolJson
+                | BridgeRule::ToolNamespace
+                | BridgeRule::CodexPatchGrammar
+                | BridgeRule::RegisteredGrammarValidation
         )
     }) {
-        let registry =
-            super::bridge::CustomToolBridge::new(request.tools.as_deref().unwrap_or(&[]))?;
+        let registry = if route.api == ApiProtocol::Responses {
+            super::bridge::CustomToolBridge::for_responses(
+                request.tools.as_deref().unwrap_or(&[]),
+                &route.capabilities,
+            )?
+        } else {
+            super::bridge::CustomToolBridge::new(request.tools.as_deref().unwrap_or(&[]))?
+        };
         if let Some(Input::Items(items)) = &request.input {
             for (index, item) in items.iter().enumerate() {
                 if let Item::ToolCall(call) = item {

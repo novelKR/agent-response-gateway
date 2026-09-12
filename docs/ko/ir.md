@@ -137,11 +137,11 @@ top_p, 추론 옵션·항목과 불투명 연속성이 포함된다. `parallel_t
 처럼 동작을 제한하는 명시적 옵션도 지원 요구로 취급한다.
 
 지원 판정은 `Native`(직접 지원), `Bridged`(변환 규칙을 통한 지원),
-`Unsupported`(미지원)이며 선언이 없으면 미지원이다. 변환 규칙은
+`Unsupported`(미지원)이며 선언이 없으면 미지원이다. 구현된 변환 규칙의 예는
 `CustomToolJson`, `ToolNamespace`, `CodexPatchGrammar`와 Messages 전용
 `MessagesInstructionEnvelope`다. 각 규칙은 대응 기능에만 선언할 수 있다.
-도구 변환에는 함수 도구의 Native 지원이, 문법 변환에는 사용자 정의 도구의
-JSON 변환도 필요하다. 알 수 없는 규칙이나 엄격한 출력을 프롬프트로 대체하는
+래핑과 평탄화에는 함수 도구의 Native 지원이, Codex 패치 래퍼에는 사용자 정의
+도구의 JSON 변환도 필요하다. 알 수 없는 규칙이나 엄격한 출력을 프롬프트로 대체하는
 방식은 허용하지 않는다.
 
 경로에는 공급자 ID, 실제 모델, API 종류, 자격 증명 바인딩 참조, 어댑터 버전,
@@ -276,3 +276,11 @@ Chat Completions의 요청·일반 응답·스트림은 별도 순수 변환기�
 의미 있는 주석, 미완료 메시지와 알 수 없는 확장은 명시적으로 거부한다.
 메시지 도구 호출 뒤 같은 assistant 구간의 텍스트는 Messages 블록 순서를
 유지하며, 도구 결과 일부가 나온 뒤 assistant 내용을 끼워 넣지 않는다.
+
+`CustomToolBridge::for_responses()`는 유효 프로필에서 custom 래핑과 namespace
+평탄화를 독립적으로 선택한다. `RegisteredGrammarValidation`은 native Responses
+custom 입력을 유지하며 등록된 grammar 출력을 로컬에서 검증한다.
+`CodexPatchGrammar`는 래핑된 입력 규칙으로 유지된다. 선택한 TOML 정책은 공급자
+프로필 검증 후 이 규칙들을 적용하며 버전이 지정된 식별성을 경로 snapshot에 결합한다.
+기존 `CustomToolBridge::new()` 변환 규칙은 유지된다. checked HTTP 입력 검사와
+최종 검증의 한도는 [도구 정책](protocol.md#checked-responses-tools)을 참고한다.

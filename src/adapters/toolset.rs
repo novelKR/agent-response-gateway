@@ -20,7 +20,13 @@ impl PreparedTools {
         }
     }
     pub(crate) fn resolve(&self, alias: &str) -> Result<(&ToolIdentity, ToolKind), IrError> {
-        let result = self.registry.original(&ToolIdentity::new(None, alias)?)?;
+        self.resolve_identity(&ToolIdentity::new(None, alias)?)
+    }
+    pub(crate) fn resolve_identity(
+        &self,
+        alias: &ToolIdentity,
+    ) -> Result<(&ToolIdentity, ToolKind), IrError> {
+        let result = self.registry.original(alias)?;
         if matches!(&self.choice, Some(ToolChoice::None))
             || matches!(&self.choice, Some(ToolChoice::Named { tool, .. }) if tool != result.0)
         {

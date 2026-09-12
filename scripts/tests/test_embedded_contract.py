@@ -25,6 +25,44 @@ def ready(value):
 
 
 class EmbeddedContractTests(unittest.TestCase):
+    def test_checked_policy_manifest_and_readiness_bind_selection_and_replay(self):
+        def digest(value):
+            value["configuration_sha256"] = hashlib.sha256(json.dumps(value["configuration"], ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+        for managed in (False, True):
+            value = manifest()
+            value["schema"] = "gateway-embedded-manifest/v4"
+            binding = {"id":"tools","policy":{"version":1,"tools":{"custom_input":"function_json","namespaces":"flatten","grammar":"registered_output_validation"}},"provider_support":{"function_tools":"native"},"admission":"checked","on_unsupported":"reject","contract":"gateway-tool-compatibility/v1"}
+            value["configuration"]["routes"][0]["compatibility"] = binding
+            if managed:
+                value["configuration"].update(continuation={"store_id":"synthetic"},replay_versions={"read":[1,2],"write":2})
+            digest(value)
+            self.assertEqual(contract.validate_manifest(value), value)
+            current = ready(value)
+            current["schema"] = "gateway-ready/v4"
+            self.assertEqual(contract.parse_ready_line(json.dumps(current)+"\n", value), current)
+            changed = copy.deepcopy(value)
+            changed["configuration"]["routes"][0]["compatibility"]["id"] = "other"
+            with self.assertRaisesRegex(ValueError,"digest"):
+                contract.validate_manifest(changed)
+            for mutation in ("version","rule","contract","missing"):
+                changed = copy.deepcopy(value)
+                b = changed["configuration"]["routes"][0]["compatibility"]
+                if mutation == "version": b["policy"]["version"] = 2
+                elif mutation == "rule": b["policy"]["tools"]["grammar"] = "arbitrary"
+                elif mutation == "contract": b["on_unsupported"] = "drop"
+                else: del changed["configuration"]["routes"][0]["compatibility"]
+                digest(changed)
+                with self.assertRaises(ValueError):
+                    contract.validate_manifest(changed)
+            for recorder in (False,True):
+                config = {"gateway":value,"extensions":{}}
+                if recorder:
+                    config.update(usage_contract="gateway-usage-event/v1",usage_profiles=["responses/v1","chat/v1","messages/v1"]+(["gemini_interactions/v1","deepseek/v1"] if managed else []))
+                outer = {"schema":"gateway-extended-manifest/v4","configuration":config,"execution_sha256":hashlib.sha256(json.dumps(config,ensure_ascii=False,sort_keys=True,separators=(",",":")).encode()).hexdigest()}
+                contract.validate_extended_manifest(outer)
+                r = {**current,"schema":"gateway-extended-ready/v4","manifest_schema":outer["schema"],"execution_sha256":outer["execution_sha256"]}
+                self.assertEqual(contract.parse_extended_ready_line(json.dumps(r)+"\n",outer),r)
+
     def test_managed_manifest_requires_exact_replay_versions_and_matching_readiness(self):
         value = manifest()
         value["schema"] = "gateway-embedded-manifest/v3"

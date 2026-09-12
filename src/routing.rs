@@ -16,6 +16,7 @@ use crate::{
 
 #[derive(Clone, Debug)]
 pub struct ResolvedRoute {
+    pub compatibility: Option<crate::compatibility::BoundPolicy>,
     pub managed: bool,
     pub alias: String,
     pub endpoint: Url,
@@ -49,7 +50,15 @@ impl Config {
             .capability_profile
             .as_ref()
             .map(|id| (id, &self.capability_profiles[id]));
-        let snapshot = RouteSnapshot {
+        let compatibility =
+            model
+                .compatibility_policy
+                .as_ref()
+                .map(|id| crate::compatibility::BoundPolicy {
+                    id: id.clone(),
+                    policy: self.compatibility_policies[id].clone(),
+                });
+        let mut snapshot = RouteSnapshot {
             provider_id: model.provider.clone(),
             model: model.upstream_model.clone(),
             api: model.api,
@@ -69,10 +78,15 @@ impl Config {
             context_window: profile.map(|(_, p)| p.context_window),
             max_output_tokens: profile.map(|(_, p)| p.max_output_tokens),
         };
+        if let Some(binding) = &compatibility {
+            snapshot.capabilities = binding.policy.apply(&snapshot.capabilities)?;
+            snapshot.adapter_version = binding.adapter_version();
+        }
         snapshot
             .validate()
             .map_err(|_| ConfigError("Invalid route snapshot".into()))?;
         Ok(ResolvedRoute {
+            compatibility,
             managed: model.continuation_mode.unwrap_or(
                 if model.api == ApiProtocol::GeminiInteractions {
                     crate::config::ContinuationMode::Managed
@@ -115,8 +129,20 @@ impl ResolvedRoute {
             }
         }
         payload.insert("model".into(), Value::String(self.snapshot.model.clone()));
-        if self.snapshot.api == ApiProtocol::Responses {
+        if self.snapshot.api == ApiProtocol::Responses && self.compatibility.is_none() {
             return Ok(AdmittedRequest::Native(payload));
+        }
+        if self.snapshot.api == ApiProtocol::Responses {
+            let request = responses::decode(Value::Object(payload), None)?;
+            let target = ContinuityBinding {
+                route: self.snapshot.clone(),
+                scope: "stateless-request".into(),
+            };
+            let plan = plan_translation_with_history(&request, &target, history)?;
+            return Ok(AdmittedRequest::Translated {
+                request: Box::new(request),
+                plan: Box::new(plan),
+            });
         }
         // Complete, explicit exception list for nonsemantic transport/output hints.
         if let Some(metadata) = payload.remove("client_metadata")

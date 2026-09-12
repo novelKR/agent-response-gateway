@@ -147,10 +147,10 @@ continuity. Explicit restrictions such as `parallel_tool_calls:false` also count
 as required capabilities.
 
 Results are `Native`, `Bridged` or `Unsupported`; an absent declaration is
-Unsupported. Valid bridges are `CustomToolJson`, `ToolNamespace`,
+Unsupported. Examples of implemented bridges are `CustomToolJson`, `ToolNamespace`,
 `CodexPatchGrammar` and Messages-only `MessagesInstructionEnvelope`. Each can be
-declared only for its corresponding feature. Tool bridges require Native function
-support; the grammar bridge also requires the custom JSON bridge. Unknown bridges
+declared only for its corresponding feature. Wrapping and flattening require Native function
+support; the Codex patch wrapper also requires the custom JSON bridge. Unknown bridges
 and implicit weakening, such as replacing strict output with a prompt, are forbidden.
 
 A route contains provider ID, actual model, API, credential-binding reference,
@@ -292,3 +292,12 @@ Converted history accepts completed/omitted status and empty/omitted annotations
 Meaningful annotations, unfinished messages and unknown extensions explicitly
 reject. Text following tool use in the same assistant segment retains Messages
 block order. Assistant content cannot be interleaved after only some tool results.
+
+`CustomToolBridge::for_responses()` independently selects custom wrapping and
+namespace flattening from the effective profile. `RegisteredGrammarValidation`
+supports local registered-grammar output validation while retaining native Responses
+custom input; `CodexPatchGrammar` remains the wrapped-input rule. A selected TOML
+policy applies these rules after provider-profile validation and binds its versioned
+identity to the route snapshot. Existing `CustomToolBridge::new()` conversion rules
+remain unchanged. See [tool policies](protocol.md#checked-responses-tools) for
+checked HTTP admission and terminal validation limits.

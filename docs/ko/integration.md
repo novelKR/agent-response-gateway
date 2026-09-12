@@ -178,3 +178,13 @@ stdout에서 이를 읽고 사전 명세와 대조한 뒤 Codex를 시작한다.
 사용량 계측과 선택형 Recorder는 [토큰 사용량 계측 안내](usage-accounting.md)를
 참조한다. Recorder 설치·로컬 커밋 보장·외부 전달은 HTTP 메타데이터 관찰과
 별개의 계약이다.
+
+도구 호환성 정책을 선택하면 `gateway-embedded-manifest/v4`와
+`gateway-ready/v4`를 출력한다. 설정에는 정책 ID, 버전, 선택, 원래 공급자 지원과
+유효 경로 지원이 포함된다. 정책 식별성은 경로 adapter 버전과 managed 연속성
+origin에도 결합된다. 실행 확장을 사용하면 외부 계약은
+`gateway-extended-manifest/v4`와 `gateway-extended-ready/v4`이며, recorder의
+사용량 계약과 managed 재생 버전도 명시적으로 유지된다. 선택하지 않은 정책은
+실행 식별성을 바꾸지 않는다. 호스트는 자식 시작 전에 이 버전을 인식하고 전체
+설정·실행 digest를 비교해야 한다. 정책을 선택하지 않은 기존 설정은 이전 manifest
+버전을 유지한다. [도구 정책](protocol.md#checked-responses-tools)을 참고한다.

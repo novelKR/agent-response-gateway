@@ -1,3 +1,4 @@
+pub mod compatibility;
 pub mod config;
 mod digest;
 mod error;

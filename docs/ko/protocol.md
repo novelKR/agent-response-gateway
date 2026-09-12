@@ -50,7 +50,7 @@ HTTP를 허용한다. URL의 사용자정보·query·fragment는 허용하지 �
 
 ## 요청·응답
 
-JSON 객체와 등록된 문자열 `model`을 받는다. Responses 원형 전달 경로는 모델명을
+JSON 객체와 등록된 문자열 `model`을 받는다. 호환성 정책을 선택하지 않은 Responses 경로는 모델명을
 공급자 모델명으로 치환하며 나머지 필드를 아래 제한 외에는 JSON 값으로 보존한다.
 Messages·Chat Completions 경로는 등록된 기능 부분집합을 변환하며 미지원 필드는 전송 전에 거부한다.
 아래 표의 원형 전달 규칙은 Responses 경로에 적용한다.
@@ -81,6 +81,59 @@ JSON 경계가 아닐 수 있다. 이미 전송을 시작한 스트림에서 실
 상위 소비자는 최종 완료 이벤트 없이 끝난 스트림을 성공으로 간주해서는 안 된다.
 공급자에는 `Accept-Encoding: identity`를 요청하며 압축된 본문은 502로 거부한다.
 JSON 숫자는 임의 정밀도로 파싱하여 큰 정수와 소수의 값을 보존한다.
+
+<a id="checked-responses-tools"></a>
+<a id="explicit-tool-compatibility-policies"></a>
+
+## 명시적 도구 호환성 정책
+
+모델은 `compatibility_policy`로 버전이 지정된 정책을 선택한다.
+`[compatibility_policies.NAME]` 정의만으로는 활성화되지 않는다.
+명시적인 `auth`와 `capability_profile`이 필요하다. 공급자 프로필은 지원을
+선언하고, 정책은 게이트웨이가 적용할 변환을 선택한다. 이 선언은 실제 공급자의
+적합성 입증이 아니다. [설정 예제](../../config.checked-responses.example.toml)를 참고한다.
+
+| 정책 필드 | 값 | 효과 |
+|---|---|---|
+| `version` | `1` | 알 수 없는 정책 버전 거절 |
+| `tools.custom_input` | `preserve`, `function_json` | custom 입력을 보존하거나 정확한 문자열을 function JSON 객체로 감싸기 |
+| `tools.namespaces` | `preserve`, `flatten` | namespace 그룹을 보존하거나 구성원을 충돌 없는 함수 이름으로 매핑 |
+| `tools.grammar` | `preserve`, `registered_output_validation` | 선언된 형식을 보존하거나 등록된 grammar의 출력을 로컬에서 검증 |
+
+선택을 생략하면 기존 브리지 선언을 따른다. 명시적 선택은 기존 브리지와 일치해야
+하며, 선언된 native 지원과 충돌하는 변환은 거절한다. 정책은 지원되지 않는
+보존을 native 지원으로 바꾸지 않는다. 함수 래핑과 namespace 평탄화에는 native
+function 도구 지원이 필요하다. grammar 검증에는 custom JSON 래퍼 또는 native
+Responses custom 입력이 필요하다. 래핑은 native custom grammar 생성을 유지할 수 없다.
+
+Responses 경로에서 정책을 선택하면 checked 입력 검사와 변환이 활성화된다.
+선택한 정책이 없으면 기존 Responses 값·바이트 전달 계약이 적용된다.
+Messages, Chat Completions, Interactions는 기존 프로토콜·연속성 계약 안에서
+같은 선택 도구 규칙을 사용한다. 요청별 레지스트리는 정의, 설명, 이름을 지정한
+선택, 이력의 호출·결과, 반환 식별성을 함께 처리하며 도구를 실행하지 않는다.
+
+| Checked Responses 영역 | 지원과 제한 |
+|---|---|
+| 요청·이력 | 선언된 텍스트·이미지, 지시문, function/custom 도구와 대응하는 문자열 결과; 알 수 없는 의미 필드와 opaque 이력 거절 |
+| 출력 제어 | 선언된 출력 한도, 샘플링, reasoning 옵션과 구조화 형식의 값 보존; 스키마 검증은 호스트 책임 |
+| Custom 형식 | 형식 생략, 정확한 text 형식 또는 등록된 Codex patch grammar; 알 수 없는 grammar는 전송 전 거절 |
+| JSON 출력 | 전달 전에 응답 식별성, 모델, 항목·호출 고유성, 도구 선택, 병렬 개수, 래퍼 형태와 사용량 카운터 검증 |
+| SSE 출력 | 이벤트 순서, 항목·부분의 생명주기, delta, done 값과 최종 출력 검증; 텍스트와 공개 reasoning 요약은 점진적으로 전달 |
+| 도구 완료 | 전체 최종 응답 검증까지 도구 생명주기 이벤트 보류; durable 사용량 기록 시 최종 로컬 커밋까지 대기 |
+| 미지원 출력 | Opaque reasoning, 비어 있지 않은 annotations/logprobs, 알 수 없는 항목·이벤트, 불일치하거나 닫히지 않은 최종 항목을 명시적으로 거절 |
+
+checked 경로는 무상태다. 인식된 metadata/cache 힌트와 선택적인
+`include:["reasoning.encrypted_content"]` 요청 힌트를 보존하지만 암호화된
+reasoning 출력이나 재생을 허용하지 않는다. opaque 연속성이 필요하면 별도로
+지원되는 managed 경로를 선택한다. 공개 reasoning 요약에는 해당 기능 선언이
+필요하다. 메시지의 `phase`는 출력과 이력에서 `commentary`, `final_answer` 또는
+null을 보존한다. 스트림 실패 시 가상의 성공을 만들지 않고 연결을 닫는다.
+checked 이벤트 부분집합은 [Responses 스트리밍 참조](https://developers.openai.com/api/reference/resources/responses/streaming-events)를 따른다.
+
+grammar 규칙은 생성 후 구문을 검증하며, 제한 디코딩이나 승인 또는 파일 적용 가능성을
+제공하지 않는다. 변환된 설명에 grammar를 보존하고 응답의 설정 반환값에서 원래
+도구 정의를 복원한다. checked 출력에는 버퍼·이벤트 한도가 적용되므로 큰 도구 호출은
+완료 노출 전에 실패할 수 있다. 정책은 재시도, 대체 경로 선택, 규칙 완화를 하지 않는다.
 
 <a id="resources-and-failures"></a>
 
@@ -200,8 +253,8 @@ Messages의 instruction_hierarchy에는 승인된 bridged_instruction_envelope�
 프로필이 있는 경로는 요청한 `max_output_tokens`가 양의 정수인지와 선언 한도
 이하인지를 전송 전에 검사한다. 입력 토큰 계수는 구현·검증되지 않았으며,
 `context_window`는 호스트 설정용 계약이다. 프로필 없는 Responses 원형 전달은
-모델 기능을 검증하지 않고 요청을 전달한다. 프로필이 있는 Responses 경로도 원형 JSON과
-SSE를 보존하며, 기능별 지원 검사은 변환 경로에서 적용한다.
+모델 기능을 검증하지 않고 요청을 전달한다. 프로필이 있는 Responses 경로는 호환성 정책을 선택하지 않으면 원형 JSON과
+SSE를 보존한다. 정책을 선택하면 기능별 의미 검사도 적용한다.
 
 각 HTTP 요청은 해석한 공급자·모델·API·인증 참조·프로필·한도를 한 번 고정한다.
 여기서 환경 변수 이름은 요청 시 자격 증명을 선택하는 참조일 뿐, 이력 재개를
