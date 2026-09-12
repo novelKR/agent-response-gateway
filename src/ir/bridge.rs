@@ -15,6 +15,7 @@ struct Binding {
 /// Custom tools use a JSON string envelope; namespace members use collision-free flat names.
 /// Grammar checks validate syntax only and never execute a tool.
 pub struct CustomToolBridge {
+    code_mode: bool,
     forward: BTreeMap<ToolIdentity, ToolIdentity>,
     reverse: BTreeMap<ToolIdentity, Binding>,
     definitions: Vec<ToolDefinition>,
@@ -190,6 +191,7 @@ impl CustomToolBridge {
                 .collect();
         }
         Ok(Self {
+            code_mode,
             forward,
             reverse,
             definitions,
@@ -516,7 +518,13 @@ impl CustomToolBridge {
         result: &'a ToolResult,
         call: &ToolCall,
     ) -> Result<std::borrow::Cow<'a, str>, IrError> {
-        if self.binding(&call.tool)?.grammar == Some(Grammar::CodeModeSourceV1) {
+        // Pending native calls are authenticated independently of current declarations.
+        // Compaction can omit every tool definition while retaining their results.
+        if self.code_mode
+            && call.tool.namespace.is_none()
+            && call.tool.name == "exec"
+            && matches!(call.input, ToolInput::Freeform(_))
+        {
             Ok(std::borrow::Cow::Owned(crate::editing::code_mode_result(
                 &result.output,
             )?))
@@ -579,5 +587,43 @@ impl CustomToolBridge {
         }
         converted.kind = if restore { kind } else { lowered_kind };
         Ok(converted)
+    }
+}
+
+#[cfg(test)]
+mod replay_result_tests {
+    use super::*;
+    #[test]
+    fn authenticated_results_do_not_require_current_tool_declarations() {
+        let registry = CustomToolBridge::new(&[]).unwrap();
+        let call = ToolCall {
+            call_id: super::super::CallId::new("synthetic").unwrap(),
+            tool: ToolIdentity::new(Some("fixture".into()), "echo").unwrap(),
+            input: ToolInput::Json("{}".into()),
+            item_id: None,
+            status: Some(ToolCallStatus::Completed),
+            extensions: Extensions::responses(),
+        };
+        let mut result = ToolResult {
+            call_id: call.call_id.clone(),
+            kind: ToolKind::Function,
+            output: json!("synthetic-result"),
+            item_id: None,
+            extensions: Extensions::responses(),
+        };
+        assert_eq!(
+            registry.result_text(&result, &call).unwrap(),
+            "synthetic-result"
+        );
+        result.output = json!([{"type":"input_text","text":"synthetic"}]);
+        assert!(registry.result_text(&result, &call).is_err());
+        let helper = CustomToolBridge::build(&[], true, true, false, true).unwrap();
+        let call = ToolCall {
+            tool: ToolIdentity::new(None, "exec").unwrap(),
+            input: ToolInput::Freeform("synthetic".into()),
+            ..call
+        };
+        assert!(helper.result_text(&result, &call).is_ok());
+        assert!(registry.result_text(&result, &call).is_err());
     }
 }
