@@ -5,7 +5,8 @@
     "BSD-3-Clause",
     "ISC",
     "Unicode-3.0",
-    "CDLA-Permissive-2.0"
+    "CDLA-Permissive-2.0",
+    "Zlib"
   ],
   "cargo_deny_version": "0.20.2",
   "releases": [
@@ -31,6 +32,15 @@
       "sha256": "ed60d479b8fd1f64e9cbc3de449a16a53ac1b3d1b6aeb9bf9d190a8e93061b44",
       "url": "https://raw.githubusercontent.com/tokio-rs/valuable/9efc29b6e58cef28f6566a47aa7e142a55fead77/LICENSE",
       "vcs_commit": "9efc29b6e58cef28f6566a47aa7e142a55fead77",
+      "version": "0.1.1"
+    },
+    {
+      "name": "rsqlite-vfs",
+      "package_checksum": "c51c9ae4df8a7fba42103df5c621fa3c37eccf3a3c650879e90fc48b11cc192c",
+      "path": "upstream/LICENSE",
+      "sha256": "e1c1975c3474cce31722836f101a40ffaf1cc784e4d2f38ce3e77b9712934e78",
+      "url": "https://raw.githubusercontent.com/Spxg/sqlite-wasm-rs/1bb309784f25c401ddf95131dcde4c4cdad7aee7/LICENSE",
+      "vcs_commit": "1bb309784f25c401ddf95131dcde4c4cdad7aee7",
       "version": "0.1.1"
     }
   ]
