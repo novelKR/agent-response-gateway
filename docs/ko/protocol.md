@@ -4,9 +4,11 @@
 
 [English](../protocol.md) | [한국어](protocol.md)
 
-게이트웨이는 Responses 요청을 받아 Responses, Messages 또는 Chat Completions로
-전달한다. 이 문서는 인증, 요청 처리, 한도와 오류를 정의한다. 모든 경로는
-상태를 저장하지 않으며 도구, 승인과 이력은 호스트 애플리케이션이 담당한다.
+게이트웨이는 Responses 요청을 Responses, Messages, Chat Completions 또는 명시적으로
+활성화한 [Gemini Interactions 경로](interactions.md)로 전달한다. 이 문서는 인증,
+요청 처리, 한도와 오류를 정의한다. 기존 세 경로는 상태를 저장하지 않으며
+Interactions는 영속 provider continuation을 추가한다. 도구·승인·Codex 이력은
+호스트 애플리케이션이 담당한다.
 Rust 라이브러리 타입은 [IR 참조](ir.md)에 설명되어 있다.
 
 <a id="configuration-and-authentication"></a>
@@ -25,7 +27,7 @@ HTTP를 허용한다. URL의 사용자정보·query·fragment는 허용하지 �
 
 로컬 토큰은 32~4096자의 공백 없는 ASCII이고 공급자 키와 달라야 한다.
 소비자 `Authorization`을 업스트림에 전달하지 않고 해당 공급자의 키로
-선언한 `auth`에 따라 Bearer 또는 `x-api-key` 헤더를 구성한다. 기본값은 Bearer다.
+선언한 `auth`에 따라 Bearer, `x-api-key` 또는 `x-goog-api-key` 헤더를 구성한다. 기본값은 Bearer다.
 소비자 쿠키·임의 헤더도 전달하지 않는다.
 브라우저 애플리케이션용 CORS나 공개 서비스 인증은 제공하지 않는다.
 
@@ -65,7 +67,9 @@ Messages·Chat Completions 경로는 등록된 기능 부분집합을 변환하�
 
 Responses 경로는 response ID를 저장·변환하지 않고 정상 응답의 model 필드를
 다시 쓰지 않는다. 변환 경로는 공급자 ID를 기반으로 Responses 응답·항목 ID를
-만들며 원래 도구 호출 ID를 유지한다. 세 경로 모두 response ID 조회·저장은 없다. 공급자의 오류 본문은 프롬프트나 자격 증명을 되돌려줄 수 있으므로
+만들며 원래 도구 호출 ID를 유지한다. Interactions는 영속 로컬 attempt ID를
+사용하고 암호화된 재생 상태를 저장한다. 공개 response 조회나 previous_response_id
+해석은 어느 경로에서도 제공하지 않는다. 공급자의 오류 본문은 프롬프트나 자격 증명을 되돌려줄 수 있으므로
 전달하지 않고 로컬 오류와 HTTP 상태를 반환한다. redirect는 따라가지 않고
 502로 처리한다. 정상 응답과 SSE 이벤트 본문은 전달되므로 공유 서비스나
 테넌트 격리 용도로 이 계약을 확장 해석하지 않는다.
