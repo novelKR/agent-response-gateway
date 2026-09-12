@@ -177,6 +177,8 @@ jobs:
           cargo +1.98.0 build --locked --example api_codec_editing
           python3 -B tests/codex/editing_fixture.py --gateway-bin target/debug/agent-response-gateway --codec-bin target/debug/examples/api_codec_editing --profile-packs
           python3 -B scripts/managed_usage_smoke.py --gateway-bin target/debug/agent-response-gateway --recorder-bin target/debug/gateway-usage-recorder --editing --codec-bin target/debug/examples/api_codec_editing --profile-packs
+      - name: Verify opt-in patch envelope normalization
+        run: python3 -B tests/codex/editing_fixture.py --gateway-bin target/debug/agent-response-gateway --normalize-envelope --codec-bin target/debug/examples/api_codec_editing --profile-packs
       - name: Verify explicit Code Mode editing and recorder barriers
         run: |
           python3 -B tests/codex/editing_fixture.py --gateway-bin target/debug/agent-response-gateway --code-mode --codec-bin target/debug/examples/api_codec_editing --profile-packs

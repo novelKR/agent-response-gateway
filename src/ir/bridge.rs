@@ -5,6 +5,7 @@ use serde_json::json;
 use super::{IrError, ToolIdentity, ToolKind, grammar::Grammar, request::*};
 
 struct Binding {
+    normalize: bool,
     structured: bool,
     original: ToolIdentity,
     grammar: Option<Grammar>,
@@ -19,6 +20,7 @@ pub struct CustomToolBridge {
     forward: BTreeMap<ToolIdentity, ToolIdentity>,
     reverse: BTreeMap<ToolIdentity, Binding>,
     definitions: Vec<ToolDefinition>,
+    normalized: std::sync::Mutex<BTreeSet<super::CallId>>,
 }
 
 impl CustomToolBridge {
@@ -164,6 +166,7 @@ impl CustomToolBridge {
             reverse.insert(
                 alias,
                 Binding {
+                    normalize: false,
                     structured: false,
                     original: tool.identity,
                     grammar,
@@ -195,6 +198,7 @@ impl CustomToolBridge {
             forward,
             reverse,
             definitions,
+            normalized: Default::default(),
         })
     }
 
@@ -285,7 +289,20 @@ impl CustomToolBridge {
         {
             return Err(IrError::InvalidToolMapping);
         }
-        if !add_alternatives
+        if policy.normalization == crate::editing::Normalization::PatchEnvelope {
+            for original in &originals {
+                let alias = self
+                    .forward
+                    .get(original)
+                    .ok_or(IrError::InvalidToolMapping)?;
+                self.reverse
+                    .get_mut(alias)
+                    .ok_or(IrError::InvalidToolMapping)?
+                    .normalize = true;
+            }
+        }
+        if policy.representation == crate::editing::Representation::PatchText
+            || !add_alternatives
             || matches!(
                 request.generation.tool_choice,
                 Some(ToolChoice::Named { .. } | ToolChoice::None)
@@ -318,6 +335,7 @@ impl CustomToolBridge {
             self.reverse.insert(
                 alias,
                 Binding {
+                    normalize: false,
                     structured: true,
                     original,
                     grammar: Some(
@@ -419,6 +437,40 @@ impl CustomToolBridge {
         })
     }
 
+    fn normalized_input(
+        &self,
+        binding: &Binding,
+        call: &super::CallId,
+        text: &str,
+    ) -> Result<String, IrError> {
+        if !binding.normalize {
+            return Ok(text.to_owned());
+        }
+        let result = crate::editing::normalize_patch_envelope(text)?;
+        if result.applied_rule.is_some() {
+            self.normalized
+                .lock()
+                .map_err(|_| IrError::InvalidToolMapping)?
+                .insert(call.clone());
+        }
+        Ok(result.text.into_owned())
+    }
+    pub fn normalization_evidence(&self) -> Result<crate::editing::NormalizationEvidence, IrError> {
+        let count = self
+            .normalized
+            .lock()
+            .map_err(|_| IrError::InvalidToolMapping)?
+            .len();
+        Ok(crate::editing::NormalizationEvidence {
+            rule: if count == 0 {
+                None
+            } else {
+                Some("patch-envelope/v1")
+            },
+            distinct_calls: count,
+        })
+    }
+
     pub fn restore_call(&self, lowered: &ToolCall) -> Result<ToolCall, IrError> {
         if !lowered.extensions.fields.is_empty() {
             return Err(IrError::UnsupportedExtension);
@@ -442,8 +494,9 @@ impl CustomToolBridge {
                 let ToolInput::Freeform(text) = &lowered.input else {
                     return Err(IrError::InvalidToolMapping);
                 };
-                grammar.validate(text)?;
-                ToolInput::Freeform(text.clone())
+                let text = self.normalized_input(binding, &lowered.call_id, text)?;
+                grammar.validate(&text)?;
+                ToolInput::Freeform(text)
             } else {
                 let ToolInput::Json(raw) = &lowered.input else {
                     return Err(IrError::InvalidToolMapping);
@@ -456,8 +509,9 @@ impl CustomToolBridge {
                 // Parse directly from raw JSON so duplicate wrapper fields cannot be erased.
                 let envelope: Envelope =
                     serde_json::from_str(raw).map_err(|_| IrError::InvalidToolMapping)?;
-                grammar.validate(&envelope.input)?;
-                ToolInput::Freeform(envelope.input)
+                let text = self.normalized_input(binding, &lowered.call_id, &envelope.input)?;
+                grammar.validate(&text)?;
+                ToolInput::Freeform(text)
             }
         } else {
             let ToolInput::Json(raw) = &lowered.input else {
@@ -625,5 +679,51 @@ mod replay_result_tests {
         };
         assert!(helper.result_text(&result, &call).is_ok());
         assert!(registry.result_text(&result, &call).is_err());
+    }
+}
+
+#[cfg(test)]
+mod normalization_tests {
+    use super::*;
+
+    #[test]
+    fn normalization_evidence_deduplicates_validation_of_the_same_call() {
+        let original = ToolIdentity::new(None, "apply_patch").unwrap();
+        let alias = ToolIdentity::new(None, "synthetic_patch").unwrap();
+        let registry = CustomToolBridge {
+            code_mode: false,
+            forward: BTreeMap::from([(original.clone(), alias.clone())]),
+            reverse: BTreeMap::from([(
+                alias.clone(),
+                Binding {
+                    original,
+                    grammar: Some(Grammar::CodexPatchV1),
+                    structured: false,
+                    wrapped: true,
+                    normalize: true,
+                },
+            )]),
+            definitions: vec![],
+            normalized: Default::default(),
+        };
+        let call = ToolCall { status: Some(ToolCallStatus::Completed), item_id: None,
+            call_id: super::super::CallId::new("call_synthetic").unwrap(), tool: alias,
+            input: ToolInput::Json(json!({"input":"*** Begin Patch ***\n*** Add File: synthetic.txt\n+data\n*** End Patch ***"}).to_string()), extensions: Extensions::responses() };
+        for _ in 0..2 {
+            let restored = registry.restore_call(&call).unwrap();
+            assert!(
+                restored.input
+                    == ToolInput::Freeform(
+                        "*** Begin Patch\n*** Add File: synthetic.txt\n+data\n*** End Patch".into()
+                    )
+            );
+        }
+        assert_eq!(
+            registry.normalization_evidence().unwrap(),
+            crate::editing::NormalizationEvidence {
+                rule: Some("patch-envelope/v1"),
+                distinct_calls: 1
+            }
+        );
     }
 }
