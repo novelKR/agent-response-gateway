@@ -111,7 +111,7 @@ Primary inventory contracts are [Cargo metadata](https://doc.rust-lang.org/cargo
 
 The native candidate executable, including a second run from its extracted archive,
 runs configuration checks, manifest/readiness binding, unauthenticated
-access rejection, all three JSON routes with synthetic upstreams, credential
+access rejection, all four JSON routes with synthetic upstreams and durable Interactions restart, credential
 header isolation, and bounded normal shutdown. No model provider is contacted.
 Windows sends CTRL_BREAK_EVENT only to the child created with
 CREATE_NEW_PROCESS_GROUP; forced termination is cleanup after failure, not a

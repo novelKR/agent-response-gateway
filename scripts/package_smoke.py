@@ -40,6 +40,12 @@ class Upstream(BaseHTTPRequestHandler):
                 assert self.headers.get("x-api-key") is None and self.headers.get("anthropic-version") is None
                 assert body["messages"][0]["content"] == "synthetic-input"
                 value = {"id":"synthetic", "object":"chat.completion", "created":0, "model":"synthetic-model", "choices":[{"index":0,"message":{"role":"assistant","content":"synthetic-output"},"finish_reason":"stop"}]}
+            elif self.path == "/v1/interactions":
+                assert self.headers.get("x-goog-api-key") == "synthetic-upstream-key"
+                assert self.headers.get("Authorization") is None
+                assert body["store"] is False and body["background"] is False
+                assert body["input"][0]["content"][0]["text"] == "synthetic-input"
+                value = {"id":"synthetic","object":"interaction","model":"synthetic-model","status":"completed","steps":[{"type":"model_output","content":[{"type":"text","text":"synthetic-output"}]}]}
             else:
                 assert self.path == "/v1/responses" and body["store"] is False and body["input"] == "synthetic-input"
                 assert self.headers.get("Authorization") == "Bearer synthetic-upstream-key"
@@ -89,20 +95,29 @@ def smoke(binary, state_dir):
         cleanup.callback(server.shutdown)
         config = state_dir / "gateway.toml"
         text = f'listen="127.0.0.1:0"\n[providers.mock]\nbase_url="http://127.0.0.1:{server.server_port}/v1"\napi_key_env="ARG_MOCK_KEY"\n'
-        for api in ["responses", "messages", "chat_completions"]:
+        for api in ["responses", "messages", "chat_completions", "gemini_interactions"]:
             text += f'[models.{api}]\nprovider="mock"\nupstream_model="synthetic-model"\napi="{api}"\n'
             if api != "responses":
-                text += f'capability_profile="{api}"\nauth="{"api_key" if api == "messages" else "bearer"}"\n'
+                text += f'capability_profile="{api}"\nauth="{"api_key" if api == "messages" else "google_api_key" if api == "gemini_interactions" else "bearer"}"\n'
             if api == "messages":
                 text += 'messages_version="2023-06-01"\n'
-        for api in ["messages", "chat_completions"]:
+        for api in ["messages", "chat_completions", "gemini_interactions"]:
             text += f'[capability_profiles.{api}]\nversion="1"\nprovider="mock"\nupstream_model="synthetic-model"\napi="{api}"\ncontext_window=4096\nmax_output_tokens=128\ntested_codex_version="0.154.0"\n'
+        store=(state_dir / "continuation").resolve();store.mkdir(mode=0o700)
+        initialized=subprocess.run([str(binary),"init-continuation","--directory",str(store)],env=env,capture_output=True,timeout=10)
+        assert initialized.returncode==0
+        identity=json.loads(initialized.stdout)["store_id"]
+        env["ARG_CONTINUATION_KEY"]=secrets.token_hex(32)
+        env["ARG_CONTROL_TOKEN"]=secrets.token_urlsafe(32)
+        text+=f'\n[continuation]\ndirectory={json.dumps(str(store))}\nstore_id="{identity}"\nrealm="synthetic"\ngeneration="1"\nkey_id="key1"\nkey_env="ARG_CONTINUATION_KEY"\ncontrol_token_env="ARG_CONTROL_TOKEN"\nmax_store_bytes=1073741824\n'
         config.write_text(text, encoding="utf-8")
         checked = subprocess.run([str(binary), "check-config", "--config", str(config)], env=env, capture_output=True, timeout=10)
         assert checked.returncode == 0 and json.loads(checked.stdout) == {"status":"valid", "credentials_checked":False, "provider_probe":False}
         manifest = embedded_contract.inspect_manifest(binary, config, env)
         token = secrets.token_urlsafe(32)
-        process = subprocess.Popen([str(binary), "serve", "--config", str(config)], env={**env,"ARG_LOCAL_TOKEN":token,"ARG_MOCK_KEY":"synthetic-upstream-key"}, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0)
+        def launch():
+            return subprocess.Popen([str(binary), "serve", "--config", str(config)], env={**env,"ARG_LOCAL_TOKEN":token,"ARG_MOCK_KEY":"synthetic-upstream-key"}, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0)
+        process=launch()
         cleanup.callback(stop, process)
         ready = embedded_contract.read_ready(process, manifest)
         client = build_opener(ProxyHandler({}))
@@ -113,15 +128,29 @@ def smoke(binary, state_dir):
         else:
             raise AssertionError("unauthenticated models access succeeded")
         assert not server.requests
-        for api in ["responses", "messages", "chat_completions"]:
+        route=next(r for r in manifest["configuration"]["routes"] if r["api"]=="gemini_interactions")
+        origin={"route":{k:v for k,v in route.items() if k!="api_key_env"},"realm":"synthetic","generation":"1"}
+        create=Request(ready["base_url"].removesuffix("/v1")+"/__continuation/sessions",data=json.dumps({"origin":origin}).encode(),headers={"Authorization":"Bearer "+env["ARG_CONTROL_TOKEN"],"Content-Type":"application/json"})
+        with client.open(create,timeout=5) as response:session=json.load(response)
+        replay_output=None
+        for api in ["responses", "messages", "chat_completions", "gemini_interactions"]:
             request = Request(ready["base_url"] + "/responses", data=json.dumps({"model":api,"input":"synthetic-input"}).encode(), headers={"Authorization":"Bearer " + token,"Content-Type":"application/json"})
+            if api=="gemini_interactions":request.add_header("x-gateway-session",session["id"])
             with client.open(request, timeout=5) as response:
                 output = json.load(response)
             assert output["status"] == "completed" and output["output"][0]["content"][0]["text"] == "synthetic-output"
-        assert not server.failed and len(server.requests) == 3
+            if api=="gemini_interactions":replay_output=output["output"]
+        assert not server.failed and len(server.requests) == 4
         request_shutdown(process)
         assert process.wait(timeout=5) == 0
-    return {"status":"passed", "routes":3, "authentication":"passed", "manifest_ready_binding":"passed", "shutdown":"passed", "provider_probe":False}
+        process=launch();cleanup.callback(stop,process)
+        ready=embedded_contract.read_ready(process,manifest)
+        history=[{"type":"message","role":"user","content":[{"type":"input_text","text":"synthetic-input"}]}]+replay_output+[{"type":"message","role":"user","content":[{"type":"input_text","text":"continue"}]}]
+        request=Request(ready["base_url"]+"/responses",data=json.dumps({"model":"gemini_interactions","input":history}).encode(),headers={"Authorization":"Bearer "+token,"Content-Type":"application/json","x-gateway-session":session["id"]})
+        with client.open(request,timeout=5) as response:assert json.load(response)["status"]=="completed"
+        assert not server.failed and len(server.requests)==5
+        request_shutdown(process);assert process.wait(timeout=5)==0
+    return {"status":"passed", "routes":4, "durable_restart":"passed", "authentication":"passed", "manifest_ready_binding":"passed", "shutdown":"passed", "provider_probe":False}
 
 
 if __name__ == "__main__":

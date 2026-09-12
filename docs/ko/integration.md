@@ -42,6 +42,12 @@
 
 
 
+Interactions에는 호스트가 생성한 세션, 독립 제어 토큰, 안정적인 보호 키와
+비공개 SQLite 저장소가 필요하다. 호스트는 전용 Codex provider 설정에 세션 헤더를
+고정하고 명시적 복구·압축 결정을 담당한다. 초기화·백업과 새 Codex 작업으로의 압축
+전이는 [Interactions 호스트 계약](interactions.md)을 따른다. 제공자 상태를 영속화해도
+도구 실행이나 승인을 게이트웨이로 옮기지는 않는다.
+
 <a id="embedding-in-an-agent-runtime"></a>
 
 ## 에이전트 런타임에 내장

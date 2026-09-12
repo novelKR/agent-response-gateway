@@ -25,6 +25,7 @@ pub struct Config {
     pub models: BTreeMap<String, Model>,
     #[serde(default)]
     pub capability_profiles: BTreeMap<String, ModelProfile>,
+    pub continuation: Option<crate::continuation::Configuration>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -52,6 +53,7 @@ pub enum UpstreamAuth {
     #[default]
     Bearer,
     ApiKey,
+    GoogleApiKey,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize)]
@@ -62,6 +64,7 @@ pub enum DeclaredSupport {
     BridgedToolNamespace,
     BridgedCodexPatchGrammar,
     BridgedInstructionEnvelope,
+    BridgedGeminiInstructionEnvelope,
     Unsupported,
 }
 
@@ -95,6 +98,9 @@ impl ModelProfile {
                             DeclaredSupport::Native => Support::Native,
                             DeclaredSupport::BridgedCustomToolJson => {
                                 Support::Bridged(BridgeRule::CustomToolJson)
+                            }
+                            DeclaredSupport::BridgedGeminiInstructionEnvelope => {
+                                Support::Bridged(BridgeRule::GeminiInstructionEnvelope)
                             }
                             DeclaredSupport::BridgedInstructionEnvelope => {
                                 Support::Bridged(BridgeRule::MessagesInstructionEnvelope)
@@ -176,6 +182,9 @@ impl Config {
     }
 
     pub fn validate(&self) -> Result<(), ConfigError> {
+        if let Some(c) = &self.continuation {
+            c.validate()?;
+        }
         if !self.listen.ip().is_loopback() {
             return Err(ConfigError(
                 "Only loopback listen addresses are supported".into(),
@@ -263,6 +272,20 @@ impl Config {
 impl Config {
     pub(crate) fn validate_route(&self, model: &Model) -> Result<(), ConfigError> {
         let converted = model.api != ApiProtocol::Responses;
+        if model.api == ApiProtocol::GeminiInteractions
+            && (self.continuation.is_none() || model.auth != Some(UpstreamAuth::GoogleApiKey))
+        {
+            return Err(ConfigError(
+                "Interactions requires continuation and google_api_key authentication".into(),
+            ));
+        }
+        if model.api != ApiProtocol::GeminiInteractions
+            && model.auth == Some(UpstreamAuth::GoogleApiKey)
+        {
+            return Err(ConfigError(
+                "google_api_key is for Interactions routes".into(),
+            ));
+        }
         if converted && (model.auth.is_none() || model.capability_profile.is_none()) {
             return Err(ConfigError(
                 "Converted routes require explicit auth and capability_profile".into(),
@@ -287,7 +310,12 @@ impl Config {
                 if !version.is_empty()
                     && version.len() <= 128
                     && version.bytes().all(|b| b.is_ascii_graphic()) => {}
-            (None, ApiProtocol::Responses | ApiProtocol::ChatCompletions) => {}
+            (
+                None,
+                ApiProtocol::Responses
+                | ApiProtocol::ChatCompletions
+                | ApiProtocol::GeminiInteractions,
+            ) => {}
             _ => {
                 return Err(ConfigError(
                     "messages_version is required only for Messages routes".into(),
@@ -323,6 +351,7 @@ impl Provider {
             ApiProtocol::Responses => "responses",
             ApiProtocol::Messages => "messages",
             ApiProtocol::ChatCompletions => "chat/completions",
+            ApiProtocol::GeminiInteractions => "interactions",
         };
         let path = format!("{}/{endpoint}", url.path().trim_end_matches('/'));
         url.set_path(&path);

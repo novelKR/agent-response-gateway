@@ -77,7 +77,7 @@ jobs:
       - name: Exercise extension installation, supervision and isolation
         if: runner.os != 'Windows'
         run: python -B scripts/extension_smoke.py --binary target/debug/agent-response-gateway --observer target/debug/examples/metadata_observer
-      - name: Exercise native CLI, three protocols and graceful shutdown
+      - name: Exercise native CLI, four protocols, durable restart and graceful shutdown
         env:
           GATEWAY_EXECUTABLE: ${{ matrix.executable }}
         run: python -B scripts/package_smoke.py --binary "target/debug/$GATEWAY_EXECUTABLE" --state-dir .local/native-cli-smoke
@@ -169,6 +169,15 @@ jobs:
       - name: Verify host-owned continuity with the pinned Codex
         shell: bash
         run: python3 -B tests/codex/continuity.py | tee .local/continuity-results.jsonl
+      - name: Verify opaque replay prerequisite
+        run: python3 -B tests/codex/opaque_continuation.py
+      - name: Verify Interactions protocol and durable HTTP failures
+        run: |
+          python3 -B tests/codex/conformance.py --api gemini_interactions
+          python3 -B tests/codex/interactions_http.py
+          python3 -B tests/codex/interactions_continuity.py --resume-only
+      - name: Require Interactions compaction and recovery acceptance
+        run: python3 -B tests/codex/interactions_continuity.py
       - name: Report payload-free outcomes
         if: ${{ always() }}
         run: |

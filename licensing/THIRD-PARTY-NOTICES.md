@@ -7,9 +7,9 @@ This list does not claim every entry is linked into the final executable.
 A separate project agreement does not replace third-party permissions or notices.
 Original texts may include alternative licenses; unselected alternatives are not all applied together.
 
-Cargo.lock SHA-256: `6cff2c3d596cf530c56d0421ca687de19b5c63b4f880b1da439fc330e61071e4`
+Cargo.lock SHA-256: `24d6bde95dc819e240b767c276cf19e1c20bfc3ec0029b8c07a8160b4e753443`
 
-Policy SHA-256: `0488c7336025c7614e27a311c1155e63f662afc290babf2d88b82344e13603ce`
+Policy SHA-256: `f8425fad837308702f565004c0c67a2cce95b526ded3541a2cb436ea4dcf197a`
 
 ## anstream 1.0.0
 
@@ -304,6 +304,28 @@ Original package SHA-256: `39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96
 - [LICENSE-APACHE](texts/a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2.txt) — `a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2`
 - [LICENSE-MIT](texts/8764a597675778ddfd4e25f81b08a05dbcf089ac05662df7613fe67f150e3aa2.txt) — `8764a597675778ddfd4e25f81b08a05dbcf089ac05662df7613fe67f150e3aa2`
 
+## fallible-iterator 0.3.0
+
+Declared: `MIT/Apache-2.0`
+
+Selected: `MIT`
+
+Original package SHA-256: `2acce4a10f12dc2fb14a218589d4f1f62ef011b2d0cc4b3cb1bba8e94da14649`
+
+- [LICENSE-APACHE](texts/c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08.txt) — `c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08`
+- [LICENSE-MIT](texts/0816e154b159ba255c563f7c8c7df5bbb8cc5fc96f5ab8cf9f4743b4f41fe7eb.txt) — `0816e154b159ba255c563f7c8c7df5bbb8cc5fc96f5ab8cf9f4743b4f41fe7eb`
+
+## fallible-streaming-iterator 0.1.9
+
+Declared: `MIT/Apache-2.0`
+
+Selected: `MIT`
+
+Original package SHA-256: `7360491ce676a36bf9bb3c56c1aa791658183a54d2744120f27285738d90465a`
+
+- [LICENSE-APACHE](texts/c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08.txt) — `c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08`
+- [LICENSE-MIT](texts/8dcec5569a9be5b0e086c80faed6f1aefa670af0ec29cecc2f714303096887e0.txt) — `8dcec5569a9be5b0e086c80faed6f1aefa670af0ec29cecc2f714303096887e0`
+
 ## fastrand 2.5.0
 
 Declared: `Apache-2.0 OR MIT`
@@ -325,6 +347,16 @@ Original package SHA-256: `3e0f1c7c3a72c66fd80abe965175f7523475c0489a87d3ff9d6e8
 
 - [LICENSE-APACHE](texts/a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2.txt) — `a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2`
 - [LICENSE-MIT](texts/378f5840b258e2779c39418f3f2d7b2ba96f1c7917dd6be0713f88305dbda397.txt) — `378f5840b258e2779c39418f3f2d7b2ba96f1c7917dd6be0713f88305dbda397`
+
+## foldhash 0.2.0
+
+Declared: `Zlib`
+
+Selected: `Zlib`
+
+Original package SHA-256: `77ce24cb58228fbb8aa041425bb1050850ac19177686ea6e0f41a70416f56fdb`
+
+- [LICENSE](texts/b1181a40b2a7b25cf66fd01481713bc1005df082c53ef73e851e55071b102744.txt) — `b1181a40b2a7b25cf66fd01481713bc1005df082c53ef73e851e55071b102744`
 
 ## form_urlencoded 1.2.2
 
@@ -436,6 +468,17 @@ Original package SHA-256: `300e883d756b2e4ec94e02791f39b04b522276138852cfc41d9fb
 - [LICENSE-APACHE](texts/aaff376532ea30a0cd5330b9502ad4a4c8bf769c539c87ffe78819d188a18ebf.txt) — `aaff376532ea30a0cd5330b9502ad4a4c8bf769c539c87ffe78819d188a18ebf`
 - [LICENSE-MIT](texts/523a42c25d245dde9c015f882cec7f4555aad883382a6cf19b4b7d9b2cd5419b.txt) — `523a42c25d245dde9c015f882cec7f4555aad883382a6cf19b4b7d9b2cd5419b`
 
+## hashbrown 0.16.1
+
+Declared: `MIT OR Apache-2.0`
+
+Selected: `MIT`
+
+Original package SHA-256: `841d1cc9bed7f9236f321df977030373f4a4163ae1a7dbfe1a51a2c1a51d9100`
+
+- [LICENSE-APACHE](texts/a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2.txt) — `a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2`
+- [LICENSE-MIT](texts/ff8f68cb076caf8cefe7a6430d4ac086ce6af2ca8ce2c4e5a2004d4552ef52a2.txt) — `ff8f68cb076caf8cefe7a6430d4ac086ce6af2ca8ce2c4e5a2004d4552ef52a2`
+
 ## hashbrown 0.17.1
 
 Declared: `MIT OR Apache-2.0`
@@ -446,6 +489,17 @@ Original package SHA-256: `ed5909b6e89a2db4456e54cd5f673791d7eca6732202bbf2a9cc5
 
 - [LICENSE-APACHE](texts/a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2.txt) — `a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2`
 - [LICENSE-MIT](texts/ff8f68cb076caf8cefe7a6430d4ac086ce6af2ca8ce2c4e5a2004d4552ef52a2.txt) — `ff8f68cb076caf8cefe7a6430d4ac086ce6af2ca8ce2c4e5a2004d4552ef52a2`
+
+## hashlink 0.12.2
+
+Declared: `MIT OR Apache-2.0`
+
+Selected: `MIT`
+
+Original package SHA-256: `a596f1b20ed2cc5ecac41a164aaebc7258057060f06c0cf7a2ba3991ee7990fb`
+
+- [LICENSE-APACHE](texts/c144680885b29e4719e2a51f0aab5439a1e02d980692b5aaf086cae12727f28b.txt) — `c144680885b29e4719e2a51f0aab5439a1e02d980692b5aaf086cae12727f28b`
+- [LICENSE-MIT](texts/e915669a595b11a200873df8286561881b0e04932f6412a585db6297ba0bc97c.txt) — `e915669a595b11a200873df8286561881b0e04932f6412a585db6297ba0bc97c`
 
 ## heck 0.5.0
 
@@ -712,6 +766,17 @@ Original package SHA-256: `3eaf3ede3fee6db1a4c2ee091bf8a8b4dccdc6d17f656fb07896e
 - [LICENSE-APACHE](texts/62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a.txt) — `62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a`
 - [LICENSE-MIT](texts/123a331b5dbf04c30097fa43b8f858bc85df671fe776de498d01f3d6b7c1f69e.txt) — `123a331b5dbf04c30097fa43b8f858bc85df671fe776de498d01f3d6b7c1f69e`
 
+## libsqlite3-sys 0.38.2
+
+Declared: `MIT`
+
+Selected: `MIT`
+
+Original package SHA-256: `f1d20bef17f513b9b3004532233187769cd072d790971f4e4da0e346eb6401e8`
+
+- [LICENSE](texts/c10c1f27337546471e5f7e4e97fdd398b35b9d4e126115dcd22de8d8e65abf6f.txt) — `c10c1f27337546471e5f7e4e97fdd398b35b9d4e126115dcd22de8d8e65abf6f`
+- [sqlcipher/LICENSE](texts/ea4fcb309f14a22065e1ea45362d494d320012249ed865fe9c7c0946db754131.txt) — `ea4fcb309f14a22065e1ea45362d494d320012249ed865fe9c7c0946db754131`
+
 ## linux-raw-sys 0.12.1
 
 Declared: `Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT`
@@ -855,6 +920,17 @@ Original package SHA-256: `a89322df9ebe1c1578d689c92318e070967d1042b512afbe49518
 - [LICENSE-APACHE](texts/0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594.txt) — `0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594`
 - [LICENSE-MIT](texts/23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3.txt) — `23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3`
 
+## pkg-config 0.3.34
+
+Declared: `MIT OR Apache-2.0`
+
+Selected: `MIT`
+
+Original package SHA-256: `f6b464fbc74e149a392436b17d523f769e057cb6877f6a5c4618bc6f11800548`
+
+- [LICENSE-APACHE](texts/a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2.txt) — `a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2`
+- [LICENSE-MIT](texts/378f5840b258e2779c39418f3f2d7b2ba96f1c7917dd6be0713f88305dbda397.txt) — `378f5840b258e2779c39418f3f2d7b2ba96f1c7917dd6be0713f88305dbda397`
+
 ## potential_utf 0.1.6
 
 Declared: `Unicode-3.0`
@@ -991,6 +1067,27 @@ Original package SHA-256: `a4689e6c2294d81e88dc6261c768b63bc4fcdb852be6d1352498b
 - [src/polyfill/once_cell/LICENSE-APACHE](texts/a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2.txt) — `a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2`
 - [src/polyfill/once_cell/LICENSE-MIT](texts/6ee2ed6c77710de911761acd5fc1ad1da00f476beb1a7ef27e78c2d1858deafc.txt) — `6ee2ed6c77710de911761acd5fc1ad1da00f476beb1a7ef27e78c2d1858deafc`
 - [third_party/fiat/LICENSE](texts/9eacbcb81be660840c714a560a9d65ba07913db98dd4baf969f78dd499fdd60f.txt) — `9eacbcb81be660840c714a560a9d65ba07913db98dd4baf969f78dd499fdd60f`
+
+## rsqlite-vfs 0.1.1
+
+Declared: `MIT`
+
+Selected: `MIT`
+
+Original package SHA-256: `c51c9ae4df8a7fba42103df5c621fa3c37eccf3a3c650879e90fc48b11cc192c`
+
+- [upstream/LICENSE](texts/e1c1975c3474cce31722836f101a40ffaf1cc784e4d2f38ce3e77b9712934e78.txt) — `e1c1975c3474cce31722836f101a40ffaf1cc784e4d2f38ce3e77b9712934e78`
+  Source: [original at the pinned commit](https://raw.githubusercontent.com/Spxg/sqlite-wasm-rs/1bb309784f25c401ddf95131dcde4c4cdad7aee7/LICENSE)
+
+## rusqlite 0.40.2
+
+Declared: `MIT`
+
+Selected: `MIT`
+
+Original package SHA-256: `23f2a97da3e3873c73cb2a2e71b35c40ff95e0b1eefa8d72d8499a6928c3b5b3`
+
+- [LICENSE](texts/c10c1f27337546471e5f7e4e97fdd398b35b9d4e126115dcd22de8d8e65abf6f.txt) — `c10c1f27337546471e5f7e4e97fdd398b35b9d4e126115dcd22de8d8e65abf6f`
 
 ## rustc-hash 2.1.3
 
@@ -1211,6 +1308,16 @@ Original package SHA-256: `c3d1e2c7f27f8d4cb10542a02c49005dbd6e93095799d6f3be745
 
 - [LICENSE-APACHE](texts/a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2.txt) — `a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2`
 - [LICENSE-MIT](texts/378f5840b258e2779c39418f3f2d7b2ba96f1c7917dd6be0713f88305dbda397.txt) — `378f5840b258e2779c39418f3f2d7b2ba96f1c7917dd6be0713f88305dbda397`
+
+## sqlite-wasm-rs 0.5.5
+
+Declared: `MIT`
+
+Selected: `MIT`
+
+Original package SHA-256: `dc3efc0da82635d7e1ced0053bbbfa8c7ab9645d0bf36ceb4f7127bb85315d75`
+
+- [LICENSE](texts/e1c1975c3474cce31722836f101a40ffaf1cc784e4d2f38ce3e77b9712934e78.txt) — `e1c1975c3474cce31722836f101a40ffaf1cc784e4d2f38ce3e77b9712934e78`
 
 ## stable_deref_trait 1.2.1
 
@@ -1626,6 +1733,17 @@ Original package SHA-256: `ba73ea9cf16a25df0c8caa16c51acb937d5712a8429db78a3ee29
 
 - [upstream/LICENSE](texts/ed60d479b8fd1f64e9cbc3de449a16a53ac1b3d1b6aeb9bf9d190a8e93061b44.txt) — `ed60d479b8fd1f64e9cbc3de449a16a53ac1b3d1b6aeb9bf9d190a8e93061b44`
   Source: [original at the pinned commit](https://raw.githubusercontent.com/tokio-rs/valuable/9efc29b6e58cef28f6566a47aa7e142a55fead77/LICENSE)
+
+## vcpkg 0.2.15
+
+Declared: `MIT/Apache-2.0`
+
+Selected: `MIT`
+
+Original package SHA-256: `accd4ea62f7bb7a82fe23066fb0957d48ef677f6eeb8215f372f52e48bb32426`
+
+- [LICENSE-APACHE](texts/60c93a31f490375aadf64098b75f10715010379541021e00261045d7800611d3.txt) — `60c93a31f490375aadf64098b75f10715010379541021e00261045d7800611d3`
+- [LICENSE-MIT](texts/016d20f335060a70e79d9fcf8dfaa6201114d65d592211f4bdfb8ae9ca2bc1dc.txt) — `016d20f335060a70e79d9fcf8dfaa6201114d65d592211f4bdfb8ae9ca2bc1dc`
 
 ## want 0.3.1
 

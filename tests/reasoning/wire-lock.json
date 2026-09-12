@@ -1,0 +1,116 @@
+{
+  "schema": "gateway-reasoning-contracts/v1",
+  "revision": "2026-09-12",
+  "sources": [
+    {
+      "id": "claude-thinking",
+      "url": "https://platform.claude.com/docs/en/build-with-claude/thinking",
+      "resolved_url": "https://platform.claude.com/docs/en/build-with-claude/thinking",
+      "sha256": "5d9b7284744bbb5d4a3e6255856e19018cc921fa9346db2e62506fdb127aef09",
+      "size": 982120
+    },
+    {
+      "id": "claude-manual",
+      "url": "https://platform.claude.com/docs/en/docs/build-with-claude/extended-thinking",
+      "resolved_url": "https://platform.claude.com/docs/en/build-with-claude/extended-thinking",
+      "sha256": "a11bb081e2a6237714ef52d1e6532c09217741455accf3ac7ad94f6ef41d6b94",
+      "size": 531108
+    },
+    {
+      "id": "deepseek-thinking",
+      "url": "https://api-docs.deepseek.com/guides/thinking_mode/",
+      "resolved_url": "https://api-docs.deepseek.com/guides/thinking_mode/",
+      "sha256": "1c12f92419502c6d950b0f68ef2c679a774b4e3cd66d8a2f26642f52c63ff949",
+      "size": 108548
+    },
+    {
+      "id": "openrouter-reasoning",
+      "url": "https://openrouter.ai/docs/guides/best-practices/reasoning-tokens",
+      "resolved_url": "https://openrouter.ai/docs/guides/best-practices/reasoning-tokens",
+      "sha256": "8f12df8309112fc5e0751deb18c9281688f34830a3725b39e9e0d5ec463c8bdc",
+      "size": 1287070
+    },
+    {
+      "id": "openrouter-routing",
+      "url": "https://openrouter.ai/docs/guides/routing/provider-selection",
+      "resolved_url": "https://openrouter.ai/docs/guides/routing/provider-selection",
+      "sha256": "42c11dad147ce696d7063e62c07ff5c96813562ad493288c8f445ca5698e1b61",
+      "size": 2155690
+    },
+    {
+      "id": "openai-chat",
+      "url": "https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create",
+      "resolved_url": "https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create",
+      "sha256": "3be573d51ebb246914d92c5ee42d382de88a610eadaf1be89ab11798b78c0d87",
+      "size": 1656506
+    }
+  ],
+  "contracts": [
+    {
+      "id": "claude-adaptive-v1",
+      "api": "messages",
+      "thinking": {
+        "type": "adaptive",
+        "display": "summarized"
+      },
+      "public": [
+        "thinking.thinking"
+      ],
+      "replay": "ordered full assistant content blocks including thinking.signature and redacted_thinking.data",
+      "controls": "profile allowlisted output_config.effort; pinned beta headers only"
+    },
+    {
+      "id": "claude-manual-v1",
+      "api": "messages",
+      "thinking": {
+        "type": "enabled",
+        "display": "summarized"
+      },
+      "public": [
+        "thinking.thinking"
+      ],
+      "replay": "ordered full assistant content blocks including thinking.signature and redacted_thinking.data",
+      "controls": "explicit budget_tokens or profile effort-to-budget table; budget below max_tokens; no forced tool choice"
+    },
+    {
+      "id": "deepseek-v1",
+      "api": "chat_completions",
+      "thinking": {
+        "type": "enabled"
+      },
+      "public": [
+        "reasoning_content"
+      ],
+      "replay": "full assistant message, including reasoning_content for all history when tools are declared",
+      "controls": "native low/high/max reasoning_effort only; reject ignored or clamped controls"
+    },
+    {
+      "id": "openrouter-v1",
+      "api": "chat_completions",
+      "public": [
+        "reasoning_details.reasoning.text.text",
+        "reasoning_details.reasoning.summary.summary",
+        "reasoning when details absent"
+      ],
+      "replay": "assistant reasoning and ordered reasoning_details including encrypted data, identity, format and signature",
+      "controls": "effort OR max_tokens; one exact endpoint in provider.only; allow_fallbacks=false; require_parameters=true"
+    },
+    {
+      "id": "openai-standard",
+      "api": "chat_completions",
+      "public": [],
+      "replay": "existing stateless contract",
+      "controls": "existing reasoning_effort; reject vendor reasoning extensions"
+    }
+  ],
+  "invariants": [
+    "No vendor inference from URL, model name, tags or unknown fields.",
+    "Public provider text only; never decrypt or synthesize hidden provider reasoning.",
+    "Only managed explicit contracts enable new reasoning.",
+    "One authenticated gateway envelope per provider response.",
+    "No inference before durable attempt or executable completion before finalize.",
+    "v1 authenticated read before normalization; v2 writes; unchanged database tables.",
+    "Unknown controls, detail types and format versions fail closed.",
+    "Mock qualification only; Codex 0.154.0."
+  ]
+}

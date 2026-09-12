@@ -5,9 +5,10 @@
 [English](protocol.md) | [한국어](ko/protocol.md)
 
 The gateway accepts Responses requests and routes them to Responses, Messages
-or Chat Completions. This page defines authentication, request handling, limits
-and failures. All routes are stateless; tools, approval and history belong to the
-host application. The [IR reference](ir.md) describes the Rust library types.
+or Chat Completions, with an opt-in [Gemini Interactions route](interactions.md).
+This page defines authentication, request handling, limits and failures. The original
+three routes are stateless; Interactions adds durable provider continuation. Tools,
+approval and Codex history belong to the host application. The [IR reference](ir.md) describes the Rust library types.
 
 <a id="설정과-인증"></a>
 
@@ -25,7 +26,7 @@ proxies and redirects are disabled.
 
 The local token is whitespace-free ASCII, 32–4096 characters, and must differ
 from provider keys. Consumer `Authorization` is not forwarded. The selected
-provider key forms a Bearer or `x-api-key` header according to declared `auth`,
+provider key forms a Bearer, `x-api-key` or `x-goog-api-key` header according to declared `auth`,
 defaulting to Bearer. Consumer cookies and arbitrary headers are not forwarded.
 There is no browser CORS support or public-service authentication.
 
@@ -67,8 +68,9 @@ or false selects JSON.
 
 Native routing does not store or translate response IDs or rewrite the model
 field of successful responses. Converted routes derive Responses response/item
-IDs from the provider ID and retain original tool call IDs. None of the routes
-stores responses or resolves a response ID. Provider error bodies can echo prompts
+IDs from the provider ID and retain original tool call IDs. Interactions instead
+uses a durable local attempt ID and stores encrypted replay state. No route exposes
+public response lookup or resolves previous_response_id. Provider error bodies can echo prompts
 or credentials, so the gateway returns a local error and HTTP status instead.
 Redirects produce 502. Successful response and SSE bodies are delivered; do not
 interpret this contract as shared-service or tenant isolation.

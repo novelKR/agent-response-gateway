@@ -4,7 +4,7 @@
 
 An independent local Responses gateway for agent runtimes and backend services.
 It maps configured model aliases to provider models and uses separate upstream
-credentials for Responses, Messages and Chat Completions.
+credentials for Responses, Messages, Chat Completions and Gemini Interactions.
 
 The gateway forwards JSON/SSE and checks declared conversion features. Your
 application executes tools, manages approval and keeps conversation history.
@@ -97,12 +97,17 @@ bodies are forwarded byte for byte. Converted routes map declared function,
 custom and namespace tools and text, rejecting unsupported required features
 before sending. Registration in `/v1/models` is not model compatibility verification.
 
-Gateway storage, server state through `previous_response_id` or conversation,
+Public response storage, server state through `previous_response_id` or conversation,
 remote compact API, background execution, response lookup/deletion, implicit
 retries/fallback, WebSocket and OAuth/account pools are unsupported. Hosts can own
 local compaction, resume and recovery through their Codex history and journals.
 The [continuity contract](docs/continuity.md) describes verified bindings and
 recovery of uncertain work. See the [protocol](docs/protocol.md) for HTTP limits.
+
+The opt-in [Interactions integration](docs/interactions.md) adds encrypted SQLite
+continuation and a separate host control API. It is tested with host-managed Codex
+0.154.0 and synthetic Interactions. The host preserves the old thread and transfers
+checked portable context into a new thread/epoch after local compaction.
 
 <a id="내부-ir-v1"></a>
 
