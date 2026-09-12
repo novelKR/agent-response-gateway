@@ -92,6 +92,16 @@ impl PreparedChat {
         }
         Ok(texts)
     }
+    pub(crate) fn accounting_profile(&self) -> gateway_usage_contract::Profile {
+        match self
+            .reasoning_contract
+            .as_ref()
+            .and_then(|c| c.chat_dialect())
+        {
+            Some(ChatDialect::DeepSeek) => gateway_usage_contract::Profile::DeepSeekV1,
+            _ => gateway_usage_contract::Profile::ChatV1,
+        }
+    }
     pub(crate) fn decode_managed(&self, value: Value) -> Result<ManagedOutput, IrError> {
         known_fields(
             &value,
@@ -201,6 +211,12 @@ impl PreparedChat {
             .ok_or(unsupported())?
             .insert(0, json!({"type":"reasoning","id":id,"summary":summary}));
         Ok(ManagedOutput {
+            accounting: crate::adapters::managed::Accounting::new(
+                self.accounting_profile(),
+                value.get("usage"),
+                &value,
+                gateway_usage_contract::Outcome::Completed,
+            ),
             usage,
             response,
             native: NativeReplay::Chat {

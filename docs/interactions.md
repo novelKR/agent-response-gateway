@@ -82,7 +82,8 @@ The enabled manifest/readiness schemas are gateway-embedded-manifest/v3 and
 gateway-ready/v3. Compare the offline configuration digest before launching Codex.
 Old hosts must reject unfamiliar contracts. The manifest includes configuration and
 store identity, wire digest, profile and adapter version; it does not prove a live
-provider call. Combined observer/continuation manifest mode is currently rejected.
+provider call. Combined extension mode uses gateway-extended-manifest/v3 and
+gateway-extended-ready/v3; see [common managed execution](managed-continuation.md).
 
 ## Support and usage
 

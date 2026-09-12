@@ -194,6 +194,8 @@ jobs:
           python3 -B tests/codex/reasoning_chat_continuity.py --router --opaque-only
           python3 -B tests/codex/reasoning_chat_continuity.py --http-only
           python3 -B tests/codex/reasoning_chat_continuity.py --router --http-only
+      - name: Require all managed reasoning tool and cancellation scenarios
+        run: python3 -B tests/codex/reasoning_conformance.py
       - name: Build the immutable Gemini v1 writer
         run: |
           git fetch --no-tags origin 7bb42c064a4e0aa26a17c821f8fe1c2e35d4175e
@@ -325,6 +327,7 @@ jobs:
       - run: cargo +1.98.0 test --workspace --locked
       - run: cargo +1.98.0 build --workspace --locked
       - run: python -B scripts/usage_smoke.py --binary target/debug/agent-response-gateway --recorder target/debug/gateway-usage-recorder
+      - run: python -B scripts/managed_usage_smoke.py --gateway-bin target/debug/agent-response-gateway --recorder-bin target/debug/gateway-usage-recorder
       - name: Build the pre-alignment usage recorder
         run: |
           git fetch --no-tags origin bbc5d2c3e48018d94f5cc3c796b149832478de78

@@ -71,7 +71,7 @@ pub(super) fn prepare(
 }
 fn message(blocks: Value, stop: &str) -> Value {
     json!({"id":"synthetic","type":"message","role":"assistant","model":"synthetic-model","content":blocks,"stop_reason":stop,"stop_sequence":null,
-        "usage":{"input_tokens":32,"cache_read_input_tokens":5,"output_tokens":12}})
+        "usage":{"input_tokens":32,"cache_read_input_tokens":5,"cache_creation_input_tokens":0,"output_tokens":12}})
 }
 fn blocks() -> Value {
     json!([
@@ -319,4 +319,25 @@ fn authenticated_native_tool_turn_replays_original_blocks_and_rejects_control_ch
     next["reasoning"]["effort"] = json!("high");
     let changed = prepare(&c, next, &history).unwrap();
     assert!(changed.validate_pending_controls(&history).is_err());
+}
+
+#[test]
+fn managed_cumulative_usage_must_not_decrease_without_a_recorder() {
+    let c = config(false);
+    let p = prepare(&c, request(), &VerifiedProviderHistory::default()).unwrap();
+    let raw = message(blocks(), "tool_use");
+    let mut frames = events(&raw);
+    frames[0]["message"]["usage"]["output_tokens"] = json!(20);
+    let mut stream = p.stream(100000, "attempt".into());
+    let mut rejected = false;
+    for event in frames {
+        if push(&mut stream, &event).is_err() {
+            rejected = true;
+            break;
+        }
+    }
+    assert!(rejected, "cumulative output decreased from 20 to 12");
+    assert!(!stream.is_complete());
+    assert!(stream.take_progress().is_empty());
+    assert!(stream.finish().is_err());
 }

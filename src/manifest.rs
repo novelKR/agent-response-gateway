@@ -115,7 +115,7 @@ impl Config {
             }
             if self.models[&route.alias].usage_profile.is_some() {
                 route_projection["usage_profile"] =
-                    json!(self.models[&route.alias].resolved_usage_profile());
+                    json!(self.resolved_usage_profile(&self.models[&route.alias]));
             }
             routes.push(route_projection);
         }

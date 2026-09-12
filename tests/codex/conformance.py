@@ -154,12 +154,18 @@ def check_controls(body, api):
         require(output.get("schema") == CONTROL_SCHEMA and output.get("strict") is True, "Responses explicit schema changed")
 
 
-def chat_fixture_view(body):
+def chat_fixture_view(body, managed_contract=None):
     # Only the test assertion view uses Messages-shaped blocks; production adapters stay independent.
-    require(body.get("store") is False and body.get("n") == 1 and body.get("max_completion_tokens") == 1024 and body.get("stream_options") == {"include_usage":True}, "Chat wire options changed")
-    require(not any(k in body for k in ("max_tokens", "input", "instructions", "reasoning", "text", "client_metadata", "include")), "unmapped Responses fields leaked into Chat")
-    roles = [m["role"] for m in body["messages"]]
-    require("system" in roles and "developer" in roles, "Chat instruction roles missing")
+    if managed_contract:
+        require(body.get("max_tokens") == 8192 and body.get("stream_options") == {"include_usage":True}, "managed Chat wire options changed")
+        require(not any(k in body for k in ("store","n","max_completion_tokens","input","instructions","text","client_metadata","include")), "unmapped fields reached managed Chat")
+        roles = [m["role"] for m in body["messages"]]
+        require("system" in roles and ("developer" not in roles if managed_contract == "deep_seek" else "developer" in roles), "managed Chat instruction bridge differs")
+    else:
+        require(body.get("store") is False and body.get("n") == 1 and body.get("max_completion_tokens") == 1024 and body.get("stream_options") == {"include_usage":True}, "Chat wire options changed")
+        require(not any(k in body for k in ("max_tokens", "input", "instructions", "reasoning", "text", "client_metadata", "include")), "unmapped Responses fields leaked into Chat")
+        roles = [m["role"] for m in body["messages"]]
+        require("system" in roles and "developer" in roles, "Chat instruction roles missing")
     tools = []
     for tool in body.get("tools", []):
         require(tool["type"] == "function", "Chat function-wire declaration changed")
@@ -185,12 +191,12 @@ def converted_response(state, body):
     state.requests += 1
     require(state.requests <= 2, "unexpected retry or extra model request")
     require(body.get("model") == "synthetic-model" and body.get("stream") is True, "converted routing/stream differs")
-    if state.name == "output_controls":
+    if state.name == "output_controls" and not getattr(state, "managed_contract", None):
         check_controls(body, state.api)
     if state.api == "chat_completions":
-        body = chat_fixture_view(body)
+        body = chat_fixture_view(body, getattr(state,"managed_contract",None))
     else:
-        require(body.get("max_tokens") == 1024, "Messages output limit differs")
+        require(body.get("max_tokens") == getattr(state,"output_limit",1024), "Messages output limit differs")
         require(not any(k in body for k in ("store", "input", "instructions", "reasoning", "text", "client_metadata", "prompt_cache_key", "include")), "unmapped Responses fields leaked into Messages")
         require(body.get("system") and len(body["system"]) == 2, "approved instruction envelope missing")
         records = json.loads(body["system"][1]["text"])
@@ -208,7 +214,7 @@ def converted_response(state, body):
             assistant = [m for m in body["messages"] if m["role"] == "assistant" and any(b.get("type") == "tool_use" for b in m["content"])]
             require(len(assistant) == 1 and any(b.get("text") == "Synthetic after tool." for b in assistant[0]["content"]), "mixed assistant text lost on replay")
             if state.api == "messages":
-                require([b["type"] for b in assistant[0]["content"]] == ["tool_use", "text"], "Messages block order changed on replay")
+                require([b["type"] for b in assistant[0]["content"] if not (getattr(state,"managed_contract",None) and b["type"] in {"thinking","redacted_thinking"})] == ["tool_use", "text"], "Messages block order changed on replay")
         state.result_seen = True
         return converted_frames(state, [{"type":"text","text":"Synthetic complete."}])
     if state.name in {"function_tool", "namespace_tool", "parallel_tools", "mixed_tool_text", "multi_tool_turns"}:
@@ -260,6 +266,9 @@ class Scenario:
         self.tool_contracts = set()
 
     def response(self, body):
+        if getattr(self,"managed_contract",None):
+            import reasoning_conformance
+            return reasoning_conformance.respond(self,body)
         if self.api == "gemini_interactions":
             import interactions_harness
             return interactions_harness.respond(self,body)
@@ -354,6 +363,8 @@ class UpstreamHandler(BaseHTTPRequestHandler):
                         event("response.content_part.added", item_id="msg_fixture", output_index=0, content_index=0, part={"type": "output_text", "text": "", "annotations": []}),
                         event("response.output_text.delta", item_id="msg_fixture", output_index=0, content_index=0, delta="Synthetic partial."),
                     ]
+                if getattr(state,"managed_contract",None) and state.name == "cancellation_heartbeat":
+                    partial_frames=[]
                 for frame in partial_frames:
                     self.wfile.write(frame)
                 self.wfile.flush()
@@ -434,7 +445,7 @@ def stop_process(process):
             stream.close()
 
 
-def run_scenario(name, binary, gateway_binary, api="responses"):
+def run_scenario(name, binary, gateway_binary, api="responses", managed_contract=None):
     local = ROOT / ".local/conformance"
     local.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix=name + "-", dir=local) as temporary, contextlib.ExitStack() as cleanup:
@@ -444,6 +455,8 @@ def run_scenario(name, binary, gateway_binary, api="responses"):
         home = root / "codex-home"
         home.mkdir()
         state = Scenario(name, workspace, api)
+        state.managed_contract=managed_contract
+        state.output_limit=8192 if managed_contract else 1024
         server = MockServer(("127.0.0.1", 0), UpstreamHandler)
         server.scenario = state
         threading.Thread(target=server.serve_forever, daemon=True).start()
@@ -455,9 +468,12 @@ def run_scenario(name, binary, gateway_binary, api="responses"):
         gateway_env = {**env, "ARG_LOCAL_TOKEN": token, "ARG_MOCK_KEY": "synthetic-upstream-key"}
         config = root / "gateway.toml"
         config.write_text(f'listen="127.0.0.1:0"\n[providers.mock]\nbase_url="http://127.0.0.1:{server.server_port}/v1"\napi_key_env="ARG_MOCK_KEY"\n[models."gpt-5.4"]\nprovider="mock"\nupstream_model="synthetic-model"\n')
-        if api != "responses":
+        if managed_contract:
+            import reasoning_conformance
+            config.write_text(config.read_text() + reasoning_conformance.route(managed_contract))
+        elif api != "responses":
             config.write_text(config.read_text() + converted_route(api))
-        if api == "gemini_interactions":
+        if api == "gemini_interactions" or managed_contract:
             import interactions_harness as ih
             host_token=ih.setup(root,gateway_binary,config,gateway_env)
         manifest = embedded_contract.inspect_manifest(gateway_binary, config, env)
@@ -465,7 +481,7 @@ def run_scenario(name, binary, gateway_binary, api="responses"):
         cleanup.callback(stop_process, gateway)
         ready = embedded_contract.read_ready(gateway, manifest)
         (home / "config.toml").write_text(f'model="gpt-5.4"\nmodel_provider="gateway"\nweb_search="disabled"\nmodel_context_window=32768\nmodel_auto_compact_token_limit=24576\n[model_providers.gateway]\nname="Synthetic gateway"\nbase_url="{ready["base_url"]}"\nwire_api="responses"\nenv_key="ARG_CODEX_TEST_TOKEN"\nrequires_openai_auth=false\nsupports_websockets=false\nrequest_max_retries=0\nstream_max_retries=0\n')
-        if api == "gemini_interactions":
+        if api == "gemini_interactions" or managed_contract:
             session=ih.create_session(ready["base_url"],host_token,manifest)
             with (home/"config.toml").open("a") as f:f.write("http_headers="+json.dumps({"x-gateway-session":session["id"]}).replace(": "," = ")+"\n")
         codex_env = {**env, "HOME": str(home), "CODEX_HOME": str(home), "ARG_CODEX_TEST_TOKEN": token}
@@ -480,7 +496,10 @@ def run_scenario(name, binary, gateway_binary, api="responses"):
         rpc.send({"method": "initialized", "params": {}})
         echo = {"type": "function", "name": "echo" if name == "namespace_tool" else "gateway_echo", "description": "Return a synthetic fixture value.", "inputSchema": {"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"], "additionalProperties": False}}
         dynamic = {"type": "namespace", "name": "fixture", "description": "Synthetic tool group.", "tools": [echo]} if name == "namespace_tool" else echo
-        thread = rpc.call("thread/start", {"model": "gpt-5.4", "modelProvider": "gateway", "cwd": str(workspace), "sandbox": "workspace-write" if name == "custom_patch" else "read-only", "approvalPolicy": "on-request", "approvalsReviewer": "user", "ephemeral": True, "allowProviderModelFallback": False, "experimentalRawEvents": False, "dynamicTools": [dynamic]})
+        dynamic_tools=[dynamic]
+        if managed_contract and name=="namespace_tool":
+            dynamic_tools.append({"type":"namespace","name":"second","description":"Synthetic collision namespace","tools":[echo]})
+        thread = rpc.call("thread/start", {"model": "gpt-5.4", "modelProvider": "gateway", "cwd": str(workspace), "sandbox": "workspace-write" if name == "custom_patch" else "read-only", "approvalPolicy": "on-request", "approvalsReviewer": "user", "ephemeral": True, "allowProviderModelFallback": False, "experimentalRawEvents": False, "dynamicTools": dynamic_tools})
         thread_id = thread["thread"]["id"]
         turn_started = time.monotonic()
         first_text_ms, interrupt_at = None, None
@@ -490,9 +509,11 @@ def run_scenario(name, binary, gateway_binary, api="responses"):
         turn = rpc.call("turn/start", params)
         if name.startswith("cancellation"):
             require(state.started.wait(10), "upstream did not start")
+            heartbeat_only=managed_contract and name=="cancellation_heartbeat"
             deadline = time.monotonic() + 10
-            observed = False
-            while time.monotonic() < deadline:
+            observed = bool(heartbeat_only)
+            if heartbeat_only: time.sleep(0.1)
+            while not heartbeat_only and time.monotonic() < deadline:
                 message = rpc.pending.pop(0) if rpc.pending else rpc.next(max(0.01, deadline - time.monotonic()))
                 if message.get("method") == "item/agentMessage/delta":
                     observed = True
@@ -503,11 +524,15 @@ def run_scenario(name, binary, gateway_binary, api="responses"):
             interrupt_at = time.monotonic()
             rpc.call("turn/interrupt", {"threadId": thread_id, "turnId": turn["turn"]["id"]})
         calls, approvals, final = 0, 0, None
+        reasoning_notifications=0
         final_text = None
         deadline = time.monotonic() + 30
         while time.monotonic() < deadline:
             message = rpc.pending.pop(0) if rpc.pending else rpc.next(max(0.01, deadline - time.monotonic()))
             method = message.get("method")
+            if method == "item/reasoning/summaryTextDelta":
+                reasoning_notifications+=1
+                require("synthetic_signature_" not in json.dumps(message) and "synthetic_encrypted_" not in json.dumps(message), "private reasoning reached display")
             if method == "item/agentMessage/delta" and first_text_ms is None:
                 first_text_ms = round((time.monotonic() - turn_started) * 1000, 3)
             if method == "item/completed" and message["params"]["item"].get("type") == "agentMessage":
@@ -532,10 +557,13 @@ def run_scenario(name, binary, gateway_binary, api="responses"):
             elif "id" in message and method:
                 raise AssertionError("unexpected server request")
         turn_elapsed_ms = round((time.monotonic() - turn_started) * 1000, 3)
-        expected = "interrupted" if name.startswith("cancellation") else "failed" if name in {"transport_failure", "grammar_failure"} else "completed"
+        rejected_controls=managed_contract=="deep_seek" and name=="output_controls"
+        expected = "interrupted" if name.startswith("cancellation") else "failed" if name in {"transport_failure", "grammar_failure"} or rejected_controls else "completed"
         require(final == expected, f"unexpected final turn status (requests={state.requests}, calls={calls})")
         require(not state.errors, "mock upstream validation failed")
-        if name == "output_controls":
+        if rejected_controls:
+            require(state.requests==0 and calls==0 and approvals==0, "unsupported controls reached inference")
+        elif name == "output_controls":
             require(json.loads(final_text) == {"answer":"synthetic"} and state.requests == 1, "explicit schema output did not reach Codex")
         elif name in {"function_tool", "namespace_tool", "mixed_tool_text"}:
             require(calls == 1 and state.result_seen and state.requests == 2, "function tool round trip incomplete")
@@ -562,6 +590,13 @@ def run_scenario(name, binary, gateway_binary, api="responses"):
             require(state.requests == 1, "unexpected extra model request")
         result = {"api": api, "scenario": name, "status": "passed", "turn_status": final, "upstream_requests": state.requests, "dynamic_calls": calls, "denied_approvals": approvals}
         result["turn_elapsed_ms"] = turn_elapsed_ms
+        if managed_contract:
+            result["reasoning_contract"]=managed_contract
+            if name=="namespace_tool":result["namespace_collision"]=True
+            result["reasoning_notifications"]=reasoning_notifications
+            if expected=="completed":require(reasoning_notifications>0,"managed reasoning display missing")
+            if name=="cancellation_heartbeat":result["heartbeat_without_output"]=True
+            if rejected_controls:result["request_rejected_before_upstream"]=True
         if first_text_ms is not None:
             result["first_client_text_ms"] = first_text_ms
         if interrupt_at is not None:

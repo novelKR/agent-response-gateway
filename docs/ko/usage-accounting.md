@@ -33,17 +33,17 @@ PostgreSQL 또는 HTTP 수집기로 전송한다. 토큰 추정, 청구 계산, 
 음수·소수·범위 초과·불일치 카운터는 invalid로 남기고 독립적으로 유효한
 필드는 유지한다. Recorder는 정확한 정수 연산을 사용한다.
 
-`responses_v1`, `chat_v1`, `messages_v1` 프로필은 API별 의미를 정의한다.
+`responses_v1`, `chat_v1`, `messages_v1`, `gemini_interactions_v1`, `deep_seek_v1` 프로필은 API별 의미를 정의한다.
 경로는 일치하는 `usage_profile`을 명시적으로 선택할 수 있으며 불일치는
-거절한다. 기본값은 경로 API와 일치한다. 프로필과 이벤트 계약은 Recorder
+거절한다. 기본값은 경로 API와 명시적 reasoning 계약에 일치한다. 프로필과 이벤트 계약은 Recorder
 실행 명세에 결합된다.
 
 Responses는 캐시 읽기·쓰기 상세와 추론을 직접 읽는다. Chat은 캐시 읽기와
 추론을 보존하되 미보고 캐시 쓰기는 알 수 없는 값으로 둔다. Messages는 일반
 입력·캐시 읽기·캐시 생성·제공된 TTL 상세를 각각 보존한다. Messages 프로필은
 캐시 구성값이 생략되면 정규화된 전체 입력을 보수적으로 미확정 상태로 둔다.
-기존 클라이언트 변환은 생략된 선택형 캐시 구성값을 기존 전송 합계에 기여하지
-않는 값으로 취급한다. 클라이언트 Responses usage에는 지원되는 캐시 상세를
+관리형 클라이언트 변환도 같은 규칙을 적용하며 기존 stateless 변환은 선택형
+캐시에 대한 기존 동작을 유지한다. 클라이언트 Responses usage에는 지원되는 캐시 상세를
 넣으며 원장 전용 필드는 넣지 않는다.
 
 Messages의 일반 입력 10, 캐시 읽기 5, 캐시 쓰기 2는 전체 입력 17이다.
@@ -203,3 +203,12 @@ Recorder CLI는 `status`, `query`, `export`, `aggregate`, `backup`, `migrate`,
 후자는 격리된 TLS PostgreSQL을 소유하고 검사 후 종료한다. 합성 conformance나
 로컬 검사 통과는 실제 공급자 청구 정확성 또는 외부 호스트의 운영 수락을
 증명하지 않는다.
+
+관리형 reasoning도 같은 접수·완료 보장으로 recorder를 사용할 수 있다.
+[관리형 실행](managed-continuation.md#usage-recording-and-failures)을 참조한다. Gemini는
+보고된 일반 출력과 thought 토큰을 더해 전체 출력을 계산하며 어느 하나라도
+없으면 전체 출력을 미확정 상태로 둔다. DeepSeek은 원본 캐시 hit/miss 카운터를
+보존하고 입력 분할과 Chat 캐시 별칭의 일치를 검증한다. OpenRouter는 표준 Chat
+usage profile을 사용한다. Chat과 Messages 출력에 reasoning을 다시 더하지 않는다.
+새 관리형 결합은 extended manifest와 readiness v3를 선언하며 기존 stateless 확장
+설정은 v2를 유지한다.

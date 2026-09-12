@@ -175,6 +175,7 @@ impl CanonicalUsage {
 pub enum Profile {
     ResponsesV1,
     ChatV1,
+    DeepSeekV1,
     MessagesV1,
     GeminiInteractionsV1,
 }
@@ -183,6 +184,7 @@ impl Profile {
         match self {
             Self::ResponsesV1 => "responses/v1",
             Self::ChatV1 => "chat/v1",
+            Self::DeepSeekV1 => "deepseek/v1",
             Self::MessagesV1 => "messages/v1",
             Self::GeminiInteractionsV1 => "gemini_interactions/v1",
         }
@@ -214,6 +216,14 @@ fn paths(profile: Profile) -> Vec<(&'static str, &'static str)> {
                 "output_tokens_details.reasoning_tokens",
             ),
         ],
+        Profile::DeepSeekV1 => {
+            let mut fields = paths(Profile::ChatV1);
+            fields.extend([
+                ("cache_read_input_tokens", "prompt_cache_hit_tokens"),
+                ("input_regular_tokens", "prompt_cache_miss_tokens"),
+            ]);
+            fields
+        }
         Profile::ChatV1 => vec![
             ("input_tokens", "prompt_tokens"),
             ("output_tokens", "completion_tokens"),
@@ -239,6 +249,7 @@ fn allowed_path(path: &str) -> bool {
     [
         Profile::ResponsesV1,
         Profile::ChatV1,
+        Profile::DeepSeekV1,
         Profile::MessagesV1,
         Profile::GeminiInteractionsV1,
     ]
@@ -299,6 +310,27 @@ pub fn normalize(profile: Profile, reported: BTreeMap<String, Counter>) -> Canon
     }
     if u.counters.values().any(|c| c.source == Source::Invalid) {
         u.violations.push("invalid_counter".into());
+    }
+    if profile == Profile::DeepSeekV1 {
+        let alias = u
+            .reported
+            .get("prompt_tokens_details.cached_tokens")
+            .and_then(|c| c.value);
+        let hit = u
+            .reported
+            .get("prompt_cache_hit_tokens")
+            .and_then(|c| c.value);
+        if alias.zip(hit).is_some_and(|(a, b)| a != b) {
+            u.invalid("cache_read_input_tokens", "cache_alias_mismatch");
+        }
+        if let (Some(hit), Some(miss), Some(input)) = (
+            hit,
+            u.value("input_regular_tokens"),
+            u.value("input_tokens"),
+        ) && hit.checked_add(miss) != Some(input)
+        {
+            u.invalid("input_regular_tokens", "input_partition");
+        }
     }
     if profile == Profile::GeminiInteractionsV1 {
         let regular = u.value("output_tokens");
@@ -411,8 +443,23 @@ impl Accumulator {
     }
     pub fn observe(&mut self, value: &Value) -> bool {
         self.incomplete |= !value.is_object();
+        self.observe_counters(extract(self.profile, value))
+    }
+    /// Accept only the same numeric path allowlist as wire extraction.
+    pub fn observe_counters(&mut self, counters: BTreeMap<String, Counter>) -> bool {
         let mut decreased = false;
-        for (path, mut c) in extract(self.profile, value) {
+        for (path, mut c) in counters {
+            if !paths(self.profile).iter().any(|(_, p)| *p == path)
+                && !(self.profile == Profile::MessagesV1
+                    && matches!(
+                        path.as_str(),
+                        "cache_creation.ephemeral_5m_input_tokens"
+                            | "cache_creation.ephemeral_1h_input_tokens"
+                    ))
+            {
+                self.incomplete = true;
+                continue;
+            }
             if let (Some(old), Some(new)) =
                 (self.reported.get(&path).and_then(|v| v.value), c.value)
                 && new < old

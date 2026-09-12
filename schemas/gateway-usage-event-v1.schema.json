@@ -118,7 +118,9 @@
       "enum": [
         "responses_v1",
         "chat_v1",
-        "messages_v1"
+        "messages_v1",
+        "gemini_interactions_v1",
+        "deep_seek_v1"
       ]
     },
     "configuration_sha256": {

@@ -441,6 +441,18 @@ impl<'a> NativeChatStream<'a> {
             "choices":[{"index":0,"message":self.assistant,"finish_reason":self.finish.as_ref().ok_or(IrError::InvalidEventOrder)?}]}),
         )
     }
+    pub(crate) fn accounting(&self) -> crate::adapters::managed::Accounting {
+        crate::adapters::managed::Accounting::new(
+            self.prepared.accounting_profile(),
+            self.usage.as_ref(),
+            &self.meta,
+            if self.done {
+                gateway_usage_contract::Outcome::Completed
+            } else {
+                gateway_usage_contract::Outcome::InProgress
+            },
+        )
+    }
     pub fn take_progress(&mut self) -> Vec<Value> {
         std::mem::take(&mut self.progress)
     }

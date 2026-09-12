@@ -15,7 +15,8 @@ history. References below to a stateless gateway concern model-session state.
 The optional [Python continuity module](../scripts/continuity_contract.py) validates
 host-owned run records and returns new revisions. It uses the standard library
 and performs no I/O or model calls. The host owns persistence, authentication,
-approval and recovery; the Rust gateway remains stateless.
+approval and recovery in this host-journal contract. Opt-in provider state uses the
+separate [managed continuation runtime](managed-continuation.md).
 See the [history and resume design](continuity-design.md) for the overall flow.
 
 <a id="검증된-입력과-비공개-저널"></a>

@@ -83,7 +83,8 @@ agent-response-gateway init-continuation --directory /ABSOLUTE/PRIVATE/DIRECTORY
  gateway-ready/v3이다. Codex 실행 전 오프라인 설정 digest와 비교한다.
 구버전 호스트는 모르는 계약을 거부해야 한다. manifest에는 설정·저장소 정체성,
 wire digest, 프로필·어댑터 버전이 포함되지만 실제 제공자 호출을 증명하지 않는다.
-현재 observer/continuation manifest를 함께 사용하는 모드는 거부한다.
+확장 결합 모드는 gateway-extended-manifest/v3와 gateway-extended-ready/v3를
+사용한다. [공통 관리형 실행](managed-continuation.md)을 참조한다.
 
 ## 지원 범위와 사용량
 

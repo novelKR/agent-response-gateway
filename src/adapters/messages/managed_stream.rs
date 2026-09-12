@@ -282,6 +282,20 @@ impl<'a> NativeMessagesStream<'a> {
             _ => Err(unsupported()),
         }
     }
+    pub(crate) fn accounting(&self) -> crate::adapters::managed::Accounting {
+        let empty = json!({});
+        let meta = self.message.as_ref().unwrap_or(&empty);
+        crate::adapters::managed::Accounting::new(
+            gateway_usage_contract::Profile::MessagesV1,
+            meta.get("usage"),
+            meta,
+            if self.done {
+                gateway_usage_contract::Outcome::Completed
+            } else {
+                gateway_usage_contract::Outcome::InProgress
+            },
+        )
+    }
     pub fn take_progress(&mut self) -> Vec<Value> {
         std::mem::take(&mut self.progress)
     }
