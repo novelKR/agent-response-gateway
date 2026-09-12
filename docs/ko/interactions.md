@@ -79,8 +79,8 @@ agent-response-gateway init-continuation --directory /ABSOLUTE/PRIVATE/DIRECTORY
 뜻하며 google_api_key는 x-goog-api-key를 뜻한다. Codex에는 로컬 토큰과 세션
 헤더만 전달한다.
 
-활성화 시 manifest/readiness schema는 gateway-embedded-manifest/v2와
- gateway-ready/v2이다. Codex 실행 전 오프라인 설정 digest와 비교한다.
+활성화 시 manifest/readiness schema는 gateway-embedded-manifest/v3와
+ gateway-ready/v3이다. Codex 실행 전 오프라인 설정 digest와 비교한다.
 구버전 호스트는 모르는 계약을 거부해야 한다. manifest에는 설정·저장소 정체성,
 wire digest, 프로필·어댑터 버전이 포함되지만 실제 제공자 호출을 증명하지 않는다.
 현재 observer/continuation manifest를 함께 사용하는 모드는 거부한다.
@@ -179,3 +179,13 @@ ContinuationStore 계약은 backend 독립적이지만 SQLite만 구현했다.
 PostgreSQL, Redis, 공개 Responses 저장·조회·삭제와 previous_response_id는 지원
 범위 밖이다. 게이트웨이/provider 연결 종료가 제공자 작업 취소나 무과금을
 증명하지는 않는다.
+
+공통 managed 실행 계층은 타입이 구분된 원본 payload와 완료 상태를 가진
+gateway-continuation/v2 기록을 쓴다. gateway-continuation/v1 기록은 원래
+finalized digest로 인증·검증한 뒤 변환한다. 기존 Gemini 경로 binding, DB 테이블,
+키와 이력은 유효하며 자동 migration이나 암호문 재작성은 하지 않는다. manifest의
+replay_versions는 read [1, 2]와 write 2를 선언한다. 구버전 호스트는 새 manifest를
+거부하며 구버전 바이너리가 v2 기록을 읽는다고 보장하지 않는다. rollback에는
+호환되는 바이너리·DB·키·Codex 이력 조합이 필요하다. 공개 reasoning summary가
+있으면 원본 제공자 상태와 구분해 인증된 이력 digest에 포함한다. Messages와 Chat의
+reasoning은 명시적 계약 구현 전까지 활성화되지 않는다.

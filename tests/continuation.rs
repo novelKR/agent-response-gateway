@@ -318,3 +318,79 @@ async fn publication_limit_rejection_does_not_finalize_execution() {
         .await
         .unwrap();
 }
+
+#[test]
+fn replay_versions_authenticate_layout_and_version_before_normalization() {
+    let t = private();
+    let mut store = open(t.path(), true);
+    let s = store.create(&origin()).unwrap();
+    let old = replay(&s, "response_legacy".into());
+    let key = Protector::new("testkey".into(), &[7; 32]).unwrap();
+    let v1 = key.seal(&old).unwrap();
+    let record = key.open_record(&v1).unwrap();
+    assert_eq!(digest(&record).unwrap(), digest(&old).unwrap());
+    let normalized = record.normalize();
+    assert_eq!(normalized.schema, REPLAY_V2);
+    let v2 = key.seal_record(&normalized.clone().into()).unwrap();
+    assert!(v2.starts_with(ENVELOPE_V2));
+    assert!(key.open(&v2).is_err());
+    assert!(
+        key.open_record(&v2.replacen(ENVELOPE_V2, ENVELOPE_PREFIX, 1))
+            .is_err()
+    );
+    assert!(
+        key.open_record(&v1.replacen(ENVELOPE_PREFIX, ENVELOPE_V2, 1))
+            .is_err()
+    );
+    assert_eq!(
+        digest(&key.open_record(&v2).unwrap().normalize()).unwrap(),
+        digest(&normalized).unwrap()
+    );
+    let mut invalid = normalized;
+    invalid.native = NativeReplay::Gemini {
+        version: 2,
+        steps: vec![json!({"type":"thought"})],
+    };
+    assert!(key.seal_record(&invalid.into()).is_err());
+}
+
+#[tokio::test]
+async fn finalized_v2_public_reasoning_and_native_state_repair_together() {
+    let t = private();
+    let mut store = open(t.path(), true);
+    let s = store.create(&origin()).unwrap();
+    let id = store
+        .begin(&s.id, s.revision, None, "request", 4096)
+        .unwrap();
+    let mut v2 = ReplayRecord::from(replay(&s, id.clone())).normalize();
+    v2.output = vec![public_reasoning(
+        "reasoning_test",
+        "synthetic public reasoning",
+    )];
+    let runtime = Runtime::new(
+        Box::new(store),
+        Protector::new("testkey".into(), &[7; 32]).unwrap(),
+    );
+    let token = runtime.finalize(v2.clone()).await.unwrap();
+    drop(runtime);
+    let db = rusqlite::Connection::open(t.path().join("continuation.sqlite3")).unwrap();
+    db.execute("UPDATE records SET envelope=NULL", []).unwrap();
+    drop(db);
+    let runtime = Runtime::new(
+        Box::new(open(t.path(), false)),
+        Protector::new("testkey".into(), &[7; 32]).unwrap(),
+    );
+    let saved = runtime
+        .restore_record(s.clone(), token.clone())
+        .await
+        .unwrap()
+        .normalize();
+    assert_eq!(digest(&saved).unwrap(), digest(&v2).unwrap());
+    let mut edited = v2;
+    edited.output[0]["summary"][0]["text"] = json!("changed display");
+    let forged = Protector::new("testkey".into(), &[7; 32])
+        .unwrap()
+        .seal_record(&edited.into())
+        .unwrap();
+    assert!(runtime.restore_record(s, forged).await.is_err());
+}

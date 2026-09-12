@@ -78,8 +78,8 @@ a separate local Codex token, and the Google key. Secret values must all differ.
 The existing api_key authentication still means x-api-key; google_api_key means
 x-goog-api-key. Only the local token and session header go to Codex.
 
-The enabled manifest/readiness schemas are gateway-embedded-manifest/v2 and
-gateway-ready/v2. Compare the offline configuration digest before launching Codex.
+The enabled manifest/readiness schemas are gateway-embedded-manifest/v3 and
+gateway-ready/v3. Compare the offline configuration digest before launching Codex.
 Old hosts must reject unfamiliar contracts. The manifest includes configuration and
 store identity, wire digest, profile and adapter version; it does not prove a live
 provider call. Combined observer/continuation manifest mode is currently rejected.
@@ -178,3 +178,14 @@ The ContinuationStore contract is backend-neutral, but only SQLite is implemente
 PostgreSQL, Redis, public Responses storage/lookup/deletion and previous_response_id are
 outside this support boundary. Gateway/provider shutdown does not prove a provider-side
 job was cancelled or that the provider did not charge for it.
+
+The common managed executor writes gateway-continuation/v2 records with a typed
+native payload and completion outcome. It authenticates gateway-continuation/v1
+records and checks their original finalized digests before conversion. Existing
+Gemini route bindings, database tables, keys and history remain valid; no automatic
+migration or ciphertext rewrite occurs. The manifest declares replay_versions as
+read [1, 2] and write 2. Old hosts reject the new manifest; old binaries cannot be
+assumed to read v2 records. Rollback requires a compatible binary, DB, key and
+Codex history together. Public reasoning summaries, when present, participate in
+the authenticated history digest separately from native provider state. Messages
+and Chat reasoning remain disabled until their explicit contracts are implemented.

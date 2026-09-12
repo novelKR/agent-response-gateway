@@ -1,3 +1,6 @@
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+
 use super::{ApiProtocol, IrError, capability::CapabilityProfile};
 
 /// A declaration snapshot, not a live capability attestation or bearer credential.
@@ -109,5 +112,29 @@ impl OpaqueState {
 /// This type deliberately has no Debug or deserialization implementation.
 #[derive(Default)]
 pub struct VerifiedProviderHistory {
-    pub(crate) segments: std::collections::BTreeMap<usize, (usize, Vec<serde_json::Value>)>,
+    pub(crate) segments: std::collections::BTreeMap<usize, (usize, NativeReplay)>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Outcome {
+    Completed,
+    AwaitingTools,
+}
+
+/// Native state remains separate from Responses output, even when it contains text.
+/// No Debug implementation: these values can contain private provider signatures.
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "format", deny_unknown_fields)]
+pub enum NativeReplay {
+    #[serde(rename = "gemini_steps")]
+    Gemini { version: u32, steps: Vec<Value> },
+}
+impl NativeReplay {
+    pub fn validate(&self) -> std::result::Result<(), IrError> {
+        match self {
+            Self::Gemini { version: 1, steps } if !steps.is_empty() => Ok(()),
+            _ => Err(IrError::ContinuityMismatch),
+        }
+    }
 }

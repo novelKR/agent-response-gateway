@@ -108,6 +108,7 @@ impl Config {
         if let Some(c) = &self.continuation {
             configuration["continuation"] =
                 serde_json::to_value(c).expect("continuation configuration");
+            configuration["replay_versions"] = json!({"read":[1,2],"write":2});
             configuration = sorted(configuration);
         }
         let bytes = serde_json::to_vec(&configuration)
@@ -118,7 +119,7 @@ impl Config {
             .collect();
         Ok(EmbeddedManifest {
             schema: if self.continuation.is_some() {
-                "gateway-embedded-manifest/v2"
+                "gateway-embedded-manifest/v3"
             } else {
                 MANIFEST_SCHEMA
             },

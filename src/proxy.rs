@@ -132,7 +132,7 @@ pub(crate) async fn responses(
         .resolve_route(&model_id)
         .expect("configuration was validated");
     if route.snapshot.api == crate::ir::ApiProtocol::GeminiInteractions {
-        return crate::proxy_interactions::responses(
+        return crate::proxy_managed::responses(
             state, payload, model_id, streaming, session_id, permit,
         )
         .await;

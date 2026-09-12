@@ -172,7 +172,7 @@ async fn run(cli: Cli) -> Result<(), ConfigError> {
             .and_then(ExtensionRuntime::usage_sink),
     )?;
     let mut readiness = json!({"event":"ready", "address":bound.to_string(), "base_url":format!("http://{bound}/v1"), "version":env!("CARGO_PKG_VERSION"),
-        "schema":if continuation_enabled {"gateway-ready/v2"}else{READY_SCHEMA},"manifest_schema":if continuation_enabled {"gateway-embedded-manifest/v2"}else{MANIFEST_SCHEMA},"configuration_sha256":manifest.configuration_sha256()});
+        "schema":if continuation_enabled {"gateway-ready/v3"}else{READY_SCHEMA},"manifest_schema":if continuation_enabled {"gateway-embedded-manifest/v3"}else{MANIFEST_SCHEMA},"configuration_sha256":manifest.configuration_sha256()});
     if let Some(extended) = &extended_manifest {
         readiness["schema"] = json!(extensions.as_ref().expect("extension plan").ready_schema());
         readiness["manifest_schema"] = json!(

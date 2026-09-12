@@ -157,7 +157,11 @@ impl PreparedInteractions {
         if let Some(Input::Items(items)) = &request.input {
             let mut position = 0;
             while position < items.len() {
-                if let Some((end, steps)) = history.segments.get(&position) {
+                if let Some((end, native)) = history.segments.get(&position) {
+                    let crate::ir::continuity::NativeReplay::Gemini { version: 1, steps } = native
+                    else {
+                        return Err(IrError::ContinuityMismatch);
+                    };
                     if *end < position || *end > items.len() {
                         return Err(IrError::InvalidToolMapping);
                     }
@@ -223,7 +227,11 @@ impl PreparedInteractions {
                 }
                 position += 1;
             }
-            if let Some((end, steps)) = history.segments.get(&items.len()) {
+            if let Some((end, native)) = history.segments.get(&items.len()) {
+                let crate::ir::continuity::NativeReplay::Gemini { version: 1, steps } = native
+                else {
+                    return Err(IrError::ContinuityMismatch);
+                };
                 if *end != items.len() {
                     return Err(IrError::InvalidToolMapping);
                 }

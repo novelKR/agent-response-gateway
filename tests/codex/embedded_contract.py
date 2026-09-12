@@ -37,11 +37,13 @@ def load_json(raw):
 
 def validate_manifest(value):
     require(isinstance(value, dict) and set(value) == {"schema", "package", "client_api", "lifecycle", "configuration", "configuration_sha256"}, "Invalid manifest shape")
-    require(value["schema"] in {MANIFEST_SCHEMA,"gateway-embedded-manifest/v2"} and value["client_api"] == "responses" and value["lifecycle"] == "host-supervised-process/v1", "Unsupported manifest contract")
+    require(value["schema"] in {MANIFEST_SCHEMA,"gateway-embedded-manifest/v2","gateway-embedded-manifest/v3"} and value["client_api"] == "responses" and value["lifecycle"] == "host-supervised-process/v1", "Unsupported manifest contract")
     package = value["package"]
     require(isinstance(package, dict) and set(package) == {"name", "version"} and package["name"] == "agent-response-gateway" and isinstance(package["version"], str) and bool(package["version"]), "Invalid package identity")
     configuration = value["configuration"]
-    require(isinstance(configuration, dict) and set(configuration) == ({"listen", "source_url", "local_token_env", "upstream_credential_references", "limits", "routes"} | ({"continuation"} if value["schema"].endswith("/v2") else set())), "Invalid configuration projection")
+    require(isinstance(configuration, dict) and set(configuration) == ({"listen", "source_url", "local_token_env", "upstream_credential_references", "limits", "routes"} | ({"continuation", "replay_versions"} if value["schema"].endswith("/v3") else {"continuation"} if value["schema"].endswith("/v2") else set())), "Invalid configuration projection")
+    if value["schema"].endswith("/v3"):
+        require(configuration["replay_versions"] == {"read": [1, 2], "write": 2}, "Unsupported replay contract")
     # Integers remain arbitrary precision in both Python and the Rust projection.
     raw = json.dumps(configuration, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
     require(hashlib.sha256(raw).hexdigest() == value["configuration_sha256"], "Configuration digest mismatch")
@@ -58,7 +60,7 @@ def parse_ready_line(line, manifest):
     require(isinstance(line, str) and line.endswith("\n") and len(line.encode()) <= MAX_READY_BYTES, "Invalid readiness frame")
     ready = load_json(line)
     require(isinstance(ready, dict) and set(ready) == {"schema", "manifest_schema", "configuration_sha256", "event", "address", "base_url", "version"}, "Invalid readiness shape")
-    require(ready["schema"] == ("gateway-ready/v2" if manifest["schema"].endswith("/v2") else READY_SCHEMA) and ready["manifest_schema"] == manifest["schema"] and ready["event"] == "ready", "Unsupported readiness contract")
+    require(ready["schema"] == ("gateway-ready/v3" if manifest["schema"].endswith("/v3") else "gateway-ready/v2" if manifest["schema"].endswith("/v2") else READY_SCHEMA) and ready["manifest_schema"] == manifest["schema"] and ready["event"] == "ready", "Unsupported readiness contract")
     require(ready["configuration_sha256"] == manifest["configuration_sha256"] and ready["version"] == manifest["package"]["version"], "Readiness binding mismatch")
     require(isinstance(ready["address"], str) and ready["base_url"] == "http://" + ready["address"] + "/v1", "Readiness endpoint mismatch")
     try:

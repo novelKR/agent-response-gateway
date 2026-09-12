@@ -25,6 +25,24 @@ def ready(value):
 
 
 class EmbeddedContractTests(unittest.TestCase):
+    def test_managed_manifest_requires_exact_replay_versions_and_matching_readiness(self):
+        value = manifest()
+        value["schema"] = "gateway-embedded-manifest/v3"
+        value["configuration"].update(continuation={"store_id": "synthetic"}, replay_versions={"read": [1, 2], "write": 2})
+        value["configuration_sha256"] = hashlib.sha256(json.dumps(value["configuration"], ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+        self.assertEqual(contract.validate_manifest(value), value)
+        current = ready(value)
+        current["schema"] = "gateway-ready/v3"
+        self.assertEqual(contract.parse_ready_line(json.dumps(current) + "\n", value), current)
+        for versions in ({"read": [2], "write": 2}, {"read": [1, 2], "write": 1}, {"read": [1, 2, 3], "write": 3}):
+            changed = copy.deepcopy(value)
+            changed["configuration"]["replay_versions"] = versions
+            with self.assertRaisesRegex(ValueError, "replay"):
+                contract.validate_manifest(changed)
+        current["schema"] = "gateway-ready/v2"
+        with self.assertRaises(ValueError):
+            contract.parse_ready_line(json.dumps(current) + "\n", value)
+
     def test_manifest_digest_preserves_unicode_integers_and_rejects_changed_configuration(self):
         value = manifest()
         self.assertEqual(contract.validate_manifest(value), value)

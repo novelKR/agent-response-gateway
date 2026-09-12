@@ -78,7 +78,7 @@ def finish(rpc,tools=False,expected='completed'):
     raise AssertionError('continuation timed out')
 
 
-def run(binary,gateway_binary, resume_only=False):
+def run(binary,gateway_binary, resume_only=False, legacy_gateway=None):
     local=base.ROOT/'.local/interactions-continuity';local.mkdir(parents=True,exist_ok=True)
     with tempfile.TemporaryDirectory(dir=local) as temporary,contextlib.ExitStack() as cleanup:
         root=Path(temporary);home=root/'home';workspace=root/'workspace';home.mkdir(mode=0o700);workspace.mkdir()
@@ -88,8 +88,9 @@ def run(binary,gateway_binary, resume_only=False):
         token=secrets.token_urlsafe(32);gateway_env={**env,'ARG_LOCAL_TOKEN':token,'ARG_MOCK_KEY':'synthetic-key'}
         codex_env={**env,'HOME':str(home),'CODEX_HOME':str(home),'ARG_CODEX_TEST_TOKEN':token}
         config=root/'gateway.toml';config.write_text(f'listen="127.0.0.1:0"\n[providers.mock]\nbase_url="http://127.0.0.1:{server.server_port}/v1"\napi_key_env="ARG_MOCK_KEY"\n[models."gpt-5.4"]\nprovider="mock"\nupstream_model="synthetic-model"\n'+ih.route(json.loads(base.runtime.LOCK.read_text())['version']))
-        control_token=ih.setup(root,gateway_binary,config,gateway_env)
-        manifest=base.embedded_contract.inspect_manifest(gateway_binary,config,env)
+        current_gateway=legacy_gateway or gateway_binary
+        control_token=ih.setup(root,current_gateway,config,gateway_env)
+        manifest=base.embedded_contract.inspect_manifest(current_gateway,config,env)
         gateway=codex=None;session=None;url=None
         def close():
             nonlocal codex,gateway
@@ -97,8 +98,9 @@ def run(binary,gateway_binary, resume_only=False):
             if gateway is not None:base.stop_process(gateway);gateway=None
         cleanup.callback(close)
         def start():
-            nonlocal gateway,codex,session,url
-            gateway=subprocess.Popen([str(gateway_binary),'serve','--config',str(config)],env=gateway_env,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,text=True)
+            nonlocal gateway,codex,session,url,manifest
+            manifest=base.embedded_contract.inspect_manifest(current_gateway,config,env)
+            gateway=subprocess.Popen([str(current_gateway),'serve','--config',str(config)],env=gateway_env,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,text=True)
             url=base.embedded_contract.read_ready(gateway,manifest)['base_url']
             if session is None:session=ih.create_session(url,control_token,manifest)
             (home/'config.toml').write_text(f'model="gpt-5.4"\nmodel_provider="gateway"\nweb_search="disabled"\nmodel_context_window=32768\nmodel_auto_compact_token_limit=24576\n[model_providers.gateway]\nname="Synthetic Interactions"\nbase_url="{url}"\nwire_api="responses"\nenv_key="ARG_CODEX_TEST_TOKEN"\nrequires_openai_auth=false\nsupports_websockets=false\nrequest_max_retries=0\nstream_max_retries=0\nhttp_headers={{"x-gateway-session"="{session["id"]}"}}\n')
@@ -117,7 +119,17 @@ def run(binary,gateway_binary, resume_only=False):
             try:return finish(rpc,tools=phase=='tool',expected=expected)
             except AssertionError:raise AssertionError('continuation failed in '+phase) from None
         base.require(turn('tool')==1 and state.requests==2,'initial tool roundtrip failed')
-        close();rpc=start();rpc.call('thread/resume',{**settings,'threadId':tid});turn('restart')
+        close()
+        if legacy_gateway:
+            with sqlite3.connect(root/'continuation-store/continuation.sqlite3') as conn:
+                envelopes=[row[0] for row in conn.execute('SELECT envelope FROM records')]
+                base.require(len(envelopes)==2 and all(v.startswith('arg-continuation-v1.') for v in envelopes),'legacy binary did not create v1 records')
+        current_gateway=gateway_binary
+        rpc=start();rpc.call('thread/resume',{**settings,'threadId':tid});turn('restart')
+        if legacy_gateway:
+            with sqlite3.connect(root/'continuation-store/continuation.sqlite3') as conn:
+                envelopes=[row[0] for row in conn.execute('SELECT envelope FROM records')]
+                base.require(sum(v.startswith('arg-continuation-v1.') for v in envelopes)==2 and sum(v.startswith('arg-continuation-v2.') for v in envelopes)==1,'mixed v1/v2 write contract failed')
         # Offline damage injection: authoritative finalization retained, only payload removed.
         close();db=root/'continuation-store/continuation.sqlite3'
         with sqlite3.connect(db) as conn:conn.execute('UPDATE records SET envelope=NULL')
@@ -166,13 +178,13 @@ def run(binary,gateway_binary, resume_only=False):
         tid=rpc.call('thread/start',{**settings,'ephemeral':False})['thread']['id']
         state.phase='recover';rpc.call('turn/start',{'threadId':tid,'input':[{'type':'text','text':continuity.SENTINEL+' '+continuity.TOOL_RESULT}]});finish(rpc)
         base.require(not state.errors,'mock provider validation failed')
-        return {'schema':'gateway-interactions-continuity/v1','status':'passed','upstream_requests':state.requests,'tool_executions':1,'restart':True,'payload_repair':True,'compaction_restart':True,'missing_record_blocked':True,'pending_attempt_blocked':True,'explicit_recovery':True,'provider_qualification':False}
+        return {'schema':'gateway-interactions-continuity/v1','status':'passed','upstream_requests':state.requests,'tool_executions':1,'restart':True,'payload_repair':True,'compaction_restart':True,'missing_record_blocked':True,'pending_attempt_blocked':True,'explicit_recovery':True,'provider_qualification':False,'legacy_v1_mixed_replay':legacy_gateway is not None}
 
 
 def main():
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--gateway-bin',type=Path,default=base.ROOT/'target/debug/agent-response-gateway');p.add_argument('--codex-bundle',type=Path,default=base.runtime.BUNDLE);p.add_argument('--resume-only',action='store_true');a=p.parse_args()
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--gateway-bin',type=Path,default=base.ROOT/'target/debug/agent-response-gateway');p.add_argument('--codex-bundle',type=Path,default=base.runtime.BUNDLE);p.add_argument('--resume-only',action='store_true');p.add_argument('--legacy-gateway-bin',type=Path);a=p.parse_args()
     binary=base.runtime.verify_bundle(a.codex_bundle,json.loads(base.runtime.LOCK.read_text()))
-    try:result=run(binary,a.gateway_bin.resolve(),a.resume_only)
+    try:result=run(binary,a.gateway_bin.resolve(),a.resume_only,a.legacy_gateway_bin.resolve() if a.legacy_gateway_bin else None)
     except Exception as e:
         result={'schema':'gateway-interactions-continuity/v1','status':'failed','error_class':type(e).__name__}
         if isinstance(e,AssertionError):result['check']=str(e)
