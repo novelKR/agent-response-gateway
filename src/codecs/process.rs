@@ -17,6 +17,7 @@ mod native {
         socket: tokio::net::UnixStream,
         sequence: u64,
         failed: bool,
+        protocol: String,
     }
     impl Drop for Session {
         fn drop(&mut self) {
@@ -63,6 +64,7 @@ mod native {
                 socket,
                 sequence: 0,
                 failed: false,
+                protocol: binding.protocol.clone(),
             };
             let reply = tokio::time::timeout(Duration::from_secs(3), session.read())
                 .await
@@ -101,7 +103,7 @@ mod native {
                 .map_err(|_| IrError::InvalidEventOrder)?;
             let reply: Reply = serde_json::from_value(crate::adapters::json::decode(&bytes)?)
                 .map_err(|_| IrError::UnsupportedVersion)?;
-            if reply.protocol != PROTOCOL || reply.sequence != self.sequence {
+            if reply.protocol != self.protocol || reply.sequence != self.sequence {
                 return Err(IrError::UnsupportedVersion);
             }
             Ok(reply.value)
@@ -112,7 +114,7 @@ mod native {
             }
             self.sequence = self.sequence.checked_add(1).ok_or(IrError::SizeLimit)?;
             let bytes = serde_json::to_vec(&Request {
-                protocol: PROTOCOL.into(),
+                protocol: self.protocol.clone(),
                 sequence: self.sequence,
                 operation,
             })
@@ -160,6 +162,7 @@ mod native {
                     socket: tokio::net::UnixStream::from_std(left).unwrap(),
                     sequence: 0,
                     failed: false,
+                    protocol: PROTOCOL.into(),
                 },
                 right,
             )

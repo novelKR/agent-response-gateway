@@ -14,6 +14,7 @@ use std::{collections::BTreeMap, path::PathBuf};
 #[derive(Clone, Debug)]
 #[cfg_attr(not(unix), allow(dead_code))]
 pub(crate) struct Binding {
+    pub protocol: String,
     pub id: String,
     pub version: String,
     pub package_sha256: String,
@@ -25,7 +26,7 @@ pub(crate) struct Binding {
 }
 impl Binding {
     pub(crate) fn projection(&self) -> Value {
-        json!({"id":self.id,"version":self.version,"package_sha256":self.package_sha256,"executable_sha256":self.executable_sha256,"protocol":contract::PROTOCOL,"replay_versions":[1],"permissions":crate::extensions::CODEC_PERMISSIONS})
+        json!({"id":self.id,"version":self.version,"package_sha256":self.package_sha256,"executable_sha256":self.executable_sha256,"protocol":self.protocol,"replay_versions":[1],"permissions":crate::extensions::CODEC_PERMISSIONS})
     }
 }
 impl Config {

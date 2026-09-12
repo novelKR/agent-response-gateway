@@ -31,6 +31,13 @@ def activate(binary, folder, raw):
     source = {'schema': 'gateway-profile-pack/v1', 'id': 'synthetic-fixture', 'version': '1.0.0',
               'capabilities': capabilities, 'policies': policies, 'evidence': [],
               'notices': {'LICENSE': 'Synthetic fixture declarations; no third-party source content.'}}
+    if config.get('editing_policies'):
+        source['schema']='gateway-profile-pack/v2'
+        source['editing_policies']={}
+        for index,(name,value) in enumerate(config['editing_policies'].items()):
+            export=f'editing-{index}'
+            source['editing_policies'][export]=value
+            imports.append(f'[editing_policy_imports.{json.dumps(name)}]\npack="synthetic-fixture"\nexport={json.dumps(export)}\n')
     source_path, package, store = folder / 'source.json', folder / 'pack.json', folder / 'store'
     source_path.write_text(json.dumps(source), encoding='utf-8')
 
@@ -44,7 +51,7 @@ def activate(binary, folder, raw):
     lines, skip = [], False
     for line in raw.splitlines():
         if line.lstrip().startswith('['):
-            skip = bool(re.match(r'\[(capability_profiles|compatibility_policies)(\.|\])', line.lstrip()))
+            skip = bool(re.match(r'\[(capability_profiles|compatibility_policies|editing_policies)(\.|\])', line.lstrip()))
         if not skip:
             lines.append(line)
     return '\n'.join(lines) + '\n' + '\n'.join(imports), store / 'active.json'

@@ -186,7 +186,12 @@ impl Config {
             .map(|byte| format!("{byte:02x}"))
             .collect();
         Ok(EmbeddedManifest {
-            schema: if self.models.values().any(|m| m.editing_policy.is_some()) {
+            schema: if self.models.values().any(|m| m.editing_policy.is_some())
+                || self
+                    .profile_packs
+                    .as_ref()
+                    .is_some_and(|p| p.editing_contract())
+            {
                 "gateway-embedded-manifest/v7"
             } else if self.models.values().any(|m| m.api_codec.is_some()) {
                 "gateway-embedded-manifest/v6"

@@ -43,10 +43,10 @@ def validate_manifest(value):
     configuration = value["configuration"]
     version = value["schema"].rsplit("/", 1)[1]
     managed = version == "v3" or (version in {"v4","v5","v6","v7"} and "continuation" in configuration)
-    require(isinstance(configuration, dict) and set(configuration) == ({"listen", "source_url", "local_token_env", "upstream_credential_references", "limits", "routes"} | ({"continuation", "replay_versions"} if managed else {"continuation"} if value["schema"].endswith("/v2") else set()) | ({"profile_packs"} if version == "v5" or (version == "v6" and "profile_packs" in configuration) else set())), "Invalid configuration projection")
+    require(isinstance(configuration, dict) and set(configuration) == ({"listen", "source_url", "local_token_env", "upstream_credential_references", "limits", "routes"} | ({"continuation", "replay_versions"} if managed else {"continuation"} if value["schema"].endswith("/v2") else set()) | ({"profile_packs"} if version == "v5" or (version in {"v6","v7"} and "profile_packs" in configuration) else set())), "Invalid configuration projection")
     if managed:
         require(configuration["replay_versions"] == {"read": [1, 2], "write": 2}, "Unsupported replay contract")
-    if version in {"v5","v6"} and "profile_packs" in configuration:
+    if version in {"v5","v6","v7"} and "profile_packs" in configuration:
         validate_profile_packs(configuration)
     if version in {"v4", "v5", "v6", "v7"}:
         selected = [r["compatibility"] for r in configuration["routes"] if "compatibility" in r]
@@ -61,16 +61,16 @@ def validate_manifest(value):
                 require(policy["tools"][key] in options, "Unsupported tool policy")
     if version == "v7":
         bindings=[r["editing"] for r in configuration["routes"] if "editing" in r]
-        require(bool(bindings), "Editing selection missing")
+        require(bool(bindings) or configuration.get("profile_packs",{}).get("schema")=="gateway-profile-pack-configuration/v2", "Editing selection missing")
         for b in bindings:
             require(set(b)=={"id","contract","policy"} and isinstance(b["id"], str) and b["contract"]=="gateway-editing-policy/v1", "Invalid editing projection")
             require(b["policy"]=={"version":1,"client_contract":"codex-direct-custom/v1","representation":"context-lines/v1","patch_dialect":"codex-patch/1","normalization":"none"}, "Unsupported editing policy")
-    if version == "v6":
+    if version == "v6" or (version == "v7" and any("api_codec" in r for r in configuration["routes"])):
         selected=[route['api_codec'] for route in configuration['routes'] if 'api_codec' in route]
         require(bool(selected), 'Codec selection missing')
         for codec in selected:
             require(set(codec)=={'id','version','package_sha256','executable_sha256','protocol','replay_versions','permissions'}, 'Invalid codec binding')
-            require(codec['protocol']=='gateway-api-codec/v1' and codec['replay_versions']==[1] and codec['permissions']==['read_model_payload','transform_model_protocol'], 'Unsupported codec contract')
+            require(codec['protocol'] in {'gateway-api-codec/v1','gateway-api-codec/v2'} and codec['replay_versions']==[1] and codec['permissions']==['read_model_payload','transform_model_protocol'], 'Unsupported codec contract')
             require(all(isinstance(codec[k],str) and len(codec[k])==64 and all(c in '0123456789abcdef' for c in codec[k]) for k in ('package_sha256','executable_sha256')), 'Invalid codec digest')
     # Integers remain arbitrary precision in both Python and the Rust projection.
     raw = json.dumps(configuration, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
@@ -80,8 +80,8 @@ def validate_manifest(value):
 
 def validate_profile_packs(configuration):
     packs = configuration["profile_packs"]
-    require(isinstance(packs, dict) and set(packs) == {"schema", "activation", "packages", "evidence_status", "capability_imports", "policy_imports"}, "Invalid profile pack projection")
-    require(packs["schema"] == "gateway-profile-pack-configuration/v1" and packs["evidence_status"] == "publisher_claims_not_attestation", "Unsupported profile pack contract")
+    require(isinstance(packs, dict) and set(packs) == ({"schema", "activation", "packages", "evidence_status", "capability_imports", "policy_imports"} | ({"editing_imports"} if packs.get("schema")=="gateway-profile-pack-configuration/v2" else set())), "Invalid profile pack projection")
+    require(packs["schema"] in {"gateway-profile-pack-configuration/v1","gateway-profile-pack-configuration/v2"} and packs["evidence_status"] == "publisher_claims_not_attestation", "Unsupported profile pack contract")
     activation = packs["activation"]
     require(set(activation) == {"schema", "generation", "packs"} and activation["schema"] == "gateway-profile-pack-lock/v1" and type(activation["generation"]) is int and 0 <= activation["generation"] < 2**64, "Invalid profile pack activation")
     entries = activation["packs"]
@@ -90,11 +90,11 @@ def validate_profile_packs(configuration):
     entries = {e["id"]: e for e in entries}
     for name, package in packs["packages"].items():
         entry = entries[name]
-        require(set(package) == {"schema", "id", "version", "capabilities", "policies", "evidence", "notices"} and package["schema"] == "gateway-profile-pack/v1" and package["id"] == name and package["version"] == entry["version"], "Invalid profile pack package")
+        require(set(package) == ({"schema", "id", "version", "capabilities", "policies", "evidence", "notices"} | ({"editing_policies"} if package.get("editing_policies") else set())) and package["schema"] in {"gateway-profile-pack/v1","gateway-profile-pack/v2"} and package["id"] == name and package["version"] == entry["version"], "Invalid profile pack package")
         raw = json.dumps(package, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False).encode() + b"\n"
         require(hashlib.sha256(raw).hexdigest() == entry["package_sha256"], "Profile pack bytes mismatch")
-    for kind, exports in (("capability_imports", "capabilities"), ("policy_imports", "policies")):
-        for binding in packs[kind].values():
+    for kind, exports in (("capability_imports", "capabilities"), ("policy_imports", "policies"), ("editing_imports","editing_policies")):
+        for binding in packs.get(kind,{}).values():
             require(set(binding) == ({"pack", "export", "provider", "upstream_model"} if kind == "capability_imports" else {"pack", "export"}), "Invalid profile pack import")
             require(binding["pack"] in entries and binding["export"] in packs["packages"][binding["pack"]][exports], "Unresolved profile pack import")
     for route in configuration["routes"]:
@@ -102,6 +102,9 @@ def validate_profile_packs(configuration):
         for kind, imports, name in (("capability", "capability_imports", route["capability_profile"]["id"]), ("policy", "policy_imports", route.get("compatibility", {}).get("id"))):
             binding = packs[imports].get(name)
             expected[kind] = None if binding is None else {"pack": binding["pack"], "export": binding["export"], "version": entries[binding["pack"]]["version"], "package_sha256": entries[binding["pack"]]["package_sha256"]}
+        binding=packs.get("editing_imports",{}).get(route.get("editing",{}).get("id"))
+        if binding is not None:
+            expected['editing']={"pack":binding['pack'],"export":binding['export'],"version":entries[binding['pack']]['version'],"package_sha256":entries[binding['pack']]['package_sha256']}
         require(route.get("profile_packs") == (expected if any(expected.values()) else None), "Route pack binding mismatch")
 
 

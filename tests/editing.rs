@@ -29,6 +29,14 @@ fn explicit_policy_binds_manifest_and_request_plan_without_adding_absent_tools()
         )
     ))
     .unwrap();
+    let mut typed = plain.clone();
+    typed.editing_policies = defined.editing_policies.clone();
+    typed.models.get_mut("example/chat").unwrap().editing_policy = Some("context".into());
+    typed.validate().unwrap();
+    assert_eq!(
+        typed.manifest().unwrap().configuration_sha256(),
+        enabled.manifest().unwrap().configuration_sha256()
+    );
     let manifest = enabled.manifest().unwrap();
     assert_eq!(manifest.schema(), "gateway-embedded-manifest/v7");
     assert_ne!(

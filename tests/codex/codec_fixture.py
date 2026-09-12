@@ -6,11 +6,11 @@ ROOT=Path(__file__).resolve().parents[2]
 spec=importlib.util.spec_from_file_location('codec_extension_manager',ROOT/'scripts/extension_manager.py')
 manager=importlib.util.module_from_spec(spec);spec.loader.exec_module(manager)
 
-def activate(executable,folder,raw,store=None):
+def activate(executable,folder,raw,store=None,editing=False):
     folder=Path(folder).resolve();folder.mkdir(mode=0o700,parents=True,exist_ok=False)
     if store is None:store=folder/'store'
     package=folder/'package'
-    digest=manager.package_binary(Path(executable).resolve(),ROOT/'LICENSE',package,'reference-codec','1.0.0','api_codec')
+    digest=manager.package_binary(Path(executable).resolve(),ROOT/'LICENSE',package,'reference-codec','1.0.0','api_codec',manager.EDITING_CODEC_PROTOCOL if editing else manager.CODEC_PROTOCOL)
     manager.install(store,package,digest)
     manager.enable(store,'reference-codec','1.0.0',digest,manager.CODEC_PERMISSIONS)
     lines=[]

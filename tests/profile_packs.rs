@@ -50,9 +50,12 @@ struct Fixture {
 }
 impl Fixture {
     fn new() -> Self {
+        Self::with_source(source())
+    }
+    fn with_source(value: Value) -> Self {
         let root = scratch();
         let source_path = root.path().join("source.json");
-        std::fs::write(&source_path, serde_json::to_vec_pretty(&source()).unwrap()).unwrap();
+        std::fs::write(&source_path, serde_json::to_vec_pretty(&value).unwrap()).unwrap();
         let package = root.path().join("pack.json");
         let report = run(
             &[
@@ -450,4 +453,48 @@ fn package_links_are_rejected() {
     std::fs::remove_file(fixture.installed()).unwrap();
     std::os::unix::fs::symlink(&fixture.package, fixture.installed()).unwrap();
     assert!(ProfilePackPlan::load(&fixture.lock()).is_err());
+}
+
+#[test]
+fn editing_exports_require_v2_and_bind_route_identity() {
+    let mut value = source();
+    value["schema"] = json!("gateway-profile-pack/v2");
+    value["editing_policies"] = json!({"context":{"version":1,"client_contract":"codex-direct-custom/v1","representation":"context-lines/v1","patch_dialect":"codex-patch/1","normalization":"none"}});
+    let f = Fixture::with_source(value.clone());
+    f.enable(true);
+    let raw = config().replace(
+        "[models.writer]",
+        "[models.writer]\nediting_policy=\"editing\"",
+    ) + "\n[editing_policy_imports.editing]\npack=\"synthetic\"\nexport=\"context\"\n";
+    let configured =
+        Config::parse_with_profile_packs(&raw, ProfilePackPlan::load(&f.lock()).unwrap()).unwrap();
+    let manifest = serde_json::to_value(configured.manifest().unwrap()).unwrap();
+    assert_eq!(manifest["schema"], "gateway-embedded-manifest/v7");
+    assert_eq!(
+        manifest["configuration"]["profile_packs"]["schema"],
+        "gateway-profile-pack-configuration/v2"
+    );
+    assert_eq!(
+        manifest["configuration"]["routes"][0]["profile_packs"]["editing"]["export"],
+        "context"
+    );
+    let missing = raw.replace("export=\"context\"", "export=\"absent\"");
+    assert!(
+        Config::parse_with_profile_packs(&missing, ProfilePackPlan::load(&f.lock()).unwrap())
+            .is_err()
+    );
+    value["schema"] = json!("gateway-profile-pack/v1");
+    let path = f.root.path().join("invalid-v1.json");
+    std::fs::write(&path, serde_json::to_vec(&value).unwrap()).unwrap();
+    run(
+        &[
+            "profile-pack",
+            "package",
+            "--source",
+            path.to_str().unwrap(),
+            "--output",
+        ],
+        &[&f.root.path().join("invalid-v1-pack.json")],
+        false,
+    );
 }

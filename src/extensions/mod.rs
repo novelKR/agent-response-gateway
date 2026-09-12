@@ -127,7 +127,7 @@ impl Package {
                         .map(String::as_str)
                         .eq(RECORDER_PERMISSIONS)
                     && self.state_schema == "usage-store/v1")
-                || (self.protocol == crate::codecs::contract::PROTOCOL
+                || (crate::codecs::contract::supported_protocol(&self.protocol)
                     && self
                         .permissions
                         .iter()
@@ -331,11 +331,12 @@ impl ExtensionPlan {
             .extensions
             .iter()
             .zip(&self.packages)
-            .filter(|(_, p)| p.protocol == crate::codecs::contract::PROTOCOL)
+            .filter(|(_, p)| crate::codecs::contract::supported_protocol(&p.protocol))
             .map(|(entry, p)| {
                 (
                     entry.id.clone(),
                     crate::codecs::Binding {
+                        protocol: p.protocol.clone(),
                         id: entry.id.clone(),
                         version: entry.version.clone(),
                         package_sha256: entry.package_sha256.clone(),
@@ -388,7 +389,7 @@ impl ExtensionPlan {
             || self
                 .packages
                 .iter()
-                .any(|p| p.protocol == crate::codecs::contract::PROTOCOL);
+                .any(|p| crate::codecs::contract::supported_protocol(&p.protocol));
         let profile_packs = base_manifest["schema"] == "gateway-embedded-manifest/v5";
         let compatibility = base_manifest["schema"] == "gateway-embedded-manifest/v4";
         let managed = base_manifest["configuration"].get("continuation").is_some();
