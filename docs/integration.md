@@ -144,3 +144,7 @@ inspection must change readiness when its effective configuration differs.
 Changing credential values cannot be detected from a configuration-reference
 digest alone; resume needs a separate credential generation. Follow the
 [embedded contract](embedded-design.md) for lifecycle, access, failure and recovery.
+
+Usage accounting and the optional recorder are described in the
+[token usage accounting guide](usage-accounting.md). Recorder installation,
+local commit guarantees and external delivery are separate from HTTP metadata observation.

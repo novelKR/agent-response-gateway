@@ -34,7 +34,7 @@ model before operational use.
 | Stream error, truncation or unknown semantic event | Fail without manufactured completion or retry |
 | max_tokens finish | Incomplete response |
 | Unknown blocks, citations, state or finish behavior | Explicit error |
-| Usage | Input, cache-read/cache-created input, output and checked total tokens |
+| Usage | Checked input/output/total; cache-read/cache-created details retained |
 | Provider errors | Sanitized HTTP status/error; provider response bodies are not included |
 
 The [instruction mapping](messages-instruction-design.md) preserves text, source
@@ -138,3 +138,7 @@ rules or prompts. The host validates returned data against the requested schema.
 Equal effort labels do not imply equal compute, cost or model behavior.
 See [structured outputs](https://platform.claude.com/docs/en/build-with-claude/structured-outputs)
 and [effort](https://platform.claude.com/docs/en/build-with-claude/effort).
+
+Usage accounting and the optional recorder are described in the
+[token usage accounting guide](usage-accounting.md). Recorder installation,
+local commit guarantees and external delivery are separate from HTTP metadata observation.

@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Gateway usage batch v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "events"
+  ],
+  "properties": {
+    "schema": {
+      "const": "gateway-usage-batch/v1"
+    },
+    "events": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "items": {
+        "$ref": "gateway-usage-event-v1.schema.json"
+      }
+    }
+  }
+}

@@ -70,7 +70,7 @@ impl Config {
                     (key, json!(value))
                 })
                 .collect();
-            routes.push(json!({
+            let mut route_value = json!({
                 "alias":route.alias,"provider_id":snapshot.provider_id,"endpoint":route.endpoint.as_str(),
                 "upstream_model":snapshot.model,"api":snapshot.api,"auth":route.auth,
                 "api_key_env":self.providers[&snapshot.provider_id].api_key_env,
@@ -79,7 +79,12 @@ impl Config {
                     "protocol":snapshot.capabilities.protocol,"support":support},
                 "context_window":snapshot.context_window,"max_output_tokens":snapshot.max_output_tokens,
                 "tested_codex_version":route.tested_codex_version,
-            }));
+            });
+            if self.models[&route.alias].usage_profile.is_some() {
+                route_value["usage_profile"] =
+                    json!(self.models[&route.alias].resolved_usage_profile());
+            }
+            routes.push(route_value);
         }
         // Existing serve requires credentials for every configured provider, including unused ones.
         let credentials: std::collections::BTreeMap<_, _> = self

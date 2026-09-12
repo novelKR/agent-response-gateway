@@ -85,8 +85,8 @@
       "order": 2,
       "source": "docs/chat-completions.md",
       "translation": "docs/ko/chat-completions.md",
-      "source_sha256": "30857811966c98f9651cd30bb32e28abe12fc9615f87de4ea7ea2c4068c8f9d3",
-      "translation_sha256": "05948ce994327a6082fcd52fcac4514b2391f590290ff9eee5f94c735541030c",
+      "source_sha256": "79c85dc111e760602637d9fb9910371617663ba60892bb57691ec68245454607",
+      "translation_sha256": "b49dea120ac95649fd16afea0bc290bcd4922cb489dd73ebb2fa6bec9cd8c1f9",
       "anchors": [
         "chat-completions-adapter-support",
         "chat-completions-어댑터-지원",
@@ -302,8 +302,8 @@
       "order": 0,
       "source": "docs/integration.md",
       "translation": "docs/ko/integration.md",
-      "source_sha256": "4ad64eaa18151c73472a6ee9b01f2a92efc45355ecd235a044e8e357fe481b4c",
-      "translation_sha256": "dd96b52c81bb9bf15e0232162b03cbb18b896e1017768d840d2cc28a6d1a7bb9",
+      "source_sha256": "688024551e6df070078e8988df7a1a271f7465c50eedf524382e7e8621ca1020",
+      "translation_sha256": "03e74bdbcf6546edd9de7497d58835e914e1ba89c45eb1d208a68efc1c75d19a",
       "anchors": [
         "application-integration",
         "calling-from-a-backend-service",
@@ -394,8 +394,8 @@
       "order": 1,
       "source": "docs/messages.md",
       "translation": "docs/ko/messages.md",
-      "source_sha256": "35564a6150ffc664e62f475b919d5417748a2e8519263394ae9a021f198b42a3",
-      "translation_sha256": "71b2b84fde3dea297bbef7c5d70cea02e4ee1b345567cca16081af0edda14a85",
+      "source_sha256": "c773d93cbc1cfe93cf21a34be5acf955133eb84baa6c7a639efde153832e23a0",
+      "translation_sha256": "2e5655e6bd913c2a88332100af0767952e011a7a3c51297800d7478d56c2328b",
       "anchors": [
         "codex-test-profile",
         "codex-시험-프로필",
@@ -488,8 +488,8 @@
       "order": 0,
       "source": "docs/release.md",
       "translation": "docs/ko/release.md",
-      "source_sha256": "54b229247bada07cd41a9e32555c3fbc33d9ab2fb6d5c036099307b83f28dbca",
-      "translation_sha256": "626e1f661458abbff1cc299cca32bfafa7da97e8e849ae2674ba91bd3398f274",
+      "source_sha256": "3abbf134c70ca5f0b3bbf9b89d18443638c8f0937595818998f131600e4de702",
+      "translation_sha256": "01b2cc05697d583b0de544e8cbb431901d7971256970c70886a8042130b0824e",
       "anchors": [
         "consumer-adoption-and-recovery",
         "distribution-preparation-and-version-pinning",
@@ -618,8 +618,8 @@
       "order": 3,
       "source": "licensing/README.md",
       "translation": "licensing/README.ko.md",
-      "source_sha256": "68c6442fd1e9e19a0442dd3cdad5cedae89fb58cbbe54cb0636726dd110f6d4e",
-      "translation_sha256": "4e4f952c360e0760b87a8aed61d38ddf11f5ea89ecd3dbc4451149e12260abd2",
+      "source_sha256": "15178cb0726357611c9304d96707c2a365b03c8ca11a27ac82d44ed228b389e0",
+      "translation_sha256": "96189e50f4c2179a2f7cd2f0cf4e1870270b6dcf5b015c7653aafb0e6959ec2b",
       "anchors": [
         "check-refresh-and-bundle",
         "evaluation-and-special-originals",
@@ -771,8 +771,8 @@
         "패키지와-권한-계약",
         "프로세스-수명과-장애-정책"
       ],
-      "source_sha256": "f40d9f058f26bb91973bdabef7dd42c07a7b809041e309d6fec399ad9f991c1c",
-      "translation_sha256": "8854e11a0ec32989042515c9787b366df01f6b1f8527f8e8038d71f6d8ef3315"
+      "source_sha256": "ef49ad0a71981193cdf4ca368bc4d03c2124fb2cc664d8f2648f641eb2019c6f",
+      "translation_sha256": "bd36eeb714a3408c76a5f1cadd908b320512a1912299430c75d9a4eb3fef8593"
     },
     {
       "id": "extensions",
@@ -797,8 +797,8 @@
         "설치와-승인-및-활성화",
         "요구사항과-지원-범위"
       ],
-      "source_sha256": "21d904efb0c60acfb08b652991cd4df154989e751f1c597c785ba6a516036621",
-      "translation_sha256": "d131d9e760a5eccdcb173a6494bb7e1ba0212c5bf3a5c003e3e2a178dc0b0c13"
+      "source_sha256": "e19928a3b48e501e69c904dfcc5ec17c6a8b3be3976e3737faade41f674013a1",
+      "translation_sha256": "ca29b9961df6788eb1c6ab39cadac7ce41f3ac9196b18b40585efb67ec530033"
     },
     {
       "id": "interactions-design",
@@ -812,6 +812,31 @@
         "gemini-interactions-design"
       ],
       "route": "/guide/interactions-design"
+    },
+    {
+      "id": "usage-accounting",
+      "section": "integration",
+      "order": 30,
+      "source": "docs/usage-accounting.md",
+      "translation": "docs/ko/usage-accounting.md",
+      "source_sha256": "fdbf65c3f872dda35edc0d33fe68385b931f5bd8ced95a760fb7d3642be08e8d",
+      "translation_sha256": "fe9fbc47cf1de05020e02799964c458b37d81de829599073f1c2c0c6ac4e3a6d",
+      "anchors": [
+        "delivery-guarantees",
+        "external-export",
+        "queries-and-maintenance",
+        "recorder-installation",
+        "recorder-설치",
+        "token-meaning",
+        "token-usage-accounting",
+        "usage-accounting",
+        "외부-전송",
+        "전달-보장",
+        "조회와-유지보수",
+        "토큰-사용량-계측",
+        "토큰-의미"
+      ],
+      "route": "/guide/usage-accounting"
     }
   ]
 }
