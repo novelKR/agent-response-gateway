@@ -287,6 +287,15 @@ PRAGMA user_version=1;COMMIT;")?;
         if old_identity.as_ref().is_some_and(|v| *v != identity) {
             return Ok(ReceiptStatus::Conflict);
         }
+        let latest_revision: Option<i64> = tx.query_row(
+            "SELECT MAX(revision) FROM usage_events WHERE producer_id=?1 AND attempt_id=?2",
+            params![event.producer_id, event.attempt_id],
+            |r| r.get(0),
+        )?;
+        if event.kind == EventKind::AttemptFinished && latest_revision.is_some_and(|v| v > revision)
+        {
+            return Ok(ReceiptStatus::Conflict);
+        }
         let final_revision:Option<i64>=tx.query_row("SELECT revision FROM usage_events WHERE producer_id=?1 AND attempt_id=?2 AND kind='attempt_finished'",params![event.producer_id,event.attempt_id],|r|r.get(0)).optional()?;
         if final_revision.is_some_and(|v| revision >= v || event.kind == EventKind::AttemptFinished)
         {

@@ -86,6 +86,7 @@ fn pg_batch(d: &Destination, events: &[UsageEvent]) -> Result<Vec<Receipt>> {
             let finished = e.kind == gateway_usage_contract::EventKind::AttemptFinished;
             let conflict = rows.iter().any(|r| {
                 r.get::<_, String>(0) != identity
+                    || (finished && r.get::<_, i64>(1) > rev)
                     || (r.get::<_, String>(2) == "attempt_finished"
                         && (rev >= r.get::<_, i64>(1) || finished))
             });

@@ -31,12 +31,18 @@ def run():
             reservation.bind(('127.0.0.1', 0))
             port = reservation.getsockname()[1]
         with (data / 'postgresql.conf').open('a') as f:
-            f.write(f"\nlisten_addresses='127.0.0.1'\nport={port}\nunix_socket_directories='{root}'\nssl=on\nssl_cert_file='{cert}'\nssl_key_file='{key}'\n")
+            f.write(f"\nlisten_addresses='127.0.0.1'\nport={port}\nunix_socket_directories=''\nssl=on\nssl_cert_file='{cert}'\nssl_key_file='{key}'\n")
         connection = root / 'connection'
         connection.write_text(f'host=127.0.0.1 port={port} user=usage_test dbname=postgres sslmode=require')
         connection.chmod(0o600)
         try:
-            command([tools['pg_ctl'], '-D', str(data), '-l', str(root / 'postgres.log'), '-w', 'start'])
+            try:
+                # Only TCP is used; disable Unix sockets to avoid filesystem path-length limits.
+                command([tools['pg_ctl'], '-D', str(data), '-l', str(root / 'postgres.log'), '-w', 'start'])
+            except subprocess.CalledProcessError:
+                # This is a disposable synthetic database, never a user/production log.
+                print((root / 'postgres.log').read_text()[-8192:])
+                raise
             subprocess.run(['cargo', 'test', '-p', 'gateway-usage-recorder', '--locked', '--test', 'postgres', '--', '--ignored'], cwd=ROOT, env={**os.environ, 'USAGE_TEST_PG_CONNECTION_FILE': str(connection), 'USAGE_TEST_PG_CA_FILE': str(cert)}, check=True)
         finally:
             if (data / 'postmaster.pid').exists():

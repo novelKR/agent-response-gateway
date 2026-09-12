@@ -9,6 +9,8 @@ use std::{
 };
 use tokio::sync::{mpsc, oneshot};
 
+// The native IPC receiver is currently Unix-only; other targets retain the core API.
+#[cfg_attr(not(unix), allow(dead_code))]
 pub(crate) struct Delivery {
     pub event: UsageEvent,
     pub ack: oneshot::Sender<bool>,

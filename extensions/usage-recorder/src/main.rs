@@ -202,7 +202,11 @@ fn run(cli: Cli) -> Result<()> {
             for row in stmt.query_map(rusqlite::params![attempt, limit.min(1000) as i64], |r| {
                 r.get::<_, String>(0)
             })? {
-                println!("{}", row?);
+                let event: UsageEvent = serde_json::from_str(&row?)?;
+                println!(
+                    "{}",
+                    serde_json::json!({"event":event,"non_read_input_tokens":event.usage.non_read_input_tokens()})
+                );
             }
         }
         Command::Export {

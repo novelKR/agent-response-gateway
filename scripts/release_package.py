@@ -277,6 +277,25 @@ def make_sbom(metadata, built, records, target, version, commit, binary_digest, 
     components = []
     for ident in sorted(reached - {root}, key=refs.get):
         package = packages[ident]
+        if package["source"] is None:
+            relative = license_audit.LOCAL_PACKAGES.get(package["name"])
+            require(relative is not None and package["name"] != "agent-response-gateway"
+                    and package["version"] == version and package.get("license") == "AGPL-3.0-only"
+                    and ident in metadata.get("workspace_members", [])
+                    and Path(package.get("manifest_path", "")).resolve() == Path(metadata.get("workspace_root", "")) / relative,
+                    "compiled local package lacks reviewed source/license evidence")
+            components.append({"type":"library", "bom-ref":refs[ident], "purl":refs[ident],
+                "name":package["name"], "version":package["version"],
+                "scope":"required" if ident in runtime else "excluded",
+                "licenses":[{"expression":"AGPL-3.0-only"}],
+                "properties":[{"name":"gateway:cargo-source", "value":"local workspace"},
+                    {"name":"gateway:source-commit", "value":commit},
+                    {"name":"gateway:manifest-path", "value":relative},
+                    {"name":"gateway:hash-scope", "value":"included in the verified corresponding source archive"},
+                    {"name":"gateway:compiled-features", "value":json.dumps(sorted(built[ident]["features"]))},
+                    {"name":"gateway:compiled-target-kinds", "value":json.dumps(sorted(built[ident]["kinds"]))},
+                    {"name":"gateway:scope", "value":"runtime-source-dependency" if ident in runtime else "build-only-or-procedural-macro"}]})
+            continue
         record = evidence.get((package["name"], package["version"], package["source"]))
         require(record is not None and package["source"] == license_audit.REGISTRY, "compiled package lacks reviewed source/license evidence")
         components.append({"type":"library", "bom-ref":refs[ident], "purl":refs[ident], "name":package["name"], "version":package["version"],

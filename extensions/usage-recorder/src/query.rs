@@ -57,6 +57,8 @@ pub fn aggregate(store: &Store, from: u64, to: u64, timezone: &str) -> Result<Va
             e.usage.value("input_tokens"),
             e.usage.value("cache_read_input_tokens"),
         ) {
+            *g.sums.entry("non_read_input_tokens".into()).or_default() += u128::from(input - read);
+            *g.known.entry("non_read_input_tokens".into()).or_default() += 1;
             g.ratio_input += u128::from(input);
             g.ratio_read += u128::from(read);
             g.ratio_calls += 1;

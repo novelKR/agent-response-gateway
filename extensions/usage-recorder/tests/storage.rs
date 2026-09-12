@@ -158,3 +158,23 @@ fn retention_keeps_deduplication_tombstones_and_monotonic_export_cursors() {
         .unwrap();
     assert!(cursor > 1);
 }
+
+#[test]
+fn contradictory_terminal_revision_cannot_leave_a_newer_unfinished_snapshot() {
+    let d = directory();
+    let mut s = Store::open(d.path(), true, true).unwrap();
+    let c = config();
+    s.record(&event(5, EventKind::UsageUpdated), &c).unwrap();
+    assert_eq!(
+        s.record(&event(3, EventKind::AttemptFinished), &c).unwrap(),
+        ReceiptStatus::Conflict
+    );
+    let result = std::process::Command::new(env!("CARGO_BIN_EXE_gateway-usage-recorder"))
+        .args(["query", "--store"])
+        .arg(d.path())
+        .output()
+        .unwrap();
+    assert!(result.status.success());
+    let row: serde_json::Value = serde_json::from_slice(&result.stdout).unwrap();
+    assert_eq!(row["non_read_input_tokens"].as_u64(), Some(u64::MAX - 4));
+}

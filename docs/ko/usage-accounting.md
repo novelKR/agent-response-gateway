@@ -183,7 +183,8 @@ Recorder CLI는 `status`, `query`, `export`, `aggregate`, `backup`, `migrate`,
 `serve`를 제외하면 `--store`를 받는다. 읽기 전용 조회는 실행 중에도 가능하며
 유지보수·수동 전송은 쓰기 작업자를 중지한 뒤 수행한다.
 
-`query --attempt`는 호출을 선택하고 `--limit`은 1000으로 제한한다. `export`는
+`query --attempt`는 이벤트와 파생값 `non_read_input_tokens`를 반환하고
+`--limit`은 1000으로 제한한다. `export`는
 `--after-rowid`용 커서와 불변 이벤트를 반환한다. `aggregate --from-ms --to-ms
 --timezone`은 호출 시작 시각에 귀속된 반개구간을 사용하며 기본 UTC와 IANA
 시간대를 지원한다. 정확한 합계와 함께 필드 관측 수, 최종·부분·미관측 호출,

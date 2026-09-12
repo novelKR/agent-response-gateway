@@ -189,7 +189,8 @@ The recorder CLI provides `status`, `query`, `export`, `aggregate`, `backup`,
 `serve`, which runs in the activated ledger directory. Read-only queries may run
 while serving; maintenance and manual export require the writer to be stopped.
 
-`query --attempt` selects a call; `--limit` is capped at 1000. `export` returns
+`query --attempt` returns the event and derived `non_read_input_tokens`;
+`--limit` is capped at 1000. `export` returns
 immutable events with a cursor for `--after-rowid`. `aggregate --from-ms --to-ms
 --timezone` uses a half-open interval attributed to attempt start time, defaulting
 to UTC and allowing IANA zones. It returns field observation counts, final/partial/
