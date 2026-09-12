@@ -51,6 +51,7 @@ pub enum Support {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CapabilityProfile {
+    pub reasoning_contract: Option<super::reasoning::ReasoningContract>,
     pub id: String,
     pub version: String,
     pub protocol: ApiProtocol,
@@ -61,6 +62,14 @@ impl CapabilityProfile {
     pub fn validate(&self) -> Result<(), IrError> {
         if self.id.is_empty() || self.version.is_empty() {
             return Err(IrError::InvalidField("capability_profile"));
+        }
+        if let Some(contract) = &self.reasoning_contract {
+            contract.validate(self.protocol)?;
+            if self.support(Feature::ReasoningSummary) != Support::Native
+                || self.support(Feature::ReasoningItems) != Support::Native
+            {
+                return Err(IrError::UnsupportedFeature);
+            }
         }
         for (feature, support) in &self.support {
             match support {

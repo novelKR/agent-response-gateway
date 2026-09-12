@@ -25,7 +25,8 @@ JSON 응답과 SSE 스트림을 변환한다. [설정 예제](../../config.messa
 | 엄격한 함수 인자 | strict_tool_arguments 선언 시 공급자의 strict 필드 설정 |
 | 엄격한 JSON 스키마 출력 | output_config.format 규칙 보존; strict_structured_output·structured_output 필수 |
 | 추론 강도 | output_config.effort의 low/medium/high/xhigh/max 지원; 다른 값은 거부 |
-| 느슨한 JSON 스키마/json_object, 추론 요약·상태, verbosity | 미지원 |
+| 느슨한 JSON 스키마/json_object, verbosity | 미지원 |
+| thinking 요약과 원본 상태 | 명시적인 managed Claude 계약에서만 지원; [관리형 thinking](#managed-thinking) 참고 |
 | 비스트리밍 텍스트·도구 출력 | 출력 이벤트 검사 후 Responses JSON 생성; 중복 JSON 키 거부 |
 | 텍스트·함수 인자 스트림 | 고정 ID·인덱스·일련번호를 가진 증분 Responses 이벤트 |
 | 사용자 정의 입력 스트림 | 도구별로 모은 뒤 JSON 포장과 문법을 검사하고 원래 입력 복원 |
@@ -104,7 +105,7 @@ SSE 주석만 보내는 스트림에도 적용된다. Responses 원형 전달은
 
 변환 이력은 메시지·도구 호출 상태가 생략되었거나 completed이고, 출력 텍스트의
 주석이 생략되었거나 비어 있을 때 허용한다. 미완료 호출, 의미 있는 주석,
-추론 요약, verbosity, 불투명 상태와 공급자 실행 검색은 거부한다.
+기본 stateless 모드에서는 추론 요약, verbosity, 불투명 상태와 공급자 실행 검색을 거부한다.
 도구·텍스트·도구 순서의 assistant 내용은 결과 앞에서 유지하며,
 일부 도구 결과만 받은 뒤 assistant가 이어지는 이력은 거부한다.
 
@@ -132,6 +133,81 @@ Responses text.format에 보존하고 스키마 규칙이나 프롬프트에 넣
 같아도 연산량·비용·모델 동작이 같다는 뜻은 아니다.
 [구조화 출력](https://platform.claude.com/docs/en/build-with-claude/structured-outputs)과
 [추론 강도](https://platform.claude.com/docs/en/build-with-claude/effort)를 참조한다.
+
+<a id="managed-thinking"></a>
+
+## 관리형 thinking
+
+Messages는 기본적으로 stateless이다. Claude thinking을 사용하려면 모델에서
+continuation_mode="managed"를 선택하고 [continuation 저장소와 호스트 세션](interactions.md#host-control-and-resume)을
+설정한 뒤 capability profile에 reasoning_contract를 선언한다. DB 설정만으로
+reasoning이 활성화되지는 않는다. 호스트는 세션을 생성하고 Codex에 x-gateway-session을
+전달하며 별도 제어 토큰·안정적인 보호 키·DB를 보관한다. 게이트웨이는 공통
+attempt/finalize 경계와 ReplayV2를 사용하며 도구 실행은 호스트가 담당한다.
+
+Adaptive 프로필의 설정 일부는 다음과 같다.
+
+```toml
+[models.claude]
+provider = "claude"
+upstream_model = "YOUR_QUALIFIED_MODEL"
+api = "messages"
+auth = "api_key"
+messages_version = "2023-06-01"
+capability_profile = "claude"
+continuation_mode = "managed"
+
+[capability_profiles.claude.reasoning_contract]
+kind = "claude_adaptive"
+version = 1
+efforts = ["low", "medium", "high"]
+default_effort = "medium"
+allow_forced_tools = false
+```
+
+프로필의 provider/model/API 및 맥락·출력 한도 선언도 유지한다. support 표에는
+reasoning_summary="native"와 reasoning_items="native"가 필요하며, 클라이언트가
+추론 강도를 요청하면 reasoning_effort="native"도 선언한다. 선택한 effort는
+efforts에 포함되어야 한다. 강제 도구 선택은 별도로 검증한 Adaptive 프로필에서
+allow_forced_tools=true를 명시해야 하며 기본값은 거부한다.
+
+Manual thinking에는 reasoning_contract 표를 다음으로 교체한다.
+
+```toml
+[capability_profiles.claude.reasoning_contract]
+kind = "claude_manual"
+version = 1
+budget_tokens = 2048
+effort_budgets = { low = 1024, medium = 2048, high = 4096 }
+interleaved_beta = true
+```
+
+명시된 effort는 effort_budgets의 정확한 항목을 선택하며, effort가 없으면
+budget_tokens를 사용한다. 모든 예산은 1024 이상이고 max_tokens보다 작아야 한다.
+Manual thinking은 강제 도구 선택을 거부한다. interleaved_beta=true는
+anthropic-beta: interleaved-thinking-2025-05-14를 명시적으로 전송한다. 모델명에서
+beta를 추론하지 않는다. 이 계약의 두 모드는 temperature와 top_p 제어를 거부한다.
+pending tool 턴에서는 thinking 모드·예산·effort를 유지해야 하며, 변경은 attempt
+생성이나 제공자 전송 전에 거부한다.
+
+두 프로필은 thinking.display="summarized"를 요청한다. 공개 thinking 텍스트는
+reasoning 전용 응답을 포함해 Responses reasoning summary로 표시한다. 텍스트가
+없는 signed thinking과 redacted_thinking도 암호화된 원본 content block에 그대로
+보존한다. signature·redacted data를 표시하거나 숨겨진 텍스트를 복원하거나 다른
+모델을 호출해 요약하지 않는다. 도구를 거쳐도 원본 block 순서를 유지한다.
+reasoning.summary="auto"는 공개 표시를 선택하며 concise와 detailed는 거부한다.
+알 수 없는 block, 누락 signature, 잘못된 index와 잘린 스트림은 명시적으로 실패한다.
+기본 Messages 경로에서는 이 확장을 허용하지 않는다.
+
+usage 입력 합계는 비캐시 입력에 cache-read와 cache-creation 토큰을 더한다. 출력에는
+thinking이 이미 포함되므로 다시 더하지 않는다. 누락 카운터는 unknown으로 유지한다.
+Codex 0.154.0은 상세 객체 안의 null 정수를 해석하지 못하므로 알 수 없는 선택적 상세
+필드는 생략한다. 표시 텍스트 길이로 토큰 수를 추산하지 않는다.
+
+합성 Codex 0.154.0 시험은 두 프로필의 reasoning 알림·도구·재시작·payload 복원·
+호스트 관리 압축·명시 복구를 다룬다. [wire 범위](../../tests/reasoning/wire-lock.json)에
+검토한 계약과 원본 digest를 고정한다. 이는 모의 프로토콜·복구 지원이며 실제 Claude
+모델 qualification이 아니다. 모델·경로·reasoning 계약 변경에는 새 binding의 세션이 필요하다.
 
 사용량 계측과 선택형 Recorder는 [토큰 사용량 계측 안내](usage-accounting.md)를
 참조한다. Recorder 설치·로컬 커밋 보장·외부 전달은 HTTP 메타데이터 관찰과

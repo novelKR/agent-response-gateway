@@ -1,4 +1,5 @@
 //! Messages v1 request and response codec for the declared subset.
+pub(crate) mod managed_stream;
 mod stream;
 use std::collections::BTreeMap;
 pub use stream::MessagesStream;
@@ -30,6 +31,7 @@ pub struct PreparedMessages {
     model: String,
     tools: PreparedTools,
     text_format: Option<Value>,
+    pub(crate) reasoning_controls: Option<Value>,
 }
 
 fn unsupported() -> IrError {
@@ -85,11 +87,32 @@ pub(crate) fn encode_admitted(
     request: &RequestIR,
     plan: &TranslationPlan,
 ) -> Result<PreparedMessages, IrError> {
+    encode_with_history(
+        request,
+        plan,
+        &crate::ir::continuity::VerifiedProviderHistory::default(),
+        false,
+    )
+}
+
+pub(crate) fn encode_with_history(
+    request: &RequestIR,
+    plan: &TranslationPlan,
+    history: &crate::ir::continuity::VerifiedProviderHistory,
+    managed: bool,
+) -> Result<PreparedMessages, IrError> {
     if plan.route.api != ApiProtocol::Messages {
         return Err(IrError::WrongProtocol);
     }
+    let contract = plan.route.capabilities.reasoning_contract.as_ref();
+    if managed != contract.is_some() {
+        return Err(unsupported());
+    }
     // Profile declarations cannot enable an unimplemented semantic conversion.
     for feature in plan.required.iter() {
+        if managed && matches!(feature, Feature::ReasoningSummary | Feature::ReasoningItems) {
+            continue;
+        }
         if !matches!(
             feature,
             Feature::Instructions
@@ -152,7 +175,30 @@ pub(crate) fn encode_admitted(
     match &request.input {
         Some(Input::Text(text)) => push_message(&mut messages, "user", vec![text_block(text)]),
         Some(Input::Items(items)) => {
-            for (position, item) in items.iter().enumerate() {
+            let mut position = 0;
+            while position < items.len() {
+                if let Some((end, native)) = history.segments.get(&position) {
+                    let crate::ir::continuity::NativeReplay::Messages {
+                        version: 1, blocks, ..
+                    } = native
+                    else {
+                        return Err(IrError::ContinuityMismatch);
+                    };
+                    if *end < position || *end > items.len() || !pending.is_empty() {
+                        return Err(IrError::InvalidToolMapping);
+                    }
+                    for item in &items[position..*end] {
+                        if let Item::ToolCall(call) = item {
+                            pending.insert(call.call_id.clone(), (call, true));
+                        }
+                    }
+                    push_message(&mut messages, "assistant", blocks.clone());
+                    if *end > position {
+                        position = *end;
+                        continue;
+                    }
+                }
+                let item = &items[position];
                 match item {
                     Item::Message(message)
                         if matches!(message.role, Role::System | Role::Developer) =>
@@ -202,7 +248,7 @@ pub(crate) fn encode_admitted(
                         {
                             return Err(IrError::InvalidToolMapping);
                         }
-                        pending.insert(call.call_id.clone(), call);
+                        pending.insert(call.call_id.clone(), (call, false));
                         push_message(
                             &mut messages,
                             "assistant",
@@ -215,7 +261,9 @@ pub(crate) fn encode_admitted(
                         let call = pending
                             .remove(&result.call_id)
                             .ok_or(IrError::InvalidToolMapping)?;
-                        registry.lower_result(result, call)?;
+                        if !call.1 {
+                            registry.lower_result(result, call.0)?;
+                        }
                         let output = result.output.as_str().ok_or(unsupported())?;
                         push_message(
                             &mut messages,
@@ -227,6 +275,16 @@ pub(crate) fn encode_admitted(
                     }
                     _ => return Err(unsupported()),
                 }
+                position += 1;
+            }
+            if let Some((_, native)) = history.segments.get(&items.len()) {
+                let crate::ir::continuity::NativeReplay::Messages {
+                    version: 1, blocks, ..
+                } = native
+                else {
+                    return Err(IrError::ContinuityMismatch);
+                };
+                push_message(&mut messages, "assistant", blocks.clone());
             }
         }
         None => {}
@@ -323,7 +381,8 @@ pub(crate) fn encode_admitted(
             _ => return Err(unsupported()),
         }
     }
-    if let Some(reasoning) = &request.generation.reasoning
+    if !managed
+        && let Some(reasoning) = &request.generation.reasoning
         && let Some(effort) = &reasoning.effort
     {
         if !matches!(effort.as_str(), "low" | "medium" | "high" | "xhigh" | "max") {
@@ -342,7 +401,15 @@ pub(crate) fn encode_admitted(
             payload.insert(name.into(), Value::Number(value.clone()));
         }
     }
+    let reasoning_controls = contract.map(|c| c.controls(request, maximum)).transpose()?;
+    if let Some(controls) = &reasoning_controls {
+        payload.insert("thinking".into(), controls["thinking"].clone());
+        if let Some(effort) = controls.get("effort") {
+            payload.entry("output_config").or_insert_with(|| json!({}))["effort"] = effort.clone();
+        }
+    }
     Ok(PreparedMessages {
+        reasoning_controls,
         payload: Value::Object(payload),
         model: plan.route.model.clone(),
         tools: PreparedTools::new(registry, request),
@@ -379,8 +446,50 @@ impl PreparedMessages {
         let mut tool_count = 0;
         for (index, block) in content.iter().enumerate() {
             let item_id = ItemId::new(format!("item_{}_{}", string(&value, "id")?, index))?;
-            let index = OutputIndex(u32::try_from(index).map_err(|_| IrError::SizeLimit)?);
+            let index = OutputIndex(u32::try_from(output.len()).map_err(|_| IrError::SizeLimit)?);
             match string(block, "type")? {
+                "redacted_thinking" if self.reasoning_controls.is_some() => {
+                    known_fields(block, &["type", "data"])?;
+                    if string(block, "data")?.is_empty() {
+                        return Err(unsupported());
+                    }
+                    continue;
+                }
+                "thinking" if self.reasoning_controls.is_some() => {
+                    known_fields(block, &["type", "thinking", "signature"])?;
+                    let text = string(block, "thinking")?;
+                    if string(block, "signature")?.is_empty() {
+                        return Err(unsupported());
+                    }
+                    if text.is_empty() {
+                        continue;
+                    }
+                    validator.apply(EventIR::ItemStarted {
+                        id: item_id.clone(),
+                        index,
+                        kind: OutputKind::Reasoning,
+                    })?;
+                    validator.apply(EventIR::PartStarted {
+                        item: item_id.clone(),
+                        index: ContentIndex(0),
+                        kind: EventPartKind::ReasoningText,
+                    })?;
+                    for chunk in event_text_chunks(text) {
+                        validator.apply(EventIR::TextDelta {
+                            item: item_id.clone(),
+                            index: ContentIndex(0),
+                            text: chunk.into(),
+                        })?;
+                    }
+                    validator.apply(EventIR::PartFinished {
+                        item: item_id.clone(),
+                        index: ContentIndex(0),
+                    })?;
+                    output.push(crate::continuation::public_reasoning(
+                        item_id.as_str(),
+                        text,
+                    ));
+                }
                 "text" => {
                     known_fields(block, &["type", "text", "citations"])?;
                     if block
@@ -461,11 +570,21 @@ impl PreparedMessages {
             validator.apply(EventIR::ItemFinished { item: item_id })?;
         }
         let (terminal, reason) = self.terminal(string(&value, "stop_reason")?, tool_count)?;
-        let (input_total, generated, total) =
-            usage(value.get("usage").ok_or(IrError::InvalidField("usage"))?)?;
+        let metrics = if self.reasoning_controls.is_some() {
+            managed_usage(value.get("usage"))?
+        } else {
+            let (input, output, total) =
+                usage(value.get("usage").ok_or(IrError::InvalidField("usage"))?)?;
+            response_usage(
+                value.get("usage").ok_or(IrError::InvalidField("usage"))?,
+                input,
+                output,
+                total,
+            )
+        };
         validator.apply(EventIR::UsageUpdated(Usage {
-            input_tokens: Some(input_total),
-            output_tokens: Some(generated),
+            input_tokens: metrics["input_tokens"].as_u64(),
+            output_tokens: metrics["output_tokens"].as_u64(),
         }))?;
         validator.apply(EventIR::Finished {
             status: terminal,
@@ -484,7 +603,7 @@ impl PreparedMessages {
         let mut response = json!({"id":id.as_str(),"object":"response","created_at":std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_err(|_| IrError::InvalidField("response_time"))?.as_secs(),"model":self.model,"status":status,"output":output,
             "error":Value::Null,
             "incomplete_details":if terminal == Terminal::Incomplete {json!({"reason":reason})} else {Value::Null},
-            "usage":response_usage(value.get("usage").ok_or(IrError::InvalidField("usage"))?, input_total, generated, total)});
+            "usage":metrics});
         self.reflect_format(&mut response);
         Ok(response)
     }
@@ -533,6 +652,87 @@ fn usage(usage: &Value) -> Result<(u64, u64, u64), IrError> {
         .checked_add(generated)
         .ok_or(IrError::InvalidField("usage"))?;
     Ok((input_total, generated, total))
+}
+
+impl PreparedMessages {
+    pub(crate) fn decode_managed(
+        &self,
+        value: Value,
+    ) -> Result<crate::adapters::managed::ManagedOutput, IrError> {
+        known_fields(
+            &value,
+            &[
+                "id",
+                "type",
+                "role",
+                "model",
+                "content",
+                "stop_reason",
+                "stop_sequence",
+                "usage",
+            ],
+        )?;
+        let controls = self.reasoning_controls.clone().ok_or(unsupported())?;
+        let response = self.decode(value.clone())?;
+        if response["status"] != "completed" {
+            return Err(IrError::InvalidEventOrder);
+        }
+        let blocks = value["content"]
+            .as_array()
+            .filter(|b| !b.is_empty())
+            .ok_or(unsupported())?
+            .clone();
+        Ok(crate::adapters::managed::ManagedOutput {
+            outcome: if value["stop_reason"] == "tool_use" {
+                crate::continuation::Outcome::AwaitingTools
+            } else {
+                crate::continuation::Outcome::Completed
+            },
+            native: crate::continuation::NativeReplay::Messages {
+                version: 1,
+                blocks,
+                controls,
+            },
+            response,
+        })
+    }
+}
+
+fn managed_usage(value: Option<&Value>) -> Result<Value, IrError> {
+    let missing = json!({});
+    let value = value.filter(|v| !v.is_null()).unwrap_or(&missing);
+    let fields = object(value)?;
+    let number = |key: &str| -> Result<Option<u64>, IrError> {
+        match fields.get(key) {
+            None | Some(Value::Null) => Ok(None),
+            Some(v) => v.as_u64().map(Some).ok_or(IrError::InvalidField("usage")),
+        }
+    };
+    let input = number("input_tokens")?;
+    let output = number("output_tokens")?;
+    let cached = number("cache_read_input_tokens")?;
+    let created = number("cache_creation_input_tokens")?;
+    let input = input
+        .map(|n| {
+            n.checked_add(cached.unwrap_or(0))
+                .and_then(|n| n.checked_add(created.unwrap_or(0)))
+                .ok_or(IrError::InvalidField("usage"))
+        })
+        .transpose()?;
+    let total = input
+        .zip(output)
+        .map(|(i, o)| i.checked_add(o).ok_or(IrError::InvalidField("usage")))
+        .transpose()?;
+    let mut result = json!({"input_tokens":input,"output_tokens":output,"total_tokens":total});
+    if let Some(cached) = cached {
+        result["input_tokens_details"] = json!({"cached_tokens":cached});
+        if let Some(created) = created {
+            result["input_tokens_details"]["cache_creation_tokens"] = json!(created);
+        }
+    }
+    // The pinned Codex accepts omitted optional counters, not null integers
+    // inside details objects. Never invent zero for an unknown provider count.
+    Ok(result)
 }
 
 fn response_usage(raw: &Value, input: u64, output: u64, total: u64) -> Value {

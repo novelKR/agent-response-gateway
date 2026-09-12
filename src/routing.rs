@@ -16,6 +16,7 @@ use crate::{
 
 #[derive(Clone, Debug)]
 pub struct ResolvedRoute {
+    pub managed: bool,
     pub alias: String,
     pub endpoint: Url,
     pub auth: UpstreamAuth,
@@ -57,6 +58,7 @@ impl Config {
             adapter_version: "1".into(),
             capabilities: profile.map_or_else(
                 || CapabilityProfile {
+                    reasoning_contract: None,
                     id: "unqualified-passthrough".into(),
                     version: "1".into(),
                     protocol: model.api,
@@ -71,6 +73,13 @@ impl Config {
             .validate()
             .map_err(|_| ConfigError("Invalid route snapshot".into()))?;
         Ok(ResolvedRoute {
+            managed: model.continuation_mode.unwrap_or(
+                if model.api == ApiProtocol::GeminiInteractions {
+                    crate::config::ContinuationMode::Managed
+                } else {
+                    crate::config::ContinuationMode::Stateless
+                },
+            ) == crate::config::ContinuationMode::Managed,
             alias: alias.into(),
             endpoint: provider.api_url(model.api)?,
             auth: model.auth.unwrap_or_default(),

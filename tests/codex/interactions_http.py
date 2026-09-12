@@ -72,7 +72,11 @@ def run(binary):
         replay={**body,'input':body['input']+out+[{'type':'message','role':'user','content':[{'type':'input_text','text':'next'}]}]}
         changed=copy.deepcopy(replay);changed['input'][0]['content'][0]['text']='altered'
         base.require(post(changed,sid)[0]==409,'history mutation accepted')
-        changed=copy.deepcopy(replay);opaque=next(x for x in changed['input'] if x.get('type')=='reasoning');opaque['encrypted_content']=opaque['encrypted_content'][:-1]+('1' if opaque['encrypted_content'][-1]=='0' else '0')
+        public=[i for i,x in enumerate(replay['input']) if x.get('type')=='reasoning' and x.get('summary')]
+        if public:
+            changed=copy.deepcopy(replay);changed['input'][public[0]]['summary'][0]['text']='changed display'
+            base.require(post(changed,sid)[0]==409,'public reasoning mutation accepted')
+        changed=copy.deepcopy(replay);opaque=next(x for x in changed['input'] if x.get('encrypted_content'));opaque['encrypted_content']=opaque['encrypted_content'][:-1]+('1' if opaque['encrypted_content'][-1]=='0' else '0')
         base.require(post(changed,sid)[0]==409,'tampered ciphertext accepted')
         other=ih.create_session(url,control,manifest)
         base.require(post(replay,other['id'])[0]==409,'cross-session replay accepted')

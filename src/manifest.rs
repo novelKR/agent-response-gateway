@@ -88,6 +88,16 @@ impl Config {
                     json!("5aad40046c3245d672393942f1554e35a293179d145ce8e6e2aad08bbc79ceb4");
                 route_projection["wire_contract_version"] = json!("v1");
             }
+            // Preserve the original Gemini binding byte for byte.
+            if snapshot.api != crate::ir::ApiProtocol::GeminiInteractions && route.managed {
+                route_projection["continuation_mode"] = json!("managed");
+                route_projection["capability_profile"]["reasoning_contract"] =
+                    json!(snapshot.capabilities.reasoning_contract);
+                route_projection["wire_contract_version"] = json!("2026-09-12");
+                route_projection["wire_contract_sha256"] = json!(crate::continuation::hex(
+                    &crate::digest::sha256(include_bytes!("../tests/reasoning/wire-lock.json"))
+                ));
+            }
             if self.models[&route.alias].usage_profile.is_some() {
                 route_projection["usage_profile"] =
                     json!(self.models[&route.alias].resolved_usage_profile());

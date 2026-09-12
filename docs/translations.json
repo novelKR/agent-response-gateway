@@ -394,11 +394,12 @@
       "order": 1,
       "source": "docs/messages.md",
       "translation": "docs/ko/messages.md",
-      "source_sha256": "c773d93cbc1cfe93cf21a34be5acf955133eb84baa6c7a639efde153832e23a0",
-      "translation_sha256": "2e5655e6bd913c2a88332100af0767952e011a7a3c51297800d7478d56c2328b",
+      "source_sha256": "478c1871ec5c4603d4c8d9283771d26ae6273db374d315828da6e03e0e706708",
+      "translation_sha256": "103a5cd8007b652296bfb08ec1346e95179d3d400f98c833777660947e5c06da",
       "anchors": [
         "codex-test-profile",
         "codex-시험-프로필",
+        "managed-thinking",
         "messages-adapter-support",
         "messages-어댑터-지원",
         "native-output-controls",
@@ -407,6 +408,7 @@
         "qualified-synthetic-codex-profile",
         "tool-and-stream-limits",
         "검증한-합성-codex-프로필",
+        "관리형-thinking",
         "도구스트림-한도",
         "출력-제어"
       ],
@@ -844,8 +846,8 @@
       "order": 20,
       "source": "docs/interactions.md",
       "translation": "docs/ko/interactions.md",
-      "source_sha256": "c53258f050f3100a8f4480083b2a9bcb344a74b3363457f702d69b0afb4cbf84",
-      "translation_sha256": "b71a3e9c8b082706a081bd30363866744bd1f7231805eb05a88f87918815b621",
+      "source_sha256": "81d8de952fea81b6fe0931dd4ce14d9dd7283925f49891563d865513ff541e3b",
+      "translation_sha256": "6c70f6d292ee9ce68a2ba6c96698763fd764d9e6d8d10bc8ff9f62c3571ce3f6",
       "anchors": [
         "backup-and-failure-recovery",
         "configuration",
