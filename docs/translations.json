@@ -46,8 +46,8 @@
       "order": 0,
       "source": "README.md",
       "translation": "README.ko.md",
-      "source_sha256": "40fa8403334eaf703169c7417d7a3b070e813cbbbf6e920139859b9278b8676d",
-      "translation_sha256": "29e62027305e2dd59536753f3129109e13be926a69f4d89272012a9d8712b806",
+      "source_sha256": "b7ef683f2693f8f48434531c3537c481cc79e5ef069a38e76fd9f942ee68a738",
+      "translation_sha256": "82763b24980a79ae02f91555fedd49eb1a76787f9b579ca0956cd69b2f940856",
       "anchors": [
         "agent-response-gateway",
         "getting-started",
@@ -184,8 +184,8 @@
       "order": 1,
       "source": "docs/continuity.md",
       "translation": "docs/ko/continuity.md",
-      "source_sha256": "2bb144a71d50c5218971bde5ec5ae37c43975b7d052bab9db2123b3761880a69",
-      "translation_sha256": "8aeb528c9fcaa8b3c5c778eddac5dc0f551b173c378bb617a062dd79d44c3c92",
+      "source_sha256": "aa2f2abe2b1fe85b6df991599e4509dca5edcc66e5acde05d3c5dd98a6155f37",
+      "translation_sha256": "9941f0eab335529ac91b4f6a477c350c2da5c774cef0d3e5531135f500ec5f8f",
       "anchors": [
         "host-owned-continuity-contract",
         "reproducible-validation",
@@ -204,8 +204,8 @@
       "order": 4,
       "source": "docs/documentation.md",
       "translation": "docs/ko/documentation.md",
-      "source_sha256": "b5ae5ff4aa690e6935bcd2602d8ea8aace954fe241242fd6c0b18cb00ff1e37c",
-      "translation_sha256": "625aa5f02166bc345aa69f42e2e5e63d45bdff3928aabff2739fa4933e439ef4",
+      "source_sha256": "97c1a1399d88c6c5bf92f295b36b5d766ae25d2be442672854c68fb550b5e938",
+      "translation_sha256": "b95a1a5c269c437870149705a7ae543067009004d95c6fdf759bd13e7336aa6b",
       "anchors": [
         "documentation-site-development",
         "independent-local-history",
@@ -236,8 +236,8 @@
       "order": 3,
       "source": "docs/embedded-design.md",
       "translation": "docs/ko/embedded-design.md",
-      "source_sha256": "e7430cbcf91f85d2dfd2f6b7bad0aac1c7b5de8ac8b7e8efbe1d3a854a66fb8a",
-      "translation_sha256": "19c1f78bb34cffd5fed8756fc859719fa6d9032db73783b4cf1d6e2ef1a5329b",
+      "source_sha256": "b0a2b70c88eb12641761fcee87a89c91f420b0c04f1998a4a450218aefec25a3",
+      "translation_sha256": "89b281a50535d3008fb7376a3b83325c22b68781bd42d401a1eb6c9f703ba8f8",
       "anchors": [
         "alternatives-cost-and-risks",
         "authentication-and-access",
@@ -302,8 +302,8 @@
       "order": 0,
       "source": "docs/integration.md",
       "translation": "docs/ko/integration.md",
-      "source_sha256": "688024551e6df070078e8988df7a1a271f7465c50eedf524382e7e8621ca1020",
-      "translation_sha256": "03e74bdbcf6546edd9de7497d58835e914e1ba89c45eb1d208a68efc1c75d19a",
+      "source_sha256": "ca13da73e2574907457b70747e9ea09b236578d0ac30e733e62304fb6bd180db",
+      "translation_sha256": "39a6ce938345f6e5f6d502823455baf4934020e727a3b433ab50f5cf08a47fa6",
       "anchors": [
         "application-integration",
         "calling-from-a-backend-service",
@@ -333,8 +333,8 @@
       "order": 0,
       "source": "docs/ir.md",
       "translation": "docs/ko/ir.md",
-      "source_sha256": "6f5c4f5b14c02e12665452ecd3fcd826c4bd1a79670b01c395c5e4a746e5267f",
-      "translation_sha256": "fff3db18c4e010ebaba38378e2676010cddbca4b819dcc44f0c080efca3fa839",
+      "source_sha256": "f790a7c66ea956101844194c9989f25c5624ec7a2616863cea0cbb5effded5cf",
+      "translation_sha256": "cfbc07ccc02ccdb161c5443c829eedd50ce13dbf0b7e17913f1083695f6c2388",
       "anchors": [
         "capability-admission-and-execution-routes",
         "custom-tool-json-bridge",
@@ -510,8 +510,8 @@
       "order": 5,
       "source": "docs/roadmap.md",
       "translation": "docs/ko/roadmap.md",
-      "source_sha256": "40e84050296afb5bdc3c5423716f37714b6bb9810b66eb3b2310bc926d4ce414",
-      "translation_sha256": "610ea4227925d7863017338bdaccf6e5e3717ee57088e8f153479c47abd0cebf",
+      "source_sha256": "9d50e53bd262150f47c02117162f2582b3398964455e18cee41ee5233bb704c5",
+      "translation_sha256": "705090e6c93a165e66b429aa5cb9bdca491c48c83a5fc7c126e00cfa3d5a3b89",
       "anchors": [
         "available-capabilities",
         "before-production-use",
@@ -685,8 +685,8 @@
         "하나의-진입점-명시적인-경로",
         "현재-지원-범위"
       ],
-      "source_sha256": "1c9ca906f1f4f11f42bdc66c29359efa54665e3018697e0cbc5123d1a514ced3",
-      "translation_sha256": "3acff26c6f1f9c588d68fda2ae4bc4968730943f8f0edca1ca226abc0bac9631"
+      "source_sha256": "45a63aefedfadee06da61ff41e9050c2969dedac94d75dd30eb031e98ede9b23",
+      "translation_sha256": "4f0aad1ce6e7ebcca8d6259ca9877172d41bdf4071c46258fbb9e7541dadb163"
     },
     {
       "id": "usage",
@@ -771,8 +771,8 @@
         "패키지와-권한-계약",
         "프로세스-수명과-장애-정책"
       ],
-      "source_sha256": "ef49ad0a71981193cdf4ca368bc4d03c2124fb2cc664d8f2648f641eb2019c6f",
-      "translation_sha256": "bd36eeb714a3408c76a5f1cadd908b320512a1912299430c75d9a4eb3fef8593"
+      "source_sha256": "e4c18c15afb0656e9f4c3fdf389f1ef0e9fee2575463826e87cc67abdcc1578b",
+      "translation_sha256": "8758c54e4d6b7b2520d4a595430d3abc096a7d8ce4f3db4a8842268cefcfb107"
     },
     {
       "id": "extensions",

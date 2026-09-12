@@ -2,7 +2,9 @@
 
 [English](README.md) | [한국어](README.ko.md)
 
-An independent local Responses gateway for agent runtimes and backend services.
+Extensible proxy software with a lightweight Rust core for converting Non-Responses
+model APIs into the declared semantics of a Responses interface. See the
+[product overview](docs/index.md) for core, extension and application responsibilities.
 It maps configured model aliases to provider models and uses separate upstream
 credentials for Responses, Messages and Chat Completions.
 
@@ -165,7 +167,9 @@ version-specific HTTPS location under the [release procedure](docs/release.md).
 See [development direction](docs/roadmap.md) for scope and
 [the development workflow](docs/github-workflow.md) for contribution checks.
 
-Optional [native observers](docs/extensions.md) can be installed and explicitly
-activated on Linux/macOS. They receive numeric HTTP metadata only. Read the
-[extension architecture](docs/extensions-design.md) for trust, lifecycle and
-future account-pool boundaries; OAuth/account pooling remains unsupported.
+Optional [native extensions](docs/extensions.md) provide HTTP metadata observers
+and a [Usage Recorder](docs/usage-accounting.md) on Linux/macOS. Recorder storage
+and delivery guarantees differ from best-effort observation. Credential brokers,
+account pooling and continuity services are possible extensions requiring new
+contracts; they are not enabled by the current observer protocol. See the
+[extension architecture](docs/extensions-design.md).

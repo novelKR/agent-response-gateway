@@ -4,6 +4,21 @@
 
 [English](extensions-design.md) | [한국어](ko/extensions-design.md)
 
+The [product overview](index.md) distinguishes core, optional extensions and
+execution applications. Pooling, credential management and provider continuity
+can belong to this project's optional modules without becoming mandatory core
+dependencies. A standalone configuration may own their state; a backend
+configuration may obtain policy or state through explicit external contracts.
+These possibilities do not grant the current observer protocol new permissions.
+
+Current observers and the Usage Recorder have different delivery contracts.
+Observers receive best-effort numeric HTTP metadata; the recorder receives usage
+events and can require local commit acknowledgements. Future providers, brokers
+and continuity modules need role-specific interfaces. They must preserve common
+capability admission, origin binding, item identity, event order and terminal
+validation. This does not require dynamic adapter registration or a particular
+repository or process layout.
+
 The gateway supports explicitly installed, trusted native metadata observers and an optional usage recorder. This design keeps model transport in a small Rust core and separates package management from process execution. Account pooling, credential plugins and dynamic protocol adapters are future extensions, not capabilities of the current observer protocol.
 
 <a id="선택한-방식과-대안"></a>
