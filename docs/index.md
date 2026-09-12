@@ -6,13 +6,45 @@
 
 [English](index.md) | [한국어](ko/index.md)
 
-A local Responses gateway for agent runtimes and backend services. Declare a
-route, separate your credentials, and carry JSON or streaming responses through
-one interface.
+Extensible proxy software that makes Non-Responses model APIs available to
+Responses applications. Its lightweight Rust core preserves declared request,
+response, tool and streaming semantics through explicit conversion contracts.
+Optional extensions and application configurations support standalone use,
+embedding and backend integration. The current runtime uses local connections.
 
 [Get started](../README.md) · [Explore the protocol](protocol.md)
 
 </ProductIntro>
+
+The product has three responsibility layers: a reusable Proxy Core, optional
+extensions, and the application that selects and operates them. These layers do
+not require separate repositories, crates or processes. Lightweight means that
+unselected features do not impose their runtime dependencies or operational work
+on the basic configuration.
+
+| Layer | Responsibility |
+|---|---|
+| Proxy Core | Shared semantics, capability admission, API conversion, transport, cancellation and common validation |
+| Optional extensions | Selected provider access, credentials, account pooling, continuity, usage and operational capabilities |
+| Execution application | Configuration, startup, packaging, management experience and host or backend integration |
+
+This describes the product direction. Current extensions provide metadata
+observation and usage recording; account pooling and provider continuity services
+need new contracts and implementation. Extensions supply implementations without
+bypassing common capability, identity or terminal-state validation. New semantics
+may require a new core or protocol version.
+
+Standalone configurations select the required adapters and extensions. Embedded
+configurations let a host supervise execution. Backend configurations connect
+reusable authentication, policy and storage contracts. These are composition
+choices, not evidence that every proposed configuration is available today.
+See [integration](integration.md), [extension design](extensions-design.md) and
+[development direction](roadmap.md).
+
+Preserve the semantics declared as supported and disclose differences that cannot
+be preserved. A bridge is not by itself proof of semantic equivalence, and wire
+compatibility does not guarantee a model's instruction following or output quality.
+The [IR contract](ir.md) distinguishes representation, conversion and guarantees.
 
 <a id="하나의-진입점-명시적인-경로"></a>
 
@@ -28,8 +60,9 @@ compatibility profiles.
 
 ## Integrate with clear responsibilities
 
-The gateway owns transport, routing and upstream credentials. Your application
-owns tools, approvals and conversation continuity. Start with synthetic inputs
+In the current basic configuration, the gateway owns transport, routing and
+upstream credential use. Your application owns tools, approvals and history.
+Start with synthetic inputs
 and mock upstreams before qualifying a real provider.
 
 Build locally and validate your route configuration before starting the process.

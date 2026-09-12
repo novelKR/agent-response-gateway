@@ -2,7 +2,9 @@
 
 [English](README.md) | [한국어](README.ko.md)
 
-에이전트 런타임과 백엔드 서비스를 위한 독립 로컬 Responses 게이트웨이다.
+Non-Responses 모델 API를 Responses 인터페이스의 선언된 의미로 변환하는
+경량 Rust 코어 기반 확장형 프록시 소프트웨어다. 코어·확장·애플리케이션의 책임은
+[제품 개요](docs/ko/index.md)를 참조한다.
 설정된 모델 별칭을 공급자 모델에 연결하고, 별도 업스트림 자격 증명으로
 Responses, Messages와 Chat Completions를 사용한다.
 
@@ -158,7 +160,8 @@ AGPL로 배포할 때는 [배포 절차](docs/ko/release.md)에 따라 해당 �
 범위는 [개발 방향](docs/ko/roadmap.md), 기여 검사는
 [개발 절차](docs/ko/github-workflow.md)를 참조한다.
 
-Linux/macOS에서는 선택형 [네이티브 관측 확장](docs/ko/extensions.md)을 설치하고
-명시적으로 활성화할 수 있다. 숫자형 HTTP 메타데이터만 받는다. 신뢰·수명 관리와
-후속 계정 Pool의 경계는 [확장 구조](docs/ko/extensions-design.md)를 참조한다.
-OAuth/계정 Pool은 계속 미지원이다.
+Linux/macOS의 선택형 [네이티브 확장](docs/ko/extensions.md)은 HTTP 메타데이터
+관측기와 [Usage Recorder](docs/ko/usage-accounting.md)를 제공한다. 기록기의 저장·전달
+보장은 최선형 관측과 다르다. 자격 증명 브로커·계정 풀·연속성 서비스는 새 계약이
+필요한 확장 방향이며 현재 관측 프로토콜로 활성화되지 않는다.
+[확장 구조](docs/ko/extensions-design.md)를 참조한다.

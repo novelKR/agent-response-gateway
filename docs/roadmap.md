@@ -76,6 +76,20 @@ service mode and an administration UI are not supported. Expanding these areas
 requires requirements and review of the affected API, authentication, persistence
 and deployment contracts.
 
+Current exclusions are implementation boundaries, not permanent product non-goals.
+Optional credential brokers, account pooling, provider continuity and response-state
+services may extend the [product configurations](index.md). They require explicit
+contracts and implementation; this direction promises no release or fixed order.
+The current observer protocol does not enable them.
+
+Persistent design principles are shared semantic validation, explicit differences,
+no silent feature removal, and no core dependency on a consumer's private domain.
+Choose a user scenario first, then the needed core contract, optional modules and
+application integration. Evaluate consumer version, provider/model, active extension
+configuration, scenario and guarantee level together. Tool round trips, cancellation,
+recovery and usage consistency must work across that combination; feature names
+alone do not establish compatibility.
+
 <a id="change-and-verification-rules-for-every-milestone"></a>
 <a id="각-마일스톤의-변경검증-규칙"></a>
 <a id="변경과-검증"></a>

@@ -10,6 +10,12 @@
 
 [English](embedded-design.md) | [한국어](ko/embedded-design.md)
 
+This page specifies the current host-supervised embedding configuration of the
+[extensible proxy](index.md). Embedding is one application composition; the core
+also serves standalone HTTP consumers. Optional modules may add product features
+under separate contracts without transferring host tool approval or business
+workflow ownership. The lifecycle below does not enable those future features.
+
 The host application starts and supervises the gateway as a child process. It
 checks the executable and configuration before starting its agent, supplies
 credentials separately and controls shutdown and recovery.

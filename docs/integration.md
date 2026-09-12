@@ -89,6 +89,40 @@ propagation. Follow the consumer's existing deployment and environment managemen
 
 
 
+A synthetic backend example uses an application with authentication, policy and
+business storage services. The application checks access and workflow policy,
+then calls the configured loopback gateway on the same host or in the same
+network namespace. This does not introduce a public gateway service.
+
+```text
+Application access and policy checks
+    -> Local Responses gateway -> Configured model provider
+    <- Responses output / tool calls
+Application tool approval, execution and business storage
+
+Gateway usage -> Optional Usage Recorder -> PostgreSQL / HTTP collector
+```
+
+The backend owns tool execution and business approval. Its trusted deployment
+supplies process-configured provider keys; client-supplied tenant identity does
+not select credentials. The recorder's [generic export contract](usage-accounting.md)
+is optional and separate from workflow storage. This example claims no deployed
+integration or new endpoint.
+
+| State | Ownership in this example |
+|---|---|
+| Business data and approval records | Backend application |
+| Conversation history and recovery | Host under the current continuity contract |
+| Provider-specific continuation | Future optional module with explicit origin and recovery contracts |
+| Public Response objects and lineage | Future optional service with access and retention contracts |
+| Usage ledger and delivery outbox | Optional Usage Recorder |
+
+Dynamic credential leases, tenant-specific selection, account pools and provider
+continuity are extension directions, not capabilities enabled by this example.
+Standalone applications may eventually supply these modules themselves; an
+external policy service is not a mandatory controller of the core. See the
+[product overview](index.md) for composition choices.
+
 <a id="further-acceptance"></a>
 <a id="통합-검증"></a>
 <a id="후속-수락"></a>

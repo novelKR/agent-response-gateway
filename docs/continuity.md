@@ -4,6 +4,14 @@
 
 [English](continuity.md) | [한국어](ko/continuity.md)
 
+This is the current host-owned history configuration, not a permanent ban on
+optional continuity services in the [product](index.md). Provider continuation,
+public Response storage, application workflows and usage ledgers have different
+purposes. Future protocol-state modules need explicit origin, access, retention
+and recovery contracts; the module described here does not implement them.
+The optional [Usage Recorder](usage-accounting.md) persists usage, not conversation
+history. References below to a stateless gateway concern model-session state.
+
 The optional [Python continuity module](../scripts/continuity_contract.py) validates
 host-owned run records and returns new revisions. It uses the standard library
 and performs no I/O or model calls. The host owns persistence, authentication,
