@@ -6,7 +6,7 @@ Non-Responses 모델 API를 Responses 인터페이스의 선언된 의미로 변
 경량 Rust 코어 기반 확장형 프록시 소프트웨어다. 코어·확장·애플리케이션의 책임은
 [제품 개요](docs/ko/index.md)를 참조한다.
 설정된 모델 별칭을 공급자 모델에 연결하고, 별도 업스트림 자격 증명으로
-Responses, Messages와 Chat Completions를 사용한다.
+Responses, Messages, Chat Completions와 Gemini Interactions를 사용한다.
 
 게이트웨이는 JSON/SSE를 전달하고 선언된 변환 기능을 검사한다.
 도구 실행, 승인과 대화 이력은 애플리케이션이 담당한다.
@@ -95,12 +95,17 @@ Responses 원형 전달은 도구·구조화 출력·추론 항목을 재구성�
 변환 경로는 선언된 함수·custom·네임스페이스 도구와 텍스트를 변환하며 미지원
 필수 기능을 전송 전에 거부한다. `/v1/models` 등록은 모델 호환성 검증이 아니다.
 
-게이트웨이의 저장 요청, `previous_response_id`와 conversation 기반 서버 상태,
+공개 response 저장 요청, `previous_response_id`와 conversation 기반 서버 상태,
 원격 compact API, background 실행, 응답 조회·삭제, 자동 재시도·fallback,
 WebSocket, OAuth·계정 풀은 미지원이다. 호스트는 자신의 Codex 이력과 저널로
 로컬 압축·재개·복구를 관리할 수 있다. [연속성 계약](docs/ko/continuity.md)은
 검증된 binding과 불확실한 실행의 복구 책임을 설명한다.
 상세 HTTP 계약과 제한은 [프로토콜 문서](docs/ko/protocol.md)를 참조한다.
+
+명시적으로 활성화하는 [Interactions 연동](docs/ko/interactions.md)은 암호화된
+SQLite continuation과 별도 호스트 제어 API를 제공한다. 호스트 관리 Codex
+0.154.0과 모의 Interactions로 시험했다. 로컬 압축 후 호스트가 기존 작업을 보존하고
+검증된 이동 가능 맥락을 새 작업/epoch로 옮긴다.
 
 <a id="internal-ir-v1"></a>
 

@@ -46,8 +46,8 @@
       "order": 0,
       "source": "README.md",
       "translation": "README.ko.md",
-      "source_sha256": "b7ef683f2693f8f48434531c3537c481cc79e5ef069a38e76fd9f942ee68a738",
-      "translation_sha256": "82763b24980a79ae02f91555fedd49eb1a76787f9b579ca0956cd69b2f940856",
+      "source_sha256": "7a0def2c8b128e15f53c1922cf9b83cb9541222abbd39db39855e01b68b911d4",
+      "translation_sha256": "28318b6cef7007adde14e3a4bd8ba3a7665ab19ef36cb25ef5db2ef8b7ac0e68",
       "anchors": [
         "agent-response-gateway",
         "getting-started",
@@ -129,8 +129,8 @@
       "order": 3,
       "source": "docs/conformance.md",
       "translation": "docs/ko/conformance.md",
-      "source_sha256": "9e0249c852ad94e48ce16ae04541fb4ec695f5d25773dd467e9b9bc28b218444",
-      "translation_sha256": "b8ff7ad970ab98df6c2e3718ec0be3703c7aec965bfeb153727e8b323e10b67b",
+      "source_sha256": "c3da97bfc4d1327797752c9a76d9c2c49da91f2c1cb7748fdc209562c5127349",
+      "translation_sha256": "c3fdb32d311d66fe88e35957279f7b60e0352d367b08f7cfbbef208c6e8562de",
       "anchors": [
         "protocol-coverage",
         "running-the-suite",
@@ -302,8 +302,8 @@
       "order": 0,
       "source": "docs/integration.md",
       "translation": "docs/ko/integration.md",
-      "source_sha256": "ca13da73e2574907457b70747e9ea09b236578d0ac30e733e62304fb6bd180db",
-      "translation_sha256": "39a6ce938345f6e5f6d502823455baf4934020e727a3b433ab50f5cf08a47fa6",
+      "source_sha256": "963592101fc9238c4a2a6a45cffdc779b861c46bf8d526827e5425a65c5c29bc",
+      "translation_sha256": "7177735737ff7cf5e7765428a6062471c7c42710fb65623c60cfcab810ffbe76",
       "anchors": [
         "application-integration",
         "calling-from-a-backend-service",
@@ -418,8 +418,8 @@
       "order": 1,
       "source": "docs/packaging.md",
       "translation": "docs/ko/packaging.md",
-      "source_sha256": "afc16766dce6c55216103366af0732567216257b3808e67eb41e85be4c7676ec",
-      "translation_sha256": "b2c4bfaa9337332640f041832605f66ee861ee4926a46655f511505ce0d26d17",
+      "source_sha256": "007dd1f988e9cf09443a52c8caad0188300e775f79908a27ea894bae09b51723",
+      "translation_sha256": "09a8a0cc6b07e1b67bdb748232d21410761d35ef35f02e3e5002c53dc0f6f167",
       "anchors": [
         "inventory-scope-and-notices",
         "unpublished-release-candidates",
@@ -436,8 +436,8 @@
       "order": 0,
       "source": "docs/protocol.md",
       "translation": "docs/ko/protocol.md",
-      "source_sha256": "67f49f9e5e00a8c303eee29894b3ec8b38f6520afbd054f63c9e3acbb30f6ee2",
-      "translation_sha256": "02444d1e26f262932ee9bed8177976c097989f5b4236d47705e11f242e0da6ea",
+      "source_sha256": "92ca5788236ed4169a0a63ec224e310b408559061c76a71b711bcd414ba05607",
+      "translation_sha256": "46197087ecb0eeceebb259124f19676b3915a7549d0226f96ad841080f506e57",
       "anchors": [
         "configuration-and-authentication",
         "declared-routes-and-capability-profiles",
@@ -806,8 +806,8 @@
       "order": 30,
       "source": "docs/interactions-design.md",
       "translation": "docs/ko/interactions-design.md",
-      "source_sha256": "05ff27b7884b511b19cc98b7d23f937057f96891c36a12136d3fa3c3f1f77023",
-      "translation_sha256": "17fa65ac23fe5ad8bed5e07e5450f058d809d8b9088e0c77aa76b93e36c5930f",
+      "source_sha256": "e8eb309f19dc86bb0c96a40c8c02423b943e577b8dd073ca9922f92b01b881ad",
+      "translation_sha256": "0a58ef3ee0d78742d9be51073f98abc73a49f9e05b30136fcb867035e01ca246",
       "anchors": [
         "gemini-interactions-design"
       ],
@@ -837,6 +837,28 @@
         "토큰-의미"
       ],
       "route": "/guide/usage-accounting"
+    },
+    {
+      "id": "interactions",
+      "section": "integration",
+      "order": 20,
+      "source": "docs/interactions.md",
+      "translation": "docs/ko/interactions.md",
+      "source_sha256": "bbbb5df27446c77de1298c054b120983c7a470c7a81b6d067256072a58f5e43e",
+      "translation_sha256": "a0036ee0da9ac91ead3c94540a936ca02937ac306db5112b8da5bda2b7c43324",
+      "anchors": [
+        "backup-and-failure-recovery",
+        "configuration",
+        "gemini-interactions-host-integration",
+        "gemini-interactions-호스트-연동",
+        "host-control-and-resume",
+        "support-and-usage",
+        "백업과-실패-복구",
+        "설정",
+        "지원-범위와-사용량",
+        "호스트-제어와-재개"
+      ],
+      "route": "/guide/interactions"
     }
   ]
 }

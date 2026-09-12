@@ -22,6 +22,7 @@ pub(crate) struct GatewayState {
     pub secrets: Secrets,
     pub client: reqwest::Client,
     pub slots: Arc<Semaphore>,
+    pub continuation: Option<crate::continuation::Runtime>,
     pub usage: Option<crate::usage::UsageSink>,
     pub configuration_sha256: String,
 }
@@ -51,6 +52,11 @@ pub fn router_with_usage(
 ) -> Result<Router, ConfigError> {
     config.validate()?;
     secrets.validate(&config)?;
+    if usage.is_some() && config.continuation.is_some() {
+        return Err(ConfigError(
+            "Managed continuation with accounting requires the managed usage integration".into(),
+        ));
+    }
     let client = reqwest::Client::builder()
         .redirect(reqwest::redirect::Policy::none())
         .retry(reqwest::retry::never())
@@ -59,7 +65,16 @@ pub fn router_with_usage(
         .pool_max_idle_per_host(config.limits.max_in_flight)
         .build()
         .map_err(|_| ConfigError("Cannot construct upstream HTTP client".into()))?;
+    let continuation = config
+        .continuation
+        .as_ref()
+        .map(|c| c.start(&secrets))
+        .transpose()?;
+    let control = continuation
+        .as_ref()
+        .map(|(r, t)| crate::continuation::control::router(r.clone(), t.clone()));
     let state = Arc::new(GatewayState {
+        continuation: continuation.map(|(r, _)| r),
         slots: Arc::new(Semaphore::new(config.limits.max_in_flight)),
         configuration_sha256: config.manifest()?.configuration_sha256().into(),
         config,
@@ -89,6 +104,7 @@ pub fn router_with_usage(
             )
         })
         .with_state(state)
+        .merge(control.unwrap_or_default())
         .layer(middleware::from_fn_with_state(observers, audit)))
 }
 

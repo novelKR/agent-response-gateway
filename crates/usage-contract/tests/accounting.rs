@@ -114,3 +114,30 @@ fn malformed_usage_is_invalid_not_missing() {
             .contains("synthetic-invalid-shape")
     );
 }
+
+#[test]
+fn interactions_preserves_reported_paths_and_derives_output_without_double_counting() {
+    let u = normalized(
+        Profile::GeminiInteractionsV1,
+        json!({"total_input_tokens":10,"total_output_tokens":3,"total_thought_tokens":2,"total_tokens":15,"total_cached_tokens":4}),
+    );
+    assert_eq!(u.value("output_tokens"), Some(5));
+    assert_eq!(u.counters["output_tokens"].source, Source::Derived);
+    assert_eq!(u.reported["total_output_tokens"].value, Some(3));
+    assert_eq!(u.value("reasoning_output_tokens"), Some(2));
+    assert!(u.validate());
+    let missing = normalized(
+        Profile::GeminiInteractionsV1,
+        json!({"total_output_tokens":3}),
+    );
+    assert_eq!(missing.value("output_tokens"), None);
+    assert_eq!(
+        missing.counters["reasoning_output_tokens"].source,
+        Source::NotReported
+    );
+    let invalid = normalized(
+        Profile::GeminiInteractionsV1,
+        json!({"total_output_tokens":u64::MAX,"total_thought_tokens":1}),
+    );
+    assert!(invalid.violations.iter().any(|v| v == "invalid_counter"));
+}

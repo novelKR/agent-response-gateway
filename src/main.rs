@@ -21,6 +21,13 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Explicitly initialize a new private continuation store; never replaces an existing database.
+    InitContinuation {
+        #[arg(long)]
+        directory: PathBuf,
+        #[arg(long, default_value_t = 1073741824)]
+        max_store_bytes: u64,
+    },
     /// Start the local HTTP service. The first stdout line announces readiness.
     Serve {
         #[arg(long)]
@@ -64,7 +71,25 @@ async fn main() -> std::process::ExitCode {
 }
 
 async fn run(cli: Cli) -> Result<(), ConfigError> {
+    if let Command::InitContinuation {
+        directory,
+        max_store_bytes,
+    } = &cli.command
+    {
+        let store = agent_response_gateway::continuation::SqliteStore::open(
+            directory,
+            true,
+            *max_store_bytes,
+        )
+        .map_err(|_| ConfigError("Cannot initialize new continuation store".into()))?;
+        println!(
+            "{}",
+            json!({"schema":agent_response_gateway::continuation::SCHEMA,"store_id":store.identity().map_err(|_|ConfigError("Store identity unavailable".into()))?})
+        );
+        return Ok(());
+    }
     let (path, extensions_lock) = match &cli.command {
+        Command::InitContinuation { .. } => unreachable!(),
         Command::Serve {
             config,
             extensions_lock,
@@ -85,6 +110,11 @@ async fn run(cli: Cli) -> Result<(), ConfigError> {
         .as_deref()
         .map(ExtensionPlan::load)
         .transpose()?;
+    if config.continuation.is_some() && extensions.is_some() {
+        return Err(ConfigError(
+            "Combined continuation and observer manifest is not supported".into(),
+        ));
+    }
     let manifest = config.manifest()?;
     let base_manifest = serde_json::to_value(&manifest).expect("manifest JSON");
     let extended_manifest = extensions
@@ -115,8 +145,10 @@ async fn run(cli: Cli) -> Result<(), ConfigError> {
             return Ok(());
         }
         Command::Serve { .. } => {}
+        Command::InitContinuation { .. } => unreachable!(),
     }
     let secrets = Secrets::from_env(&config)?;
+    let continuation_enabled = config.continuation.is_some();
     let address = config.listen;
     let grace = Duration::from_millis(config.limits.shutdown_grace_ms);
     let listener = tokio::net::TcpListener::bind(address)
@@ -140,7 +172,7 @@ async fn run(cli: Cli) -> Result<(), ConfigError> {
             .and_then(ExtensionRuntime::usage_sink),
     )?;
     let mut readiness = json!({"event":"ready", "address":bound.to_string(), "base_url":format!("http://{bound}/v1"), "version":env!("CARGO_PKG_VERSION"),
-        "schema":READY_SCHEMA,"manifest_schema":MANIFEST_SCHEMA,"configuration_sha256":manifest.configuration_sha256()});
+        "schema":if continuation_enabled {"gateway-ready/v2"}else{READY_SCHEMA},"manifest_schema":if continuation_enabled {"gateway-embedded-manifest/v2"}else{MANIFEST_SCHEMA},"configuration_sha256":manifest.configuration_sha256()});
     if let Some(extended) = &extended_manifest {
         readiness["schema"] = json!(extensions.as_ref().expect("extension plan").ready_schema());
         readiness["manifest_schema"] = json!(

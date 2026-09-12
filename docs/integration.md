@@ -44,6 +44,13 @@ containers and exposing a public service are outside this version's support.
 
 
 
+Interactions requires a host-created session, independent control token, stable
+protection key and private SQLite store. The host pins a session header in the dedicated
+Codex provider configuration and owns explicit recovery/compaction decisions. Follow
+the [Interactions host contract](interactions.md) for initialization, backups and
+compaction into a fresh Codex thread. This adds provider-state persistence without
+moving tool execution or approval into the gateway.
+
 <a id="에이전트-런타임에-내장"></a>
 
 ## Embedding in an agent runtime
@@ -113,7 +120,7 @@ integration or new endpoint.
 |---|---|
 | Business data and approval records | Backend application |
 | Conversation history and recovery | Host under the current continuity contract |
-| Provider-specific continuation | Future optional module with explicit origin and recovery contracts |
+| Provider-specific continuation | Opt-in gateway continuation under host-owned origin and recovery contracts; independent module deployment remains future work |
 | Public Response objects and lineage | Future optional service with access and retention contracts |
 | Usage ledger and delivery outbox | Optional Usage Recorder |
 

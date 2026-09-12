@@ -10,7 +10,7 @@ publish = false
 gateway-usage-contract = { path = "../../crates/usage-contract" }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["arbitrary_precision"] }
-rusqlite = { version = "0.38", features = ["bundled", "backup"] }
+rusqlite = { version = "=0.40.2", features = ["bundled", "backup"] }
 postgres = "0.19"
 postgres-native-tls = "0.5"
 native-tls = "0.2"

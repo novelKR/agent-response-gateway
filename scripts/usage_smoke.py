@@ -95,7 +95,7 @@ class Collector(BaseHTTPRequestHandler):
             self.wfile.write(encode({'schema': 'gateway-usage-batch-receipt/v1', 'receipts': receipts}))
 
 
-def run(binary, recorder):
+def run(binary, recorder, legacy_recorder=None):
     parent = ROOT / '.local/usage-smoke'
     parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=parent) as temporary, contextlib.ExitStack() as cleanup:
@@ -117,10 +117,10 @@ def run(binary, recorder):
         configuration = {'schema': 'gateway-usage-recorder-config/v1', 'destinations': [{'kind': 'http', 'id': 'collector', 'url': f'http://127.0.0.1:{collector.server_port}/events', 'bearer_file': str(secret)}]}
         raw = encode(configuration)
         manager.write_new(ledger / 'recorder.json', raw)
-        subprocess.run([str(recorder), 'init', '--store', str(ledger)], check=True, capture_output=True)
+        subprocess.run([str(legacy_recorder or recorder), 'init', '--store', str(ledger)], check=True, capture_output=True)
         binding = {'store_id': 'primary', 'mode': 'durable_local', 'queue_capacity': 256, 'ack_timeout_ms': 5000, 'config_sha256': hashlib.sha256(raw).hexdigest()}
         package = root / 'package'
-        sha = manager.package_binary(recorder, ROOT / 'LICENSE', package, 'usage-recorder', '0.1.0', 'usage_recorder')
+        sha = manager.package_binary(legacy_recorder or recorder, ROOT / 'LICENSE', package, 'usage-recorder', '0.1.0', 'usage_recorder')
         manager.install(extension_store, package, sha)
         manager.enable(extension_store, 'usage-recorder', '0.1.0', sha, manager.RECORDER_PERMISSIONS, binding)
         text = f'[providers.mock]\nbase_url="http://127.0.0.1:{upstream.server_port}/v1"\napi_key_env="SYNTHETIC_KEY"\n'
@@ -216,5 +216,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--binary', type=Path, required=True)
     parser.add_argument('--recorder', type=Path, required=True)
+    parser.add_argument('--legacy-recorder', type=Path)
     args = parser.parse_args()
-    run(args.binary.resolve(), args.recorder.resolve())
+    run(args.binary.resolve(), args.recorder.resolve(), args.legacy_recorder.resolve() if args.legacy_recorder else None)

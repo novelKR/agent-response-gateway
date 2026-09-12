@@ -42,6 +42,12 @@
 
 
 
+Interactions에는 호스트가 생성한 세션, 독립 제어 토큰, 안정적인 보호 키와
+비공개 SQLite 저장소가 필요하다. 호스트는 전용 Codex provider 설정에 세션 헤더를
+고정하고 명시적 복구·압축 결정을 담당한다. 초기화·백업과 새 Codex 작업으로의 압축
+전이는 [Interactions 호스트 계약](interactions.md)을 따른다. 제공자 상태를 영속화해도
+도구 실행이나 승인을 게이트웨이로 옮기지는 않는다.
+
 <a id="embedding-in-an-agent-runtime"></a>
 
 ## 에이전트 런타임에 내장
@@ -107,7 +113,7 @@ Gateway usage -> Optional Usage Recorder -> PostgreSQL / HTTP collector
 |---|---|
 | 업무 데이터와 승인 기록 | 백엔드 애플리케이션 |
 | 대화 이력과 복구 | 현재 연속성 계약에 따른 호스트 |
-| 공급자 전용 연속성 | 명시적인 출처·복구 계약이 필요한 향후 선택형 모듈 |
+| 공급자 전용 연속성 | 호스트의 출처·복구 계약에 따른 선택형 게이트웨이 continuation; 독립 모듈 배포는 후속 영역 |
 | 공개 Response 객체와 계보 | 접근·보존 계약이 필요한 향후 선택형 서비스 |
 | 사용량 원장과 전송 outbox | 선택형 Usage Recorder |
 

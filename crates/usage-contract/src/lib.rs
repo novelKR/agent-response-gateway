@@ -176,6 +176,7 @@ pub enum Profile {
     ResponsesV1,
     ChatV1,
     MessagesV1,
+    GeminiInteractionsV1,
 }
 impl Profile {
     pub fn id(self) -> &'static str {
@@ -183,11 +184,19 @@ impl Profile {
             Self::ResponsesV1 => "responses/v1",
             Self::ChatV1 => "chat/v1",
             Self::MessagesV1 => "messages/v1",
+            Self::GeminiInteractionsV1 => "gemini_interactions/v1",
         }
     }
 }
 fn paths(profile: Profile) -> Vec<(&'static str, &'static str)> {
     match profile {
+        Profile::GeminiInteractionsV1 => vec![
+            ("input_tokens", "total_input_tokens"),
+            ("output_tokens", "total_output_tokens"),
+            ("reasoning_output_tokens", "total_thought_tokens"),
+            ("cache_read_input_tokens", "total_cached_tokens"),
+            ("total_tokens", "total_tokens"),
+        ],
         Profile::ResponsesV1 => vec![
             ("input_tokens", "input_tokens"),
             ("output_tokens", "output_tokens"),
@@ -227,9 +236,14 @@ fn paths(profile: Profile) -> Vec<(&'static str, &'static str)> {
     }
 }
 fn allowed_path(path: &str) -> bool {
-    [Profile::ResponsesV1, Profile::ChatV1, Profile::MessagesV1]
-        .into_iter()
-        .any(|p| paths(p).iter().any(|(_, v)| *v == path))
+    [
+        Profile::ResponsesV1,
+        Profile::ChatV1,
+        Profile::MessagesV1,
+        Profile::GeminiInteractionsV1,
+    ]
+    .into_iter()
+    .any(|p| paths(p).iter().any(|(_, v)| *v == path))
         || matches!(
             path,
             "cache_creation.ephemeral_5m_input_tokens" | "cache_creation.ephemeral_1h_input_tokens"
@@ -285,6 +299,17 @@ pub fn normalize(profile: Profile, reported: BTreeMap<String, Counter>) -> Canon
     }
     if u.counters.values().any(|c| c.source == Source::Invalid) {
         u.violations.push("invalid_counter".into());
+    }
+    if profile == Profile::GeminiInteractionsV1 {
+        let regular = u.value("output_tokens");
+        let thought = u.value("reasoning_output_tokens");
+        u.counters.insert(
+            "output_tokens".into(),
+            match (regular, thought) {
+                (Some(regular), Some(thought)) => Counter::derived(regular.checked_add(thought)),
+                _ => Counter::default(),
+            },
+        );
     }
     if profile == Profile::MessagesV1 {
         if let (Some(a), Some(b), Some(c)) = (
@@ -358,6 +383,13 @@ pub fn normalize(profile: Profile, reported: BTreeMap<String, Counter>) -> Canon
             }
             _ => {}
         }
+    }
+    if u.counters
+        .values()
+        .any(|counter| counter.source == Source::Invalid)
+        && !u.violations.iter().any(|v| v == "invalid_counter")
+    {
+        u.violations.push("invalid_counter".into());
     }
     u
 }

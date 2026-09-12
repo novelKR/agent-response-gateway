@@ -7,7 +7,7 @@ This list does not claim every entry is linked into the final executable.
 A separate project agreement does not replace third-party permissions or notices.
 Original texts may include alternative licenses; unselected alternatives are not all applied together.
 
-Cargo.lock SHA-256: `3be4d88273eac153f8bf7cc3a621cf167cdd1fce2f607dfcc5c0b9ca42f278e5`
+Cargo.lock SHA-256: `18940fede37bb49824d67bf671e29ccd4c0516248c627eae8153a9abcbf46e74`
 
 Policy SHA-256: `e1ba21edef578a2dee4f9846c88ff4a3e1a9a7f7cd3507f16f2b228591a51f5d`
 
@@ -676,13 +676,13 @@ Original package SHA-256: `ed5909b6e89a2db4456e54cd5f673791d7eca6732202bbf2a9cc5
 - [LICENSE-APACHE](texts/a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2.txt) — `a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2`
 - [LICENSE-MIT](texts/ff8f68cb076caf8cefe7a6430d4ac086ce6af2ca8ce2c4e5a2004d4552ef52a2.txt) — `ff8f68cb076caf8cefe7a6430d4ac086ce6af2ca8ce2c4e5a2004d4552ef52a2`
 
-## hashlink 0.11.1
+## hashlink 0.12.2
 
 Declared: `MIT OR Apache-2.0`
 
 Selected: `MIT`
 
-Original package SHA-256: `824e001ac4f3012dd16a264bec811403a67ca9deb6c102fc5049b32c4574b35f`
+Original package SHA-256: `a596f1b20ed2cc5ecac41a164aaebc7258057060f06c0cf7a2ba3991ee7990fb`
 
 - [LICENSE-APACHE](texts/c144680885b29e4719e2a51f0aab5439a1e02d980692b5aaf086cae12727f28b.txt) — `c144680885b29e4719e2a51f0aab5439a1e02d980692b5aaf086cae12727f28b`
 - [LICENSE-MIT](texts/e915669a595b11a200873df8286561881b0e04932f6412a585db6297ba0bc97c.txt) — `e915669a595b11a200873df8286561881b0e04932f6412a585db6297ba0bc97c`
@@ -1006,13 +1006,13 @@ Original package SHA-256: `6480ccc157a1389bb2e4891b24751b0f798ba640d22386f23143f
 
 - [LICENSE](texts/8d073a6a80d1ef2d2fc2bc6c809aa221161bf1906c76d4aeef55fd2b999d9413.txt) — `8d073a6a80d1ef2d2fc2bc6c809aa221161bf1906c76d4aeef55fd2b999d9413`
 
-## libsqlite3-sys 0.36.0
+## libsqlite3-sys 0.38.2
 
 Declared: `MIT`
 
 Selected: `MIT`
 
-Original package SHA-256: `95b4103cffefa72eb8428cb6b47d6627161e51c2739fc5e3b734584157bc642a`
+Original package SHA-256: `f1d20bef17f513b9b3004532233187769cd072d790971f4e4da0e346eb6401e8`
 
 - [LICENSE](texts/c10c1f27337546471e5f7e4e97fdd398b35b9d4e126115dcd22de8d8e65abf6f.txt) — `c10c1f27337546471e5f7e4e97fdd398b35b9d4e126115dcd22de8d8e65abf6f`
 - [sqlcipher/LICENSE](texts/ea4fcb309f14a22065e1ea45362d494d320012249ed865fe9c7c0946db754131.txt) — `ea4fcb309f14a22065e1ea45362d494d320012249ed865fe9c7c0946db754131`
@@ -1544,13 +1544,13 @@ Original package SHA-256: `c51c9ae4df8a7fba42103df5c621fa3c37eccf3a3c650879e90fc
 - [upstream/LICENSE](texts/e1c1975c3474cce31722836f101a40ffaf1cc784e4d2f38ce3e77b9712934e78.txt) — `e1c1975c3474cce31722836f101a40ffaf1cc784e4d2f38ce3e77b9712934e78`
   Source: [original at the pinned commit](https://raw.githubusercontent.com/Spxg/sqlite-wasm-rs/1bb309784f25c401ddf95131dcde4c4cdad7aee7/LICENSE)
 
-## rusqlite 0.38.0
+## rusqlite 0.40.2
 
 Declared: `MIT`
 
 Selected: `MIT`
 
-Original package SHA-256: `f1c93dd1c9683b438c392c492109cb702b8090b2bfc8fed6f6e4eb4523f17af3`
+Original package SHA-256: `23f2a97da3e3873c73cb2a2e71b35c40ff95e0b1eefa8d72d8499a6928c3b5b3`
 
 - [LICENSE](texts/c10c1f27337546471e5f7e4e97fdd398b35b9d4e126115dcd22de8d8e65abf6f.txt) — `c10c1f27337546471e5f7e4e97fdd398b35b9d4e126115dcd22de8d8e65abf6f`
 

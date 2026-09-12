@@ -100,7 +100,7 @@ rlib hash도 바이트 수정 없이 기록한다. 이는 제공된 도구 기�
 
 Native 후보 실행 파일과 압축 해제한 실행 파일 모두에서 설정 검사,
 manifest/readiness binding, 미인증 거부, 합성
-업스트림의 세 JSON 경로, 자격 헤더 분리와 제한된 정상 종료를 검사한다.
+업스트림의 네 JSON 경로와 Interactions 영속 재시작, 자격 헤더 분리와 제한된 정상 종료를 검사한다.
 실제 모델 공급자는 호출하지 않는다. Windows는 CREATE_NEW_PROCESS_GROUP으로
 생성한 자식에게만 CTRL_BREAK_EVENT를 보낸다. 강제 종료는 실패 후 정리 절차이며
 정상 종료 통과로 처리하지 않는다. Archive 결정성은 같은 입력 바이트를

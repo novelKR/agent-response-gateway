@@ -1,5 +1,5 @@
 {
-  "cargo_lock_sha256": "3be4d88273eac153f8bf7cc3a621cf167cdd1fce2f607dfcc5c0b9ca42f278e5",
+  "cargo_lock_sha256": "18940fede37bb49824d67bf671e29ccd4c0516248c627eae8153a9abcbf46e74",
   "packages": [
     {
       "checksum": "ae221649c9976a6f6c56ae1facf410f3ddb33cc661c4b7b61020a912d4237fbc",
@@ -1314,7 +1314,7 @@
       "version": "0.17.1"
     },
     {
-      "checksum": "824e001ac4f3012dd16a264bec811403a67ca9deb6c102fc5049b32c4574b35f",
+      "checksum": "a596f1b20ed2cc5ecac41a164aaebc7258057060f06c0cf7a2ba3991ee7990fb",
       "declared_license": "MIT OR Apache-2.0",
       "name": "hashlink",
       "notices": [
@@ -1333,7 +1333,7 @@
         "MIT"
       ],
       "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "version": "0.11.1"
+      "version": "0.12.2"
     },
     {
       "checksum": "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea",
@@ -1941,7 +1941,7 @@
       "version": "0.1.24"
     },
     {
-      "checksum": "95b4103cffefa72eb8428cb6b47d6627161e51c2739fc5e3b734584157bc642a",
+      "checksum": "f1d20bef17f513b9b3004532233187769cd072d790971f4e4da0e346eb6401e8",
       "declared_license": "MIT",
       "name": "libsqlite3-sys",
       "notices": [
@@ -1960,7 +1960,7 @@
         "MIT"
       ],
       "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "version": "0.36.0"
+      "version": "0.38.2"
     },
     {
       "checksum": "32a66949e030da00e8c7d4434b251670a91556f4144941d37452769c25d58a53",
@@ -3007,7 +3007,7 @@
       "version": "0.1.1"
     },
     {
-      "checksum": "f1c93dd1c9683b438c392c492109cb702b8090b2bfc8fed6f6e4eb4523f17af3",
+      "checksum": "23f2a97da3e3873c73cb2a2e71b35c40ff95e0b1eefa8d72d8499a6928c3b5b3",
       "declared_license": "MIT",
       "name": "rusqlite",
       "notices": [
@@ -3021,7 +3021,7 @@
         "MIT"
       ],
       "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "version": "0.38.0"
+      "version": "0.40.2"
     },
     {
       "checksum": "6b1e7f9a428571be2dc5bc0505c13fb6bf936822b894ec87abf8a08a4e51742d",
