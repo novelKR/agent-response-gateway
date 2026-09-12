@@ -337,8 +337,8 @@
       "order": 0,
       "source": "docs/ir.md",
       "translation": "docs/ko/ir.md",
-      "source_sha256": "59f549b77c651fbb6607b2028eb065bad9331839874e29454bd704ff770cb1ac",
-      "translation_sha256": "394373e6f4984c55fd9108e15c762bca398686cc53206a015739448ee7a06e4d",
+      "source_sha256": "8557c66f75ad60e55ce5874e2037f7434fcc738774e6914a5f3216f8001f65a2",
+      "translation_sha256": "3adc31e2aa0f4f47769f22195cca71be02492c5ac3b0ac7ba7a3ddb4a954466e",
       "anchors": [
         "capability-admission-and-execution-routes",
         "custom-tool-json-bridge",
@@ -442,8 +442,8 @@
       "order": 0,
       "source": "docs/protocol.md",
       "translation": "docs/ko/protocol.md",
-      "source_sha256": "a227aa0a23e7bb5d753522815809ffd302e5e5483c4ecd645b049e24e8a87327",
-      "translation_sha256": "1589a6f6814942a885875213514ba9e48d06ac2ad23b8fa229cc68b4862aa4a2",
+      "source_sha256": "90a64bea403516e176ca6b6b45a469e610dd621cd46edb1f78d6b3af346bd328",
+      "translation_sha256": "1489434bc17a3d3d7f25b891394b01d419d44900501550561f0dbff2c86ac218",
       "anchors": [
         "checked-responses-tools",
         "configuration-and-authentication",
@@ -948,6 +948,7 @@
         "direct-context-editing",
         "editing-compatibility-contract",
         "editing-pack-and-codec-integration",
+        "explicit-code-mode-editing",
         "helper-and-normalization-contracts",
         "helper와-정규화-계약",
         "independent-operation-bundles",
@@ -957,6 +958,7 @@
         "validation",
         "검증",
         "독립-작업-묶음",
+        "명시적-code-mode-편집",
         "스트리밍재생버전",
         "직접-문맥-편집",
         "직접-문맥-편집-사용",
@@ -964,8 +966,8 @@
         "편집-팩과-codec-통합",
         "편집-호환-계약"
       ],
-      "source_sha256": "3190234e7f06a0f3943f06ceaa91f5fb5262a3739a71db8a5770ecb334e3c9cb",
-      "translation_sha256": "493ab1b477b81b43d24a27d257590d8d6118acc6ff7be6aa24b2a8a105999a27"
+      "source_sha256": "20571f17dc7dd9b3a65182bc9de2cf11855aba1ca8821bc6362eacdf1a99c226",
+      "translation_sha256": "06d46c6a7de64222851c5c860ef0f9592ba8d784d838b0cd39917e1fc66d2dad"
     }
   ]
 }

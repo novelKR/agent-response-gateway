@@ -247,11 +247,12 @@ def converted_response(state, body):
     elif state.name in {"custom_patch", "approval_denial", "grammar_failure"}:
         candidates = [t for t in body["tools"] if list(t["input_schema"].get("properties", {})) == ["input"] and t["input_schema"]["properties"]["input"].get("type") == "string"]
         require(len(candidates) == 1, "Messages custom envelope missing")
-        description = candidates[0]["input_schema"]["properties"]["input"].get("description", "")
-        prefix = "The exact text must match this grammar: "
-        require(description.startswith(prefix), "registered grammar declaration missing")
-        grammar = json.loads(description[len(prefix):])
-        require(hashlib.sha256(grammar["definition"].encode()).hexdigest() == "d6367f4826ed608c424b0a308f3d6163527df63c22513d089b91863552f8bfeb", "pinned grammar fingerprint changed")
+        if not getattr(state,"code_mode",False):
+            description = candidates[0]["input_schema"]["properties"]["input"].get("description", "")
+            prefix = "The exact text must match this grammar: "
+            require(description.startswith(prefix), "registered grammar declaration missing")
+            grammar = json.loads(description[len(prefix):])
+            require(hashlib.sha256(grammar["definition"].encode()).hexdigest() == "d6367f4826ed608c424b0a308f3d6163527df63c22513d089b91863552f8bfeb", "pinned grammar fingerprint changed")
         patch = "*** Begin Patch\n*** Add File: fixture.txt\n+synthetic-content\n*** End Patch"
         if state.name == "grammar_failure":
             patch = "*** Begin Patch\n*** End Patch"
@@ -471,7 +472,7 @@ def stop_process(process):
             stream.close()
 
 
-def run_scenario(name, binary, gateway_binary, api="responses", managed_contract=None, native_custom=False, profile_packs=False, codec_binary=None, editing=False):
+def run_scenario(name, binary, gateway_binary, api="responses", managed_contract=None, native_custom=False, profile_packs=False, codec_binary=None, editing=False, code_mode=False):
     local = ROOT / ".local/conformance"
     local.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix=name + "-", dir=local) as temporary, contextlib.ExitStack() as cleanup:
@@ -481,6 +482,7 @@ def run_scenario(name, binary, gateway_binary, api="responses", managed_contract
         home = root / "codex-home"
         home.mkdir()
         state = Scenario(name, workspace, api)
+        state.code_mode = code_mode
         state.editing = editing
         if editing and name in {"custom_patch", "approval_denial"}:
             (workspace / "fixture.txt").write_text("synthetic-old\n")
@@ -509,7 +511,9 @@ def run_scenario(name, binary, gateway_binary, api="responses", managed_contract
             host_token=ih.setup(root,gateway_binary,config,gateway_env)
         if editing:
             from editing_fixture import configure
-            config.write_text(configure(config.read_text()))
+            config.write_text(configure(config.read_text(), code_mode=code_mode))
+            if name == "contract_failure":
+                raw=config.read_text();lines=raw.splitlines();lines=[('client_descriptor_sha256="'+'0'*64+'"') if line.startswith('client_descriptor_sha256=') else line for line in lines];config.write_text('\n'.join(lines)+'\n')
         gateway_args = ["--config", str(config)]
         if profile_packs:
             from profile_pack_fixture import activate
@@ -535,6 +539,10 @@ def run_scenario(name, binary, gateway_binary, api="responses", managed_contract
         profile_digest = None
         if api != "responses":
             profile_digest = prepare_converted_profile(binary, home, codex_env)
+        if code_mode:
+            path=home/'config.toml';content=path.read_text()
+            content=content.replace('[features]', '[features]\ncode_mode=true\ncode_mode_only=true\napps=false')
+            path.write_text(content)
         codex = subprocess.Popen([str(binary), "app-server"], cwd=workspace, env=codex_env, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, bufsize=1)
         cleanup.callback(stop_process, codex)
         rpc = RpcClient(codex)
@@ -604,10 +612,12 @@ def run_scenario(name, binary, gateway_binary, api="responses", managed_contract
                 raise AssertionError("unexpected server request")
         turn_elapsed_ms = round((time.monotonic() - turn_started) * 1000, 3)
         rejected_controls=managed_contract=="deep_seek" and name=="output_controls"
-        expected = "interrupted" if name.startswith("cancellation") else "failed" if name in {"transport_failure", "grammar_failure"} or rejected_controls else "completed"
+        expected = "interrupted" if name.startswith("cancellation") else "failed" if name in {"transport_failure", "grammar_failure", "contract_failure"} or rejected_controls else "completed"
         require(final == expected, f"unexpected final turn status (requests={state.requests}, calls={calls})")
         require(not state.errors, "mock upstream validation failed")
-        if rejected_controls:
+        if name == "contract_failure":
+            require(state.requests == 0 and calls == 0 and approvals == 0, "client mismatch reached execution")
+        elif rejected_controls:
             require(state.requests==0 and calls==0 and approvals==0, "unsupported controls reached inference")
         elif name == "output_controls":
             require(json.loads(final_text) == {"answer":"synthetic"} and state.requests == 1, "explicit schema output did not reach Codex")

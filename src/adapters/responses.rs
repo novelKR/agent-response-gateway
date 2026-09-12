@@ -48,8 +48,7 @@ pub(crate) fn output_verifier(
     ] {
         profile.support.insert(feature, Support::Native);
     }
-    let registry =
-        CustomToolBridge::for_responses(request.tools.as_deref().unwrap_or(&[]), &profile)?;
+    let registry = CustomToolBridge::for_plan(request, &profile, plan.editing.as_ref(), false)?;
     let original = responses::encode(request, None)?;
     Ok(PreparedResponses {
         payload: Value::Null,
@@ -69,12 +68,17 @@ pub(crate) fn encode_admitted(
     if request.source != ApiProtocol::Responses || plan.route.api != ApiProtocol::Responses {
         return Err(IrError::WrongProtocol);
     }
-    validate_request(request)?;
-    let registry = CustomToolBridge::for_responses(
-        request.tools.as_deref().unwrap_or(&[]),
+    validate_request(
+        request,
+        plan.bridges
+            .contains(&crate::ir::capability::BridgeRule::CodeModeTextParts),
+    )?;
+    let registry = CustomToolBridge::for_plan(
+        request,
         &plan.route.capabilities,
-    )?
-    .with_editing(plan.editing.as_ref(), request)?;
+        plan.editing.as_ref(),
+        true,
+    )?;
     let original = responses::encode(request, None)?;
     let mut lowered = request.clone();
     if request.tools.is_some() {
@@ -119,7 +123,7 @@ pub(crate) fn encode_admitted(
     })
 }
 
-fn validate_request(request: &RequestIR) -> Result<(), IrError> {
+fn validate_request(request: &RequestIR, code_mode_results: bool) -> Result<(), IrError> {
     // Only nonsemantic transport/cache hints and standard optional nulls are retained.
     for (key, value) in &request.extensions.fields {
         let valid = match key.as_str() {
@@ -197,7 +201,11 @@ fn validate_request(request: &RequestIR) -> Result<(), IrError> {
                     }
                 }
                 Item::ToolCall(c) if c.extensions.fields.is_empty() => {}
-                Item::ToolResult(r) if r.extensions.fields.is_empty() && r.output.is_string() => {}
+                Item::ToolResult(r)
+                    if r.extensions.fields.is_empty()
+                        && (r.output.is_string()
+                            || (code_mode_results
+                                && crate::editing::code_mode_result(&r.output).is_ok())) => {}
                 Item::Reasoning(r) if r.extensions.fields.is_empty() && r.opaque.is_none() => {
                     for p in r.summary.iter().flatten() {
                         if !p.extensions.fields.is_empty() {

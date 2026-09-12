@@ -301,3 +301,7 @@ policy applies these rules after provider-profile validation and binds its versi
 identity to the route snapshot. Existing `CustomToolBridge::new()` conversion rules
 remain unchanged. See [tool policies](protocol.md#checked-responses-tools) for
 checked HTTP admission and terminal validation limits.
+
+Explicit [editing compatibility](editing-design.md) additionally admits the pinned
+Code Mode text-part result contract. It preserves the whole program result through
+a selected bridge; unrelated structured tool results remain unsupported.

@@ -70,6 +70,9 @@ impl Config {
                         .to_owned();
                     let value = match support {
                         Support::Native => "native",
+                        Support::Bridged(BridgeRule::CodeModeTextParts) => {
+                            "bridged_code_mode_text_parts"
+                        }
                         Support::Bridged(BridgeRule::ChatInstructionEnvelope) => {
                             "bridged_chat_instruction_envelope"
                         }

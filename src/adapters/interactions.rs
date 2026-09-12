@@ -110,6 +110,11 @@ impl PreparedInteractions {
             return Err(IrError::WrongProtocol);
         }
         for feature in plan.required.iter() {
+            if feature == Feature::StructuredToolOutput
+                && plan.bridges.contains(&BridgeRule::CodeModeTextParts)
+            {
+                continue;
+            }
             if !matches!(
                 feature,
                 Feature::Instructions
@@ -144,8 +149,12 @@ impl PreparedInteractions {
                 return Err(unsupported());
             }
         }
-        let registry = bridge::CustomToolBridge::new(request.tools.as_deref().unwrap_or(&[]))?
-            .with_editing(plan.editing.as_ref(), request)?;
+        let registry = bridge::CustomToolBridge::for_plan(
+            request,
+            &plan.route.capabilities,
+            plan.editing.as_ref(),
+            true,
+        )?;
         let mut input = Vec::new();
         let mut instructions = Vec::new();
         if let Some(t) = &request.instructions {
@@ -222,7 +231,16 @@ impl PreparedInteractions {
                         } else {
                             registry.lower_result(r, call)?
                         };
-                        input.push(json!({"type":"function_result","call_id":r.call_id.as_str(),"result":tool_result(&result.output)?}));
+                        let output = if plan.editing.as_ref().is_some_and(|p| {
+                            p.client_contract == crate::editing::ClientContract::CodeMode
+                        }) && call.tool.name == "exec"
+                            && call.tool.namespace.is_none()
+                        {
+                            serde_json::Value::String(registry.result_text(r, call)?.into_owned())
+                        } else {
+                            result.output
+                        };
+                        input.push(json!({"type":"function_result","call_id":r.call_id.as_str(),"result":tool_result(&output)?}));
                     }
                     _ => return Err(unsupported()),
                 }

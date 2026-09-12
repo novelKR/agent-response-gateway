@@ -3,7 +3,7 @@ use super::contract::*;
 use crate::{
     adapters::{PreparedAdapter, managed::ManagedAdapter, sse::SseEvent},
     ir::{
-        IrError, capability::plan_translation_with_history, continuity::ContinuityBinding,
+        IrError, capability::plan_translation_with_editing, continuity::ContinuityBinding,
         responses,
     },
 };
@@ -107,13 +107,14 @@ fn serve_protocol(
     let history = prepare.history()?;
     let request = responses::decode(prepare.request.clone(), None)?;
     let route = prepare.route.snapshot()?;
-    let mut plan = plan_translation_with_history(
+    let mut plan = plan_translation_with_editing(
         &request,
         &ContinuityBinding {
             route,
             scope: "codec-request".into(),
         },
         &history,
+        prepare.editing.as_ref(),
     )?;
     if let Some(policy) = &prepare.editing {
         policy.validate()?;

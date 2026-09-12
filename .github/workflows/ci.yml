@@ -177,6 +177,10 @@ jobs:
           cargo +1.98.0 build --locked --example api_codec_editing
           python3 -B tests/codex/editing_fixture.py --gateway-bin target/debug/agent-response-gateway --codec-bin target/debug/examples/api_codec_editing --profile-packs
           python3 -B scripts/managed_usage_smoke.py --gateway-bin target/debug/agent-response-gateway --recorder-bin target/debug/gateway-usage-recorder --editing --codec-bin target/debug/examples/api_codec_editing --profile-packs
+      - name: Verify explicit Code Mode editing and recorder barriers
+        run: |
+          python3 -B tests/codex/editing_fixture.py --gateway-bin target/debug/agent-response-gateway --code-mode --codec-bin target/debug/examples/api_codec_editing --profile-packs
+          python3 -B scripts/managed_usage_smoke.py --gateway-bin target/debug/agent-response-gateway --recorder-bin target/debug/gateway-usage-recorder --code-mode --codec-bin target/debug/examples/api_codec_editing --profile-packs
       - name: Verify external codec durable accounting and recovery
         run: python3 -B scripts/managed_usage_smoke.py --gateway-bin target/debug/agent-response-gateway --recorder-bin target/debug/gateway-usage-recorder --compatibility-policy --profile-packs --codec-bin target/debug/examples/api_codec
 
@@ -207,6 +211,8 @@ jobs:
       - run: cargo +1.98.0 build --locked
       - name: Verify structured editing with pinned Codex
         run: python3 -B tests/codex/editing_fixture.py --gateway-bin target/debug/agent-response-gateway
+      - name: Verify native Code Mode editing
+        run: python3 -B tests/codex/editing_fixture.py --gateway-bin target/debug/agent-response-gateway --code-mode
       - name: Verify pinned direct and Code Mode editing contracts
         run: python3 -B tests/codex/editing_contract.py --gateway-bin target/debug/agent-response-gateway
       - name: Run every synthetic Codex scenario

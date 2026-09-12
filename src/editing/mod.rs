@@ -12,12 +12,16 @@ pub struct Policy {
     pub representation: Representation,
     pub patch_dialect: PatchDialect,
     pub normalization: Normalization,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub client_descriptor_sha256: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ClientContract {
     #[serde(rename = "codex-direct-custom/v1")]
     Direct,
+    #[serde(rename = "codex-code-mode/v1")]
+    CodeMode,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Representation {
@@ -37,7 +41,15 @@ pub enum Normalization {
 
 impl Policy {
     pub fn validate(&self) -> Result<(), IrError> {
-        if self.version != 1 {
+        let descriptor_valid = match self.client_contract {
+            ClientContract::Direct => self.client_descriptor_sha256.is_none(),
+            ClientContract::CodeMode => self.client_descriptor_sha256.as_ref().is_some_and(|s| {
+                s.len() == 64
+                    && s.bytes()
+                        .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+            }),
+        };
+        if self.version != 1 || !descriptor_valid {
             return Err(IrError::UnsupportedVersion);
         }
         Ok(())
@@ -155,4 +167,98 @@ impl ContextEdit {
         let lines = json!({"type":"array","items":{"type":"string"}});
         json!({"type":"object","properties":{"path":{"type":"string"},"before_context":lines,"old_lines":lines,"new_lines":lines,"after_context":lines},"required":["path","before_context","old_lines","new_lines","after_context"],"additionalProperties":false})
     }
+}
+
+/// Pinned runtime contract hashes, not a parser for arbitrary JavaScript.
+pub const EXEC_GRAMMAR_SHA256: &str =
+    "8eead048e20069c17fcd0b6fe5ee9ed29364868723f8e08889de146a2b4b7a8e";
+const WRAPPER_PREFIX: &str = "const result = await tools.apply_patch(";
+const WRAPPER_SUFFIX: &str = ");\ntext(result);";
+
+pub fn helper_program(patch: &str) -> Result<String, IrError> {
+    Grammar::CodexPatchV1.validate(patch)?;
+    let program = format!(
+        "{WRAPPER_PREFIX}{}{WRAPPER_SUFFIX}",
+        serde_json::to_string(patch).map_err(|_| invalid())?
+    );
+    if program.len() > 8 * 1024 * 1024 {
+        return Err(IrError::SizeLimit);
+    }
+    Ok(program)
+}
+pub fn helper_patch(program: &str) -> Result<String, IrError> {
+    if program.len() > 8 * 1024 * 1024 {
+        return Err(IrError::SizeLimit);
+    }
+    let encoded = program
+        .strip_prefix(WRAPPER_PREFIX)
+        .and_then(|s| s.strip_suffix(WRAPPER_SUFFIX))
+        .ok_or_else(invalid)?;
+    let patch: String = serde_json::from_str(encoded).map_err(|_| invalid())?;
+    if helper_program(&patch)? != program {
+        return Err(invalid());
+    }
+    Ok(patch)
+}
+
+/// Preserve the complete Code Mode program result as ordered text parts.
+/// This does not interpret timing, success, helper results or arbitrary JSON in text.
+pub fn code_mode_result(parts: &Value) -> Result<String, IrError> {
+    let values = parts.as_array().ok_or_else(invalid)?;
+    if values.len() > 4096
+        || values.iter().any(|v| {
+            v.as_object()
+                .is_none_or(|m| m.len() != 2 || v["type"] != "input_text" || !v["text"].is_string())
+        })
+    {
+        return Err(invalid());
+    }
+    let result = json!({"schema":"codex-exec-text-parts/v1","parts":parts}).to_string();
+    if result.len() > 8 * 1024 * 1024 {
+        return Err(IrError::SizeLimit);
+    }
+    Ok(result)
+}
+pub fn code_mode_result_parts(text: &str) -> Result<Value, IrError> {
+    if text.len() > 8 * 1024 * 1024 {
+        return Err(IrError::SizeLimit);
+    }
+    #[derive(Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct Envelope {
+        schema: String,
+        parts: Value,
+    }
+    let value: Envelope = serde_json::from_str(text).map_err(|_| invalid())?;
+    if value.schema != "codex-exec-text-parts/v1" || code_mode_result(&value.parts)? != text {
+        return Err(invalid());
+    }
+    Ok(value.parts)
+}
+pub(crate) fn validate_code_mode_results(
+    request: &crate::ir::request::RequestIR,
+) -> Result<(), IrError> {
+    use crate::ir::request::{Input, Item, ToolInput};
+    let mut calls = std::collections::BTreeSet::new();
+    if let Some(Input::Items(items)) = &request.input {
+        for item in items {
+            match item {
+                Item::ToolCall(c)
+                    if c.tool.name == "exec"
+                        && c.tool.namespace.is_none()
+                        && matches!(c.input, ToolInput::Freeform(_)) =>
+                {
+                    calls.insert(c.call_id.clone());
+                }
+                Item::ToolResult(r) if calls.contains(&r.call_id) => {
+                    code_mode_result(&r.output)?;
+                }
+                Item::ToolResult(r) if !r.output.is_string() => {
+                    return Err(IrError::UnsupportedFeature);
+                }
+                _ => {}
+            }
+        }
+    }
+    Ok(())
 }

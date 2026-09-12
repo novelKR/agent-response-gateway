@@ -10,7 +10,7 @@
 
 [English](../editing-design.md) | [한국어](editing-design.md)
 
-이 계약은 구현된 직접 문맥 편집과 별도로 계획된 helper·정규화·작업 묶음 표현을
+이 계약은 구현된 직접 문맥 편집과 명시적 helper 실행 및 별도로 계획된 정규화·작업 묶음 표현을
 구분한다. 기존 custom 문자열 브리지가 기본값이다. 합성 fixture는
 고정 Codex 0.154.0의 직접 패치와 Code Mode helper 실행을 검증하며 실제 공급자를
 검증하지 않는다.
@@ -116,7 +116,7 @@ normalization="none"
 
 `old_lines`는 한 줄 이상이어야 한다. 이 버전은 기존 줄 블록을 교체하거나 제거하며
 삽입만 하는 편집은 원래 패치 도구를 사용한다. 전체 16384줄과 컴파일된 패치
-8 MiB로 제한한다. 공백 제거나 개행 보정은 하지 않는다. Code Mode·정규화·작업 묶음은 아직 계획된 표현이다.
+8 MiB로 제한한다. 공백 제거나 개행 보정은 하지 않는다. 정규화·작업 묶음은 아직 계획된 표현이다.
 
 합성 이름은 원래 도구 정체성과 정책으로 결정한다. 이름 충돌 시 과거 공급자
 이름을 재배정하지 않고 거부한다. 정규 패치는 정확히 역변환하며 기존 비정규
@@ -165,3 +165,42 @@ export 정체성·정책은 경로 origin에 결합한다. 변경이 기존 세�
 컴파일되는 호스트 예제 [embedded_editing](../../examples/embedded_editing.rs)은
 호스트 소유 런타임·listener·종료 신호와 일반 라우터를 사용한다. 라이브러리의
 전역 로깅을 초기화하거나 프로세스 환경을 변경하지 않는다.
+
+<a id="explicit-code-mode-editing"></a>
+<a id="명시적-code-mode-편집"></a>
+
+## 명시적 Code Mode 편집
+
+호스트는 `codex-code-mode/v1`을 선택하고 검증된 런타임·도구 구성의 exec 설명
+UTF-8 바이트 SHA-256을 `client_descriptor_sha256`으로 제공한다. 호스트가
+검증한 자체 구성에서 얻어야 하며 요청이 주장하는 hash를 신뢰해서는 안 된다.
+동적 helper에 따라 설명이 달라지므로 전역 hash 하나가 모든 도구 구성을 식별하지
+않는다. 런타임 fixture는 프롬프트 복사 없이 builtin·합성 동적 도구 구성을 구분한다.
+
+```toml
+[editing_policies.helper-edit]
+version=1
+client_contract="codex-code-mode/v1"
+representation="context-lines/v1"
+patch_dialect="codex-patch/1"
+normalization="none"
+client_descriptor_sha256="<host-verified-64-lowercase-hex-digest>"
+```
+
+실제 요청은 일치하는 bare custom exec와 고정 source 문법을 포함해야 한다.
+설명 변경·잘못된 타입·계약 불일치는 추론 전에 거부한다. 공통 컴파일러는
+JSON 데이터로 `tools.apply_patch` helper를 한 번 호출하고 결과 표시문 하나를
+생성한다. 이 정확한 wrapper만 패치로 역변환한다. 다른 프로그램은 원문을 유지한다.
+Source 문법은 비어 있지 않은 Unicode를 허용하며 JavaScript 해석·실행은 호스트 책임이다.
+
+관측된 exec 결과는 순서 있는 input-text 파트 배열이다. 선택한 정책은 공급자의
+native 지원을 주장하지 않고 `StructuredToolOutput`에 유효 `CodeModeTextParts`
+브리지를 추가한다. 파트는 `schema=codex-exec-text-parts/v1`과 `parts`를 가진 정규
+JSON 텍스트 기록이 되며 원문·순서·경계를 유지한다. 텍스트 안의 상태를 helper
+성공으로 해석하지 않는다. 이미지·미지 필드·비텍스트 파트·관련 없는 구조화 함수
+결과는 거부한다. 직접 패치 계약은 기존 문자열 결과 규칙을 유지한다.
+
+Descriptor·정책 변경은 경로 origin을 바꾼다. 기존 인증 replay v2는 새 필드 없이
+공급자 원본 호출과 공개 wrapper 출력을 저장한다. 합성 시험은 실행·거부·잘못된
+편집·틀린 descriptor·전체 프로그램 결과·동일 세션 재시작·기록기 실패 장벽을
+다룬다. 임의 Code Mode 복구나 실제 공급자 적합성을 의미하지 않는다.
