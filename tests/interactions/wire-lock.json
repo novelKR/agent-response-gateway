@@ -1,0 +1,12 @@
+{
+  "schema": "gateway-provider-contract/v1",
+  "api": "gemini_interactions",
+  "version": "v1",
+  "url": "https://ai.google.dev/static/api/interactions-v1.openapi.json",
+  "sha256": "5aad40046c3245d672393942f1554e35a293179d145ce8e6e2aad08bbc79ceb4",
+  "size": 178240,
+  "revision": "0",
+  "endpoint_suffix": "interactions",
+  "authentication_header": "x-goog-api-key",
+  "scope": "foreground model calls; store:false; text and client function tools"
+}
