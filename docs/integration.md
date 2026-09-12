@@ -208,3 +208,10 @@ includes exact data package digests and explicit host imports; selected export
 identities also bind affected route origins. A host must understand this version
 before starting its agent. See [profile packs](profile-packs.md) for the package,
 activation, no-override and restart contracts.
+
+Selecting an external API codec uses `gateway-embedded-manifest/v6` and
+`gateway-ready/v6`, with `gateway-extended-manifest/v6` and
+`gateway-extended-ready/v6` for the extension wrapper. The selected package identity
+binds each affected route origin. Core transport, credential selection, numeric
+accounting and protected replay storage remain authoritative. See
+[external API codecs](api-codecs.md) for grants, IPC, limits and recovery.

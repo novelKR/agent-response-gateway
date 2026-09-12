@@ -90,6 +90,9 @@ impl ExtensionRuntime {
             _store_lock: Some(lock),
         };
         for (entry, package) in plan.activation.extensions.iter().zip(&plan.packages) {
+            if package.protocol == crate::codecs::contract::PROTOCOL {
+                continue;
+            }
             let executable = plan
                 .root
                 .join("packages")

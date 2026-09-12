@@ -91,6 +91,12 @@ impl Config {
                 ))
             );
         }
+        if let Some(id) = &model.api_codec {
+            snapshot.adapter_version = format!(
+                "{}/codec/1/{}",
+                snapshot.adapter_version, self.codecs[id].package_sha256
+            );
+        }
         snapshot
             .validate()
             .map_err(|_| ConfigError("Invalid route snapshot".into()))?;

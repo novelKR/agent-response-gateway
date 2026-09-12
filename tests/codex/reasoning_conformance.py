@@ -85,11 +85,11 @@ def respond(state,body):
 
 def main():
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('--gateway-bin',type=Path,default=base.ROOT/'target/debug/agent-response-gateway');p.add_argument('--codex-bundle',type=Path,default=base.runtime.BUNDLE)
-    p.add_argument('--contract',choices=CONTRACTS,action='append');p.add_argument('--scenario',choices=SCENARIOS,action='append');args=p.parse_args()
+    p.add_argument('--codec-bin',type=Path);p.add_argument('--profile-packs',action='store_true');p.add_argument('--contract',choices=CONTRACTS,action='append');p.add_argument('--scenario',choices=SCENARIOS,action='append');args=p.parse_args()
     binary=base.runtime.verify_bundle(args.codex_bundle,json.loads(base.runtime.LOCK.read_text()));failed=0
     for contract in args.contract or CONTRACTS:
         for scenario in args.scenario or SCENARIOS:
-            try:result=base.run_scenario(scenario,binary,args.gateway_bin.resolve(),'messages' if contract.startswith('claude_') else 'chat_completions',contract)
+            try:result=base.run_scenario(scenario,binary,args.gateway_bin.resolve(),'messages' if contract.startswith('claude_') else 'chat_completions',contract,profile_packs=args.profile_packs,codec_binary=args.codec_bin)
             except Exception as e:
                 failed+=1;result={'status':'failed','contract':contract,'scenario':scenario,'error_class':type(e).__name__}
                 if isinstance(e,AssertionError):result['check']=str(e)

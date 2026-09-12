@@ -8,7 +8,7 @@ use std::{
     path::{Component, Path},
 };
 
-pub(super) fn no_links(path: &Path) -> Result<(), ConfigError> {
+pub(crate) fn no_links(path: &Path) -> Result<(), ConfigError> {
     if !path.is_absolute() || path.components().any(|c| matches!(c, Component::ParentDir)) {
         return Err(invalid());
     }
@@ -20,7 +20,7 @@ pub(super) fn no_links(path: &Path) -> Result<(), ConfigError> {
     Ok(())
 }
 
-pub(super) fn private_dir(path: &Path, owner: Option<u32>) -> Result<u32, ConfigError> {
+pub(crate) fn private_dir(path: &Path, owner: Option<u32>) -> Result<u32, ConfigError> {
     no_links(path)?;
     let meta = std::fs::symlink_metadata(path).map_err(|_| invalid())?;
     if !meta.is_dir() || meta.mode() & 0o077 != 0 || owner.is_some_and(|id| id != meta.uid()) {
@@ -36,7 +36,7 @@ fn regular(meta: &Metadata, owner: u32) -> Result<(), ConfigError> {
     Ok(())
 }
 
-pub(super) fn open(path: &Path, owner: u32, write: bool) -> Result<File, ConfigError> {
+pub(crate) fn open(path: &Path, owner: u32, write: bool) -> Result<File, ConfigError> {
     no_links(path)?;
     let before = std::fs::symlink_metadata(path).map_err(|_| invalid())?;
     regular(&before, owner)?;
@@ -53,7 +53,7 @@ pub(super) fn open(path: &Path, owner: u32, write: bool) -> Result<File, ConfigE
     Ok(file)
 }
 
-pub(super) fn read(path: &Path, maximum: u64, owner: u32) -> Result<Vec<u8>, ConfigError> {
+pub(crate) fn read(path: &Path, maximum: u64, owner: u32) -> Result<Vec<u8>, ConfigError> {
     let file = open(path, owner, false)?;
     if file.metadata().map_err(|_| invalid())?.len() > maximum {
         return Err(invalid());
@@ -68,7 +68,7 @@ pub(super) fn read(path: &Path, maximum: u64, owner: u32) -> Result<Vec<u8>, Con
     Ok(raw)
 }
 
-pub(super) fn runtime_lock(root: &Path, owner: u32) -> Result<File, ConfigError> {
+pub(crate) fn runtime_lock(root: &Path, owner: u32) -> Result<File, ConfigError> {
     let path = root.join(".runtime.lock");
     no_links(&path)?;
     match OpenOptions::new()

@@ -15,8 +15,9 @@ use crate::{
 use serde_json::Value;
 
 /// Numeric accounting and allowlisted identities are independent of replay data.
-#[derive(Clone)]
-pub(crate) struct Accounting {
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Accounting {
     pub usage: gateway_usage_contract::CanonicalUsage,
     pub model: Option<String>,
     pub response_id: Option<String>,

@@ -20,6 +20,8 @@ import stat
 import sys
 import uuid
 
+CODEC_PROTOCOL = 'gateway-api-codec/v1'
+CODEC_PERMISSIONS = ['read_model_payload', 'transform_model_protocol']
 PACKAGE_SCHEMA = 'gateway-extension-package/v1'
 LOCK_SCHEMA = 'gateway-extension-lock/v1'
 PROTOCOL = 'gateway-observer/v1'
@@ -122,11 +124,11 @@ def validate_package(raw):
     require(isinstance(package, dict) and set(package) == {
         'schema', 'id', 'version', 'target', 'protocol', 'permissions', 'state_schema', 'files'
     }, 'Invalid package manifest fields')
-    require(package['schema'] == PACKAGE_SCHEMA and package['protocol'] in (PROTOCOL, RECORDER_PROTOCOL), 'Unsupported package protocol')
+    require(package['schema'] == PACKAGE_SCHEMA and package['protocol'] in (PROTOCOL, RECORDER_PROTOCOL, CODEC_PROTOCOL), 'Unsupported package protocol')
     require(identifier(package['id']) and version(package['version']), 'Invalid package identity')
     require(package['target'] == target(), 'Package target does not match this host')
-    require(package['permissions'] == (PERMISSIONS if package['protocol'] == PROTOCOL else RECORDER_PERMISSIONS), 'Unsupported package permissions')
-    require(package['state_schema'] == ('observer-state/v1' if package['protocol'] == PROTOCOL else 'usage-store/v1'), 'Unsupported observer state schema')
+    require(package['permissions'] == (PERMISSIONS if package['protocol'] == PROTOCOL else CODEC_PERMISSIONS if package['protocol'] == CODEC_PROTOCOL else RECORDER_PERMISSIONS), 'Unsupported package permissions')
+    require(package['state_schema'] == ('observer-state/v1' if package['protocol'] == PROTOCOL else 'request-memory/v1' if package['protocol'] == CODEC_PROTOCOL else 'usage-store/v1'), 'Unsupported observer state schema')
     entries = package['files']
     require(isinstance(entries, dict) and 2 <= len(entries) <= 8
             and {'extension', 'LICENSE.txt'} <= entries.keys(), 'Executable and license evidence are required')
@@ -218,7 +220,7 @@ def read_lock(root):
     for entry in lock['extensions']:
         require(isinstance(entry, dict) and set(entry) == {'id', 'version', 'package_sha256', 'grants'}
                 and identifier(entry['id']) and version(entry['version'])
-                and hex_digest(entry['package_sha256']) and entry['grants'] in (PERMISSIONS, RECORDER_PERMISSIONS)
+                and hex_digest(entry['package_sha256']) and entry['grants'] in (PERMISSIONS, RECORDER_PERMISSIONS, CODEC_PERMISSIONS)
                 and entry['id'] not in ids, 'Invalid activation entry')
         ids.add(entry['id'])
     require(lock['extensions'] == sorted(lock['extensions'], key=lambda e: e['id']), 'Activation entries must be ordered')
@@ -274,7 +276,7 @@ def install(root, directory, expected):
 
 def enable(root, package_id, package_version, sha, grants, recorder=None):
     root = open_store(root)
-    require(sorted(grants) in (PERMISSIONS, RECORDER_PERMISSIONS), 'Explicit permission approval is required')
+    require(sorted(grants) in (PERMISSIONS, RECORDER_PERMISSIONS, CODEC_PERMISSIONS), 'Explicit permission approval is required')
     with mutation_lock(root):
         directory = installed_dir(root, package_id, package_version, sha)
         package, _ = inspect_package(directory, sha, private=True)
@@ -324,11 +326,12 @@ def package_binary(binary, license_file, output, package_id, package_version, ro
     license_bytes = read_file(license_file, MAX_NOTICE)
     output = no_links(output)
     require(not output.exists(), 'Package output already exists')
-    require(role in ('http_metadata_observer', 'usage_recorder'), 'Unsupported role')
+    require(role in ('http_metadata_observer', 'usage_recorder', 'api_codec'), 'Unsupported role')
     recorder = role == 'usage_recorder'
+    codec = role == 'api_codec'
     manifest = {'schema': PACKAGE_SCHEMA, 'id': package_id, 'version': package_version,
-                'target': host, 'protocol': RECORDER_PROTOCOL if recorder else PROTOCOL, 'permissions': RECORDER_PERMISSIONS if recorder else PERMISSIONS,
-                'state_schema': 'usage-store/v1' if recorder else 'observer-state/v1',
+                'target': host, 'protocol': CODEC_PROTOCOL if codec else RECORDER_PROTOCOL if recorder else PROTOCOL, 'permissions': CODEC_PERMISSIONS if codec else RECORDER_PERMISSIONS if recorder else PERMISSIONS,
+                'state_schema': 'request-memory/v1' if codec else 'usage-store/v1' if recorder else 'observer-state/v1',
                 'files': {'extension': digest(binary_bytes), 'LICENSE.txt': digest(license_bytes)}}
     raw = canonical(manifest)
     output.mkdir(mode=0o700)
@@ -347,7 +350,7 @@ def main(argv=None):
         build.add_argument('--' + name, type=Path, required=True)
     build.add_argument('--id', required=True)
     build.add_argument('--version', required=True)
-    build.add_argument('--role', choices=['http_metadata_observer', 'usage_recorder'], default='http_metadata_observer')
+    build.add_argument('--role', choices=['http_metadata_observer', 'usage_recorder', 'api_codec'], default='http_metadata_observer')
     inspect = commands.add_parser('inspect')
     inspect.add_argument('--package', type=Path, required=True)
     inspect.add_argument('--expected-sha256', required=True)

@@ -730,3 +730,9 @@ fn response_usage(raw: &Value, input: u64, output: u64, total: u64) -> Value {
     result["total_tokens"] = json!(total);
     result
 }
+
+/// Shared stateless display projection. Accounting retains its separate provenance rules.
+pub(crate) fn projected_usage(raw: &Value) -> Result<Value, IrError> {
+    let (input, output, total) = usage(raw)?;
+    Ok(response_usage(raw, input, output, total))
+}

@@ -242,6 +242,20 @@ impl<'a> ResponsesStream<'a> {
                         self.prepared
                             .tools
                             .validate_count(self.call_ids.len(), false)?;
+                        if self.prepared.preserve_item_order {
+                            let (original, kind) =
+                                self.prepared.tools.registry.original(&identity)?;
+                            let mut head = json!({"id":id,"type":if kind==crate::ir::ToolKind::Custom{"custom_tool_call"}else{"function_call"},"call_id":call_id.as_str(),"name":original.name,"status":"in_progress"});
+                            if let Some(namespace) = &original.namespace {
+                                head["namespace"] = json!(namespace);
+                            }
+                            head[if kind == crate::ir::ToolKind::Custom {
+                                "input"
+                            } else {
+                                "arguments"
+                            }] = json!("");
+                            self.emit(json!({"type":"response.output_item.added","output_index":index,"item":head}),&mut output)?;
+                        }
                     }
                     "message" | "reasoning" => {
                         let reasoning = item_kind == "reasoning";
@@ -621,10 +635,13 @@ impl<'a> ResponsesStream<'a> {
         let mut started = item.clone();
         started["status"] = json!("in_progress");
         started[key] = json!("");
-        self.emit(
-            json!({"type":"response.output_item.added","output_index":n,"item":started}),
-            output,
-        )?;
+        if !self.prepared.preserve_item_order {
+            self.emit(
+                json!({"type":"response.output_item.added","output_index":n,"item":started}),
+                output,
+            )?;
+        }
+
         for chunk in event_text_chunks(string(item, key)?) {
             self.emit(json!({"type":format!("{prefix}.delta"),"item_id":item["id"],"output_index":n,"delta":chunk}),output)?;
         }

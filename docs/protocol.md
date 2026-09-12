@@ -290,3 +290,8 @@ defines the schema and host responsibilities.
 
 [Chat Completions support](chat-completions.md) describes the function-tool format
 and explicit custom-text conversion.
+
+[External API codecs](api-codecs.md) may implement these existing API contracts
+through explicit native package selection. They retain checked admission and
+core-owned transport, tool validation, accounting and continuation. Unsupported
+features remain errors; a codec grant does not extend the support matrix.

@@ -128,18 +128,15 @@ async fn run(cli: Cli) -> Result<(), ConfigError> {
     };
     let raw = std::fs::read_to_string(path)
         .map_err(|_| ConfigError("Cannot read configuration file".into()))?;
-    let config = if let Some(path) = profile_packs_lock {
-        Config::parse_with_profile_packs(
-            &raw,
-            agent_response_gateway::profile_packs::ProfilePackPlan::load(path)?,
-        )?
-    } else {
-        Config::parse(&raw)?
-    };
     let extensions = extensions_lock
         .as_deref()
         .map(ExtensionPlan::load)
         .transpose()?;
+    let packs = profile_packs_lock
+        .as_deref()
+        .map(agent_response_gateway::profile_packs::ProfilePackPlan::load)
+        .transpose()?;
+    let config = Config::parse_startup(&raw, packs, extensions.as_ref())?;
     let manifest = config.manifest()?;
     let base_manifest = serde_json::to_value(&manifest).expect("manifest JSON");
     let extended_manifest = extensions
@@ -204,7 +201,9 @@ async fn run(cli: Cli) -> Result<(), ConfigError> {
     let mut readiness = json!({"event":"ready", "address":bound.to_string(), "base_url":format!("http://{bound}/v1"), "version":env!("CARGO_PKG_VERSION"),
         "schema":manifest.ready_schema(),"manifest_schema":manifest.schema(),"configuration_sha256":manifest.configuration_sha256()});
     if let Some(extended) = &extended_manifest {
-        readiness["schema"] = json!(if manifest.schema() == "gateway-embedded-manifest/v5" {
+        readiness["schema"] = json!(if extended["schema"] == "gateway-extended-manifest/v6" {
+            "gateway-extended-ready/v6"
+        } else if manifest.schema() == "gateway-embedded-manifest/v5" {
             "gateway-extended-ready/v5"
         } else if compatibility_enabled {
             "gateway-extended-ready/v4"

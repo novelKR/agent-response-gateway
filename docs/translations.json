@@ -306,8 +306,8 @@
       "order": 0,
       "source": "docs/integration.md",
       "translation": "docs/ko/integration.md",
-      "source_sha256": "5cc7bb237b5e5508c78217d745e7445833ba9c7a59037cde042eca47efa9fb3f",
-      "translation_sha256": "e0c401d87e3be8aac96921005256027157b3467dea0639f4e39e5df280ca1380",
+      "source_sha256": "1dd81784512b19ce95496f5d830d8a85d34cb2550669b2ec5e194f93acb9656b",
+      "translation_sha256": "3569c09516b3fd1e0d372cf7acbc83db3975af5e99ac526e233b79a2b31b3389",
       "anchors": [
         "application-integration",
         "calling-from-a-backend-service",
@@ -442,8 +442,8 @@
       "order": 0,
       "source": "docs/protocol.md",
       "translation": "docs/ko/protocol.md",
-      "source_sha256": "f1722c5bd32b1b534efc8ac476f84c752b0ddd9070b1089649e6a06889c09bd4",
-      "translation_sha256": "79e5e7b291ebc39c66f29c84dfaa5c3e0acf74cb42748420aab250a652e6fb27",
+      "source_sha256": "a227aa0a23e7bb5d753522815809ffd302e5e5483c4ecd645b049e24e8a87327",
+      "translation_sha256": "1589a6f6814942a885875213514ba9e48d06ac2ad23b8fa229cc68b4862aa4a2",
       "anchors": [
         "checked-responses-tools",
         "configuration-and-authentication",
@@ -780,8 +780,8 @@
         "패키지와-권한-계약",
         "프로세스-수명과-장애-정책"
       ],
-      "source_sha256": "e4c18c15afb0656e9f4c3fdf389f1ef0e9fee2575463826e87cc67abdcc1578b",
-      "translation_sha256": "8758c54e4d6b7b2520d4a595430d3abc096a7d8ce4f3db4a8842268cefcfb107"
+      "source_sha256": "4aa5a3f313df2e9d4ea98a7157bb3e18b9d08282d3bafc47e28e3847cf656014",
+      "translation_sha256": "d5b6cb4d6f50db2f0f10e6d4c1184339cf321f6d02dde00a950fc60c3675574f"
     },
     {
       "id": "extensions",
@@ -914,6 +914,28 @@
         "호환성-프로파일-팩"
       ],
       "route": "/guide/profile-packs"
+    },
+    {
+      "id": "api-codecs",
+      "section": "integration",
+      "order": 32,
+      "source": "docs/api-codecs.md",
+      "translation": "docs/ko/api-codecs.md",
+      "source_sha256": "ec33dc1b6b85feb827c71849d8131c3ac052166991978f80e491358e3223fd4f",
+      "translation_sha256": "ea2ebb3f006462ccbd3a18f1112a0dcc3c47888eff730b810900dd4e7a49acbe",
+      "anchors": [
+        "change-and-recovery",
+        "external-api-codecs",
+        "ipc-lifecycle-and-validation",
+        "ipc-수명-주기와-검증",
+        "package-and-route-selection",
+        "responsibilities-and-trust",
+        "변경과-복구",
+        "외부-api-codec",
+        "책임과-신뢰",
+        "패키지와-경로-선택"
+      ],
+      "route": "/guide/api-codecs"
     }
   ]
 }

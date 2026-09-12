@@ -25,6 +25,21 @@ def ready(value):
 
 
 class EmbeddedContractTests(unittest.TestCase):
+    def test_codec_identity_versions_permissions_and_readiness_are_bound(self):
+        value=manifest();value['schema']='gateway-embedded-manifest/v6'
+        codec={'id':'reference-codec','version':'1.0.0','package_sha256':'a'*64,'executable_sha256':'b'*64,'protocol':'gateway-api-codec/v1','replay_versions':[1],'permissions':['read_model_payload','transform_model_protocol']}
+        value['configuration']['routes'][0]['api_codec']=codec
+        def stamp(v):v['configuration_sha256']=hashlib.sha256(json.dumps(v['configuration'],ensure_ascii=False,sort_keys=True,separators=(',',':')).encode()).hexdigest()
+        stamp(value);contract.validate_manifest(value)
+        r=ready(value);r['schema']='gateway-ready/v6';contract.parse_ready_line(json.dumps(r)+'\n',value)
+        for field,wrong in [('protocol','gateway-api-codec/v2'),('replay_versions',[2]),('permissions',['read_credentials']),('package_sha256','wrong')]:
+            changed=copy.deepcopy(value);changed['configuration']['routes'][0]['api_codec'][field]=wrong;stamp(changed)
+            with self.subTest(field=field),self.assertRaises(ValueError):contract.validate_manifest(changed)
+        changed=copy.deepcopy(value);changed['configuration']['routes'][0]['api_codec']['package_sha256']='c'*64
+        with self.assertRaisesRegex(ValueError,'digest'):contract.validate_manifest(changed)
+        changed=copy.deepcopy(value);del changed['configuration']['routes'][0]['api_codec'];stamp(changed)
+        with self.assertRaises(ValueError):contract.validate_manifest(changed)
+
     def test_profile_pack_manifest_binds_package_imports_and_optional_extensions(self):
         value = manifest()
         value['schema'] = 'gateway-embedded-manifest/v5'

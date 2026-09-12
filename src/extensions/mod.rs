@@ -8,7 +8,7 @@ use serde_json::{Value, json};
 use crate::ConfigError;
 
 #[cfg(unix)]
-mod filesystem;
+pub(crate) mod filesystem;
 mod runtime;
 mod usage_runtime;
 pub use runtime::{ExtensionRuntime, ObserverSink};
@@ -18,6 +18,7 @@ pub const LOCK_SCHEMA: &str = "gateway-extension-lock/v1";
 pub const OBSERVER_PROTOCOL: &str = "gateway-observer/v1";
 pub const EXTENDED_MANIFEST_SCHEMA: &str = "gateway-extended-manifest/v1";
 pub const EXTENDED_READY_SCHEMA: &str = "gateway-extended-ready/v1";
+pub const CODEC_PERMISSIONS: [&str; 2] = ["read_model_payload", "transform_model_protocol"];
 pub const PERMISSIONS: [&str; 2] = ["observe_http_metadata", "write_private_state"];
 pub const RECORDER_PERMISSIONS: [&str; 3] = ["export_usage", "observe_usage", "write_usage_store"];
 const MAX_JSON: u64 = 65_536;
@@ -125,7 +126,14 @@ impl Package {
                         .iter()
                         .map(String::as_str)
                         .eq(RECORDER_PERMISSIONS)
-                    && self.state_schema == "usage-store/v1"))
+                    && self.state_schema == "usage-store/v1")
+                || (self.protocol == crate::codecs::contract::PROTOCOL
+                    && self
+                        .permissions
+                        .iter()
+                        .map(String::as_str)
+                        .eq(CODEC_PERMISSIONS)
+                    && self.state_schema == "request-memory/v1"))
             || !(2..=8).contains(&self.files.len())
             || !self.files.contains_key("extension")
             || !self.files.contains_key("LICENSE.txt")
@@ -187,6 +195,11 @@ impl Activation {
                 || !valid_version(&entry.version)
                 || !valid_hash(&entry.package_sha256)
                 || !(permissions(&entry.grants)
+                    || entry
+                        .grants
+                        .iter()
+                        .map(String::as_str)
+                        .eq(CODEC_PERMISSIONS)
                     || (self.recorder.is_some()
                         && entry
                             .grants
@@ -313,6 +326,40 @@ impl ExtensionPlan {
         Err(invalid())
     }
 
+    pub(crate) fn codec_bindings(&self) -> BTreeMap<String, crate::codecs::Binding> {
+        self.activation
+            .extensions
+            .iter()
+            .zip(&self.packages)
+            .filter(|(_, p)| p.protocol == crate::codecs::contract::PROTOCOL)
+            .map(|(entry, p)| {
+                (
+                    entry.id.clone(),
+                    crate::codecs::Binding {
+                        id: entry.id.clone(),
+                        version: entry.version.clone(),
+                        package_sha256: entry.package_sha256.clone(),
+                        executable_sha256: p.files["extension"].clone(),
+                        executable: self
+                            .root
+                            .join("packages")
+                            .join(&entry.id)
+                            .join(&entry.version)
+                            .join(&entry.package_sha256)
+                            .join("extension"),
+                        directory: self
+                            .root
+                            .join("state")
+                            .join(&entry.id)
+                            .join(&entry.package_sha256),
+                        #[cfg(unix)]
+                        owner: self.owner,
+                    },
+                )
+            })
+            .collect()
+    }
+
     pub fn manifest_schema(&self) -> &'static str {
         if self.activation.recorder.is_some() {
             "gateway-extended-manifest/v2"
@@ -336,6 +383,11 @@ impl ExtensionPlan {
     }
 
     pub fn manifest(&self, base_manifest: &Value) -> Result<Value, ConfigError> {
+        let codecs = base_manifest["schema"] == "gateway-embedded-manifest/v6"
+            || self
+                .packages
+                .iter()
+                .any(|p| p.protocol == crate::codecs::contract::PROTOCOL);
         let profile_packs = base_manifest["schema"] == "gateway-embedded-manifest/v5";
         let compatibility = base_manifest["schema"] == "gateway-embedded-manifest/v4";
         let managed = base_manifest["configuration"].get("continuation").is_some();
@@ -356,7 +408,7 @@ impl ExtensionPlan {
         }
         let execution_sha256 = hash(&canonical(&configuration)?);
         Ok(
-            json!({"schema":if profile_packs { "gateway-extended-manifest/v5" } else if compatibility { "gateway-extended-manifest/v4" } else if managed { "gateway-extended-manifest/v3" } else { self.manifest_schema() }, "configuration":configuration,
+            json!({"schema":if codecs { "gateway-extended-manifest/v6" } else if profile_packs { "gateway-extended-manifest/v5" } else if compatibility { "gateway-extended-manifest/v4" } else if managed { "gateway-extended-manifest/v3" } else { self.manifest_schema() }, "configuration":configuration,
             "execution_sha256":execution_sha256}),
         )
     }
