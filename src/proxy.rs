@@ -22,6 +22,7 @@ use crate::{
     http::{GatewayState, RequestId},
     responses_policy::normalize_stateless,
     routing::AdmittedRequest,
+    usage::{self, Attempt, EventKind, Finality, Outcome, Profile, UsageEvent},
 };
 
 struct StreamLease {
@@ -154,6 +155,41 @@ pub(crate) async fn responses(
     } else {
         send
     };
+    let profile = match route.snapshot.api {
+        crate::ir::ApiProtocol::Responses => Profile::ResponsesV1,
+        crate::ir::ApiProtocol::Messages => Profile::MessagesV1,
+        crate::ir::ApiProtocol::ChatCompletions => Profile::ChatV1,
+    };
+    let timestamp = usage::now();
+    let mut attempt = Attempt::start(
+        state.usage.as_ref(),
+        UsageEvent {
+            schema: usage::SCHEMA.into(),
+            producer_id: String::new(),
+            request_id: id.0.clone(),
+            attempt_id: uuid::Uuid::new_v4().to_string(),
+            event_id: uuid::Uuid::new_v4().to_string(),
+            revision: 0,
+            kind: EventKind::AttemptStarted,
+            started_at_ms: timestamp,
+            observed_at_ms: timestamp,
+            provider: route.snapshot.provider_id.clone(),
+            model_alias: model_id.clone(),
+            upstream_model: route.snapshot.model.clone(),
+            reported_model: None,
+            provider_request_id: None,
+            provider_response_id: None,
+            profile,
+            configuration_sha256: state.configuration_sha256.clone(),
+            upstream: Outcome::InProgress,
+            gateway: Outcome::InProgress,
+            finality: Finality::Unobserved,
+            observation_incomplete: false,
+            usage: Default::default(),
+        },
+    )
+    .await
+    .map_err(|_| accounting_error())?;
     let send = send
         .header(
             header::ACCEPT,
@@ -167,7 +203,7 @@ pub(crate) async fn responses(
         .header(header::ACCEPT_ENCODING, "identity")
         .json(&payload)
         .send();
-    let upstream = tokio::time::timeout(
+    let upstream_result = tokio::time::timeout(
         Duration::from_millis(state.config.limits.response_header_timeout_ms),
         send,
     )
@@ -178,24 +214,51 @@ pub(crate) async fn responses(
             "upstream_timeout",
             "Upstream response headers timed out",
         )
-    })?
-    .map_err(|error| {
-        if error.is_timeout() {
-            ApiError::new(
-                StatusCode::GATEWAY_TIMEOUT,
-                "upstream_timeout",
-                "Upstream connection timed out",
-            )
-        } else {
-            ApiError::new(
-                StatusCode::BAD_GATEWAY,
-                "upstream_unavailable",
-                "Cannot connect to the configured upstream",
-            )
+    })
+    .and_then(|result| {
+        result.map_err(|error| {
+            if error.is_timeout() {
+                ApiError::new(
+                    StatusCode::GATEWAY_TIMEOUT,
+                    "upstream_timeout",
+                    "Upstream connection timed out",
+                )
+            } else {
+                ApiError::new(
+                    StatusCode::BAD_GATEWAY,
+                    "upstream_unavailable",
+                    "Cannot connect to the configured upstream",
+                )
+            }
+        })
+    });
+    let upstream = match upstream_result {
+        Ok(upstream) => upstream,
+        Err(error) => {
+            if let Some(a) = &mut attempt {
+                a.event.upstream = Outcome::TransportLost;
+            }
+            let _ = usage::finish(&mut attempt, Outcome::Failed).await;
+            return Err(error);
         }
-    })?;
+    };
+    if let Some(a) = &mut attempt {
+        a.event.gateway = Outcome::Failed;
+    }
     let status = upstream.status();
+    if let Some(a) = &mut attempt {
+        a.event.provider_request_id = upstream
+            .headers()
+            .get("x-request-id")
+            .and_then(|v| v.to_str().ok())
+            .filter(|v| usage::safe_label(v))
+            .map(str::to_owned);
+    }
     if !status.is_success() {
+        if let Some(a) = &mut attempt {
+            a.event.upstream = Outcome::Failed;
+        }
+        let _ = usage::finish(&mut attempt, Outcome::Failed).await;
         // Provider errors can echo credentials/prompts; expose only status and a local error.
         return Err(ApiError::new(
             if status.is_redirection() {
@@ -254,12 +317,16 @@ pub(crate) async fn responses(
         outcome: "downstream_closed",
     };
     if streaming {
+        if let Some(a) = &mut attempt {
+            a.event.gateway = Outcome::InProgress;
+        }
         // No producer task or application queue: downstream demand drives upstream polling.
         // Capturing the lease outside the generator retains capacity even before its first poll.
         let maximum = state.config.limits.max_response_bytes;
         let stream = async_stream::stream! {
             let _hold = &lease;
             let mut framing = SseDecoder::new(maximum).expect("positive configured byte limit");
+            let mut observation = state.usage.as_ref().map(|_| SseDecoder::new(maximum).expect("positive limit"));
             let mut converted = prepared.as_ref().map(|p| p.stream(maximum).expect("positive configured byte limit"));
             'upstream: loop {
                 match tokio::time::timeout(idle, source.next()).await {
@@ -276,23 +343,50 @@ pub(crate) async fn responses(
                                         break 'upstream;
                                     }
                                 };
+                                if let Ok(payload) = crate::adapters::json::decode(event.data.as_bytes()) {
+                                    if usage::observe_payload(&mut attempt, &payload).await.is_err() { lease.mark("usage_record_failed"); yield Err(io::Error::other("Usage record failed")); break 'upstream; }
+                                } else if event.data.trim() != "[DONE]" && let Some(a) = &mut attempt { a.incomplete(); }
                                 let events = match converted.event(event) {
                                     Ok(events) => events,
                                     Err(_) => {
                                         lease.mark("upstream_invalid_stream");
+                                        let _ = usage::finish(&mut attempt, Outcome::ConversionFailed).await;
                                         yield Err(io::Error::other("Upstream stream cannot be converted"));
                                         break 'upstream;
                                     }
                                 };
                                 for event in events {
                                     let kind = event["type"].as_str().expect("constructed Responses event type");
+                                    if matches!(kind, "response.completed" | "response.incomplete" | "response.failed") {
+                                        if let Some(a) = &mut attempt { a.event.upstream = match kind { "response.completed"=>Outcome::Completed,"response.incomplete"=>Outcome::Incomplete,_=>Outcome::Failed }; }
+                                        if usage::finish(&mut attempt, Outcome::Completed).await.is_err() { lease.mark("usage_record_failed"); yield Err(io::Error::other("Usage record failed")); break 'upstream; }
+                                    }
                                     yield Ok::<Bytes, io::Error>(Bytes::from(format!("event: {kind}\ndata: {event}\n\n")));
                                 }
                                 if converted.is_complete() { lease.mark("converted_complete"); break 'upstream; }
                             }
-                        } else { yield Ok::<Bytes, io::Error>(chunk); }
+                        } else {
+                            if let Some(parser) = &mut observation {
+                                let mut remaining = chunk.as_ref();
+                                loop {
+                                    match parser.next_event(&mut remaining) {
+                                        Ok(Some(event)) => {
+                                            if let Ok(payload) = crate::adapters::json::decode(event.data.as_bytes()) {
+                                                if usage::observe_payload(&mut attempt, &payload).await.is_err() { lease.mark("usage_record_failed"); yield Err(io::Error::other("Usage record failed")); break 'upstream; }
+                                                if attempt.as_ref().is_some_and(|a|matches!(a.event.upstream,Outcome::Completed|Outcome::Incomplete|Outcome::Failed))
+                                                    && usage::finish(&mut attempt,Outcome::Completed).await.is_err() {lease.mark("usage_record_failed");yield Err(io::Error::other("Usage record failed"));break 'upstream;}
+                                            } else if event.data.trim() != "[DONE]"&& let Some(a)=&mut attempt {a.incomplete();}
+                                        }
+                                        Ok(None) => break,
+                                        Err(_) => {if let Some(a)=&mut attempt {a.incomplete();} observation=None; break;}
+                                    }
+                                }
+                            }
+                            yield Ok::<Bytes, io::Error>(chunk);
+                        }
                     },
                     Ok(None) => {
+                        if observation.as_ref().is_some_and(|p|p.finish().is_err())&& let Some(a)=&mut attempt {a.incomplete();}
                         if converted.as_ref().is_some_and(|c| c.finish().is_err()) || (converted.is_some() && framing.finish().is_err()) {
                             lease.mark("upstream_incomplete_stream");
                             yield Err(io::Error::other("Upstream stream ended before completion"));
@@ -303,6 +397,8 @@ pub(crate) async fn responses(
                     Err(_) => { lease.mark("upstream_idle_timeout"); yield Err(io::Error::new(io::ErrorKind::TimedOut, "Upstream stream timed out")); break; },
                 }
             }
+            let outcome = if matches!(lease.outcome,"converted_complete"|"upstream_eof") {Outcome::Completed} else {Outcome::TransportLost};
+            if usage::finish(&mut attempt,outcome).await.is_err() {yield Err(io::Error::other("Usage record failed"));}
         };
         let mut response = Response::new(Body::from_stream(stream));
         *response.status_mut() = status;
@@ -351,8 +447,36 @@ pub(crate) async fn responses(
             }
             data.extend_from_slice(&chunk);
         }
+        if let Ok(value) = crate::adapters::json::decode(&data) {
+            usage::observe_payload(&mut attempt, &value)
+                .await
+                .map_err(|_| accounting_error())?;
+            if let Some(a) = &mut attempt {
+                a.event.upstream = match value
+                    .get("status")
+                    .and_then(Value::as_str)
+                    .or_else(|| value.get("stop_reason").and_then(Value::as_str))
+                    .or_else(|| {
+                        value
+                            .pointer("/choices/0/finish_reason")
+                            .and_then(Value::as_str)
+                    })
+                    .unwrap_or("completed")
+                {
+                    "incomplete" | "max_tokens" | "length" => Outcome::Incomplete,
+                    "failed" => Outcome::Failed,
+                    _ => Outcome::Completed,
+                };
+            }
+        } else if let Some(a) = &mut attempt {
+            a.incomplete();
+        }
         if let Some(prepared) = prepared {
-            let output = prepared.decode_bytes(&data).map_err(|_| {
+            let decoded = prepared.decode_bytes(&data);
+            if decoded.is_err() {
+                let _ = usage::finish(&mut attempt, Outcome::ConversionFailed).await;
+            }
+            let output = decoded.map_err(|_| {
                 ApiError::new(
                     StatusCode::BAD_GATEWAY,
                     "upstream_invalid_response",
@@ -367,7 +491,18 @@ pub(crate) async fn responses(
                 "Upstream returned invalid JSON",
             ));
         }
+        usage::finish(&mut attempt, Outcome::Completed)
+            .await
+            .map_err(|_| accounting_error())?;
         lease.outcome = "json_complete";
         Ok((status, [(header::CONTENT_TYPE, "application/json")], data).into_response())
     }
+}
+
+fn accounting_error() -> ApiError {
+    ApiError::new(
+        StatusCode::SERVICE_UNAVAILABLE,
+        "usage_recorder_unavailable",
+        "Usage recorder did not confirm local commit",
+    )
 }

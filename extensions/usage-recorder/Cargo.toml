@@ -1,0 +1,24 @@
+[package]
+name = "gateway-usage-recorder"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.98"
+license = "AGPL-3.0-only"
+publish = false
+
+[dependencies]
+gateway-usage-contract = { path = "../../crates/usage-contract" }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["arbitrary_precision"] }
+rusqlite = { version = "0.38", features = ["bundled", "backup"] }
+postgres = "0.19"
+postgres-native-tls = "0.5"
+native-tls = "0.2"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "blocking", "json"] }
+clap = { version = "4", features = ["derive"] }
+chrono = "0.4"
+chrono-tz = "0.10"
+uuid = { version = "1", features = ["v4"] }
+
+[dev-dependencies]
+tempfile = "3"

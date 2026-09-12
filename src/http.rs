@@ -22,6 +22,8 @@ pub(crate) struct GatewayState {
     pub secrets: Secrets,
     pub client: reqwest::Client,
     pub slots: Arc<Semaphore>,
+    pub usage: Option<crate::usage::UsageSink>,
+    pub configuration_sha256: String,
 }
 
 #[derive(Clone)]
@@ -37,6 +39,16 @@ pub fn router_with_observers(
     secrets: Secrets,
     observers: Option<ObserverSink>,
 ) -> Result<Router, ConfigError> {
+    router_with_usage(config, secrets, observers, None)
+}
+
+/// Opt-in accounting; durable mode may gate upstream admission and final completion.
+pub fn router_with_usage(
+    config: Config,
+    secrets: Secrets,
+    observers: Option<ObserverSink>,
+    usage: Option<crate::usage::UsageSink>,
+) -> Result<Router, ConfigError> {
     config.validate()?;
     secrets.validate(&config)?;
     let client = reqwest::Client::builder()
@@ -49,9 +61,11 @@ pub fn router_with_observers(
         .map_err(|_| ConfigError("Cannot construct upstream HTTP client".into()))?;
     let state = Arc::new(GatewayState {
         slots: Arc::new(Semaphore::new(config.limits.max_in_flight)),
+        configuration_sha256: config.manifest()?.configuration_sha256().into(),
         config,
         secrets,
         client,
+        usage,
     });
     let protected = Router::new()
         .route("/v1/models", get(models))

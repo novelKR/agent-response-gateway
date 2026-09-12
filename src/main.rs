@@ -6,9 +6,7 @@ use std::{
 
 use agent_response_gateway::{
     Config, ConfigError, Secrets,
-    extensions::{
-        EXTENDED_MANIFEST_SCHEMA, EXTENDED_READY_SCHEMA, ExtensionPlan, ExtensionRuntime,
-    },
+    extensions::{ExtensionPlan, ExtensionRuntime},
     manifest::{MANIFEST_SCHEMA, READY_SCHEMA},
 };
 use clap::{Parser, Subcommand};
@@ -133,16 +131,24 @@ async fn run(cli: Cli) -> Result<(), ConfigError> {
         .as_ref()
         .map(ExtensionRuntime::start)
         .transpose()?;
-    let router = agent_response_gateway::router_with_observers(
+    let router = agent_response_gateway::router_with_usage(
         config,
         secrets,
         extension_runtime.as_ref().map(ExtensionRuntime::sink),
+        extension_runtime
+            .as_ref()
+            .and_then(ExtensionRuntime::usage_sink),
     )?;
     let mut readiness = json!({"event":"ready", "address":bound.to_string(), "base_url":format!("http://{bound}/v1"), "version":env!("CARGO_PKG_VERSION"),
         "schema":READY_SCHEMA,"manifest_schema":MANIFEST_SCHEMA,"configuration_sha256":manifest.configuration_sha256()});
     if let Some(extended) = &extended_manifest {
-        readiness["schema"] = json!(EXTENDED_READY_SCHEMA);
-        readiness["manifest_schema"] = json!(EXTENDED_MANIFEST_SCHEMA);
+        readiness["schema"] = json!(extensions.as_ref().expect("extension plan").ready_schema());
+        readiness["manifest_schema"] = json!(
+            extensions
+                .as_ref()
+                .expect("extension plan")
+                .manifest_schema()
+        );
         readiness["execution_sha256"] = extended["execution_sha256"].clone();
     }
     println!("{readiness}");
