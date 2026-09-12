@@ -24,6 +24,8 @@ PACKAGE_SCHEMA = 'gateway-extension-package/v1'
 LOCK_SCHEMA = 'gateway-extension-lock/v1'
 PROTOCOL = 'gateway-observer/v1'
 PERMISSIONS = ['observe_http_metadata', 'write_private_state']
+RECORDER_PROTOCOL = 'gateway-usage-recorder/v1'
+RECORDER_PERMISSIONS = ['export_usage', 'observe_usage', 'write_usage_store']
 MAX_JSON = 65536
 MAX_BINARY = 128 * 1024 * 1024
 MAX_NOTICE = 256 * 1024
@@ -120,11 +122,11 @@ def validate_package(raw):
     require(isinstance(package, dict) and set(package) == {
         'schema', 'id', 'version', 'target', 'protocol', 'permissions', 'state_schema', 'files'
     }, 'Invalid package manifest fields')
-    require(package['schema'] == PACKAGE_SCHEMA and package['protocol'] == PROTOCOL, 'Unsupported package protocol')
+    require(package['schema'] == PACKAGE_SCHEMA and package['protocol'] in (PROTOCOL, RECORDER_PROTOCOL), 'Unsupported package protocol')
     require(identifier(package['id']) and version(package['version']), 'Invalid package identity')
     require(package['target'] == target(), 'Package target does not match this host')
-    require(package['permissions'] == PERMISSIONS, 'Unsupported package permissions')
-    require(package['state_schema'] == 'observer-state/v1', 'Unsupported observer state schema')
+    require(package['permissions'] == (PERMISSIONS if package['protocol'] == PROTOCOL else RECORDER_PERMISSIONS), 'Unsupported package permissions')
+    require(package['state_schema'] == ('observer-state/v1' if package['protocol'] == PROTOCOL else 'usage-store/v1'), 'Unsupported observer state schema')
     entries = package['files']
     require(isinstance(entries, dict) and 2 <= len(entries) <= 8
             and {'extension', 'LICENSE.txt'} <= entries.keys(), 'Executable and license evidence are required')
@@ -194,24 +196,35 @@ def mutation_lock(root):
         os.close(fd)
 
 
+def validate_binding(binding):
+    require(isinstance(binding, dict) and set(binding) == {'store_id', 'mode', 'queue_capacity', 'ack_timeout_ms', 'config_sha256'}, 'Invalid recorder binding')
+    require(identifier(binding['store_id']) and binding['mode'] in ('off', 'best_effort', 'durable_local')
+            and type(binding['queue_capacity']) is int and 2 <= binding['queue_capacity'] <= 4096
+            and type(binding['ack_timeout_ms']) is int and 1 <= binding['ack_timeout_ms'] <= 60000
+            and hex_digest(binding['config_sha256']), 'Invalid recorder limits or identity')
+
+
 def read_lock(root):
     path = root / 'active.json'
     if not path.exists() and not path.is_symlink():
         return {'schema': LOCK_SCHEMA, 'generation': 0, 'extensions': []}
     raw = read_file(path, MAX_JSON, private=True)
     lock = decode_json(raw)
-    require(isinstance(lock, dict) and set(lock) == {'schema', 'generation', 'extensions'}
-            and lock['schema'] == LOCK_SCHEMA and type(lock['generation']) is int
+    require(isinstance(lock, dict) and set(lock) == ({'schema', 'generation', 'extensions', 'recorder'} if 'recorder' in lock else {'schema', 'generation', 'extensions'})
+            and lock['schema'] == ('gateway-extension-lock/v2' if 'recorder' in lock else LOCK_SCHEMA) and type(lock['generation']) is int
             and 0 <= lock['generation'] < 2**64, 'Invalid activation lock')
     require(isinstance(lock['extensions'], list) and len(lock['extensions']) <= MAX_EXTENSIONS, 'Too many extensions')
     ids = set()
     for entry in lock['extensions']:
         require(isinstance(entry, dict) and set(entry) == {'id', 'version', 'package_sha256', 'grants'}
                 and identifier(entry['id']) and version(entry['version'])
-                and hex_digest(entry['package_sha256']) and entry['grants'] == PERMISSIONS
+                and hex_digest(entry['package_sha256']) and entry['grants'] in (PERMISSIONS, RECORDER_PERMISSIONS)
                 and entry['id'] not in ids, 'Invalid activation entry')
         ids.add(entry['id'])
     require(lock['extensions'] == sorted(lock['extensions'], key=lambda e: e['id']), 'Activation entries must be ordered')
+    if 'recorder' in lock:
+        validate_binding(lock['recorder'])
+    require(sum(e['grants'] == RECORDER_PERMISSIONS for e in lock['extensions']) == int('recorder' in lock), 'Invalid recorder binding')
     require(canonical(lock) == raw, 'Activation JSON must be canonical')
     return lock
 
@@ -259,19 +272,31 @@ def install(root, directory, expected):
         return package
 
 
-def enable(root, package_id, package_version, sha, grants):
+def enable(root, package_id, package_version, sha, grants, recorder=None):
     root = open_store(root)
-    require(sorted(grants) == PERMISSIONS, 'Explicit permission approval is required')
+    require(sorted(grants) in (PERMISSIONS, RECORDER_PERMISSIONS), 'Explicit permission approval is required')
     with mutation_lock(root):
         directory = installed_dir(root, package_id, package_version, sha)
         package, _ = inspect_package(directory, sha, private=True)
         require((package['id'], package['version']) == (package_id, package_version), 'Installed identity mismatch')
+        require(sorted(grants) == package['permissions'], 'Package grants mismatch')
         lock = read_lock(root)
         entries = [entry for entry in lock['extensions'] if entry['id'] != package_id]
         require(len(entries) < MAX_EXTENSIONS, 'Too many active extensions')
         state_parent = private_dir(root / 'state' / package_id, create=True)
         private_dir(state_parent / sha, create=True)
-        entries.append({'id': package_id, 'version': package_version, 'package_sha256': sha, 'grants': PERMISSIONS})
+        entries.append({'id': package_id, 'version': package_version, 'package_sha256': sha, 'grants': sorted(grants)})
+        if package['protocol'] == RECORDER_PROTOCOL:
+            require(recorder is not None, 'Explicit recorder binding is required')
+            validate_binding(recorder)
+            require(not any(e['grants'] == RECORDER_PERMISSIONS for e in entries if e['id'] != package_id), 'Only one recorder is supported')
+            usage_root = private_dir(root / 'usage', create=True)
+            state = private_dir(usage_root / recorder['store_id'])
+            require(digest(read_file(state / 'recorder.json', MAX_JSON, private=True)) == recorder['config_sha256'], 'Recorder configuration digest mismatch')
+            lock['recorder'] = recorder
+            lock['schema'] = 'gateway-extension-lock/v2'
+        else:
+            require(recorder is None, 'Observer cannot use recorder binding')
         lock['extensions'] = entries
         return commit_lock(root, lock)
 
@@ -283,10 +308,13 @@ def disable(root, package_id):
         lock = read_lock(root)
         require(any(e['id'] == package_id for e in lock['extensions']), 'Extension is not enabled')
         lock['extensions'] = [e for e in lock['extensions'] if e['id'] != package_id]
+        if not any(e['grants'] == RECORDER_PERMISSIONS for e in lock['extensions']):
+            lock.pop('recorder', None)
+            lock['schema'] = LOCK_SCHEMA
         return commit_lock(root, lock)
 
 
-def package_binary(binary, license_file, output, package_id, package_version):
+def package_binary(binary, license_file, output, package_id, package_version, role="http_metadata_observer"):
     """Build a flat local package from explicitly supplied bytes; never execute them."""
     host = target()
     require(identifier(package_id) and version(package_version), 'Invalid package identity')
@@ -296,9 +324,11 @@ def package_binary(binary, license_file, output, package_id, package_version):
     license_bytes = read_file(license_file, MAX_NOTICE)
     output = no_links(output)
     require(not output.exists(), 'Package output already exists')
+    require(role in ('http_metadata_observer', 'usage_recorder'), 'Unsupported role')
+    recorder = role == 'usage_recorder'
     manifest = {'schema': PACKAGE_SCHEMA, 'id': package_id, 'version': package_version,
-                'target': host, 'protocol': PROTOCOL, 'permissions': PERMISSIONS,
-                'state_schema': 'observer-state/v1',
+                'target': host, 'protocol': RECORDER_PROTOCOL if recorder else PROTOCOL, 'permissions': RECORDER_PERMISSIONS if recorder else PERMISSIONS,
+                'state_schema': 'usage-store/v1' if recorder else 'observer-state/v1',
                 'files': {'extension': digest(binary_bytes), 'LICENSE.txt': digest(license_bytes)}}
     raw = canonical(manifest)
     output.mkdir(mode=0o700)
@@ -317,6 +347,7 @@ def main(argv=None):
         build.add_argument('--' + name, type=Path, required=True)
     build.add_argument('--id', required=True)
     build.add_argument('--version', required=True)
+    build.add_argument('--role', choices=['http_metadata_observer', 'usage_recorder'], default='http_metadata_observer')
     inspect = commands.add_parser('inspect')
     inspect.add_argument('--package', type=Path, required=True)
     inspect.add_argument('--expected-sha256', required=True)
@@ -332,11 +363,12 @@ def main(argv=None):
             sub.add_argument('--version', required=True)
             sub.add_argument('--package-sha256', required=True)
             sub.add_argument('--grant', action='append', default=[])
+            sub.add_argument('--recorder-binding', type=Path)
     args = parser.parse_args(argv)
     try:
         target()
         if args.command == 'package':
-            result = {'package_sha256': package_binary(args.binary, args.license_file, args.output, args.id, args.version)}
+            result = {'package_sha256': package_binary(args.binary, args.license_file, args.output, args.id, args.version, args.role)}
         elif args.command == 'inspect':
             package, _ = inspect_package(args.package, args.expected_sha256)
             result = {'package': package, 'executed': False}
@@ -344,7 +376,7 @@ def main(argv=None):
             package = install(args.store, args.package, args.expected_sha256)
             result = {'id': package['id'], 'version': package['version'], 'installed': True, 'activated': False}
         elif args.command == 'enable':
-            result = enable(args.store, args.id, args.version, args.package_sha256, args.grant)
+            result = enable(args.store, args.id, args.version, args.package_sha256, args.grant, decode_json(read_file(args.recorder_binding, MAX_JSON, private=True)) if args.recorder_binding else None)
         elif args.command == 'disable':
             result = disable(args.store, args.id)
         else:

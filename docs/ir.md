@@ -21,6 +21,25 @@ subset of message strings. Preserve order, instruction roles, tool identity and
 the permitted origin of opaque state. Consumer domain types, user approval,
 tool execution and publication state are outside this contract.
 
+The IR is a consumer-independent semantic contract. Keep request meaning
+(items, tools and constraints), execution plans (routes, profiles and bridges),
+and execution context (attempt identity, deadlines and active extensions)
+distinct. This is a responsibility distinction, not a new public type or schema.
+
+| Preservation level | Contract |
+|---|---|
+| Direct preservation | Use a corresponding API feature without unnecessary rewriting |
+| Preservation through conversion | Apply explicit mappings and validate the promised relationships |
+| Approximation | Disclose different guarantees and require explicit selection; no new approximation mode is added here |
+| Unsupported | Reject when the required meaning cannot be preserved |
+
+`Native / Bridged / Unsupported` describes admission and implementation choices,
+not independent proof of equivalence. Restoring a custom string and its tool IDs
+can be checked exactly. Validating patch syntax does not impose constrained model
+decoding; combining instructions does not prove preservation of role priority.
+See the declared [Messages limits](messages.md) and [product overview](index.md).
+Unknown-field preservation is not permission to translate that field to another API.
+
 | Design concept | Implementation |
 |---|---|
 | CanonicalRequest | `request::RequestIR` |

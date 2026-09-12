@@ -33,7 +33,7 @@ JSON 응답과 SSE 스트림을 변환한다. [설정 예제](../../config.messa
 | 스트림 오류·잘림·알 수 없는 의미 이벤트 | 완료 생성이나 재시도 없이 실패 |
 | max_tokens 종료 | 불완전 응답 |
 | 알 수 없는 블록·인용·상태·종료 방식 | 명시적 오류 |
-| 토큰 사용량 | 입력, 캐시 조회·생성 입력, 출력과 검사된 합계 |
+| 토큰 사용량 | 입력·출력·합계 검사, 캐시 읽기·생성 상세 보존 |
 | 공급자 오류 | 정제한 HTTP 상태·오류; 공급자 응답 본문은 포함하지 않음 |
 
 [지시 변환](messages-instruction-design.md)은 원문, 원래 역할과 순서를
@@ -132,3 +132,7 @@ Responses text.format에 보존하고 스키마 규칙이나 프롬프트에 넣
 같아도 연산량·비용·모델 동작이 같다는 뜻은 아니다.
 [구조화 출력](https://platform.claude.com/docs/en/build-with-claude/structured-outputs)과
 [추론 강도](https://platform.claude.com/docs/en/build-with-claude/effort)를 참조한다.
+
+사용량 계측과 선택형 Recorder는 [토큰 사용량 계측 안내](usage-accounting.md)를
+참조한다. Recorder 설치·로컬 커밋 보장·외부 전달은 HTTP 메타데이터 관찰과
+별개의 계약이다.

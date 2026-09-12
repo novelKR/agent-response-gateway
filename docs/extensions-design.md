@@ -4,7 +4,22 @@
 
 [English](extensions-design.md) | [한국어](ko/extensions-design.md)
 
-The gateway supports explicitly installed, trusted native metadata observers. This design keeps model transport in a small Rust core and separates package management from process execution. Account pooling, credential plugins and dynamic protocol adapters are future extensions, not capabilities of the current observer protocol.
+The [product overview](index.md) distinguishes core, optional extensions and
+execution applications. Pooling, credential management and provider continuity
+can belong to this project's optional modules without becoming mandatory core
+dependencies. A standalone configuration may own their state; a backend
+configuration may obtain policy or state through explicit external contracts.
+These possibilities do not grant the current observer protocol new permissions.
+
+Current observers and the Usage Recorder have different delivery contracts.
+Observers receive best-effort numeric HTTP metadata; the recorder receives usage
+events and can require local commit acknowledgements. Future providers, brokers
+and continuity modules need role-specific interfaces. They must preserve common
+capability admission, origin binding, item identity, event order and terminal
+validation. This does not require dynamic adapter registration or a particular
+repository or process layout.
+
+The gateway supports explicitly installed, trusted native metadata observers and an optional usage recorder. This design keeps model transport in a small Rust core and separates package management from process execution. Account pooling, credential plugins and dynamic protocol adapters are future extensions, not capabilities of the current observer protocol.
 
 <a id="선택한-방식과-대안"></a>
 
@@ -101,7 +116,7 @@ The frame deadline covers partial input and the complete write/read exchange. A 
 
 Native code is trusted code, not an OS sandbox. Empty environment inheritance and narrow messages reduce accidental disclosure; they do not stop an executable from reading user files, opening the network or attacking another same-user process. Permission declarations cannot enforce those prohibitions. Run as the intended unprivileged user, protect store ancestors from other users, and do not treat this loader as protection against hostile same-user mutation. Windows native execution fails explicitly until equivalent filesystem, lock and IPC contracts are implemented; the extension-free gateway remains available on its existing targets.
 
-Opted-in launches use `gateway-extended-manifest/v1` and `gateway-extended-ready/v1`. The `execution_sha256` binds the base manifest and extension configuration: absolute store location, activation generation, exact package manifests/digests and approved grants. Mutable counter files are excluded. The base `configuration_sha256` continues to describe gateway configuration alone.
+Observer-only launches use `gateway-extended-manifest/v1` and `gateway-extended-ready/v1`. The `execution_sha256` binds the base manifest and extension configuration: absolute store location, activation generation, exact package manifests/digests and approved grants. Mutable counter files are excluded. The base `configuration_sha256` continues to describe gateway configuration alone.
 
 This combined digest does not hash the gateway executable or attest a publisher. The consuming host must verify the core binary separately and bind both identities. Validate the extended schema and compare the offline `execution_sha256` with readiness before starting work. Older consumers must reject an unsupported extended schema, not validate only the old configuration field and ignore active code.
 
@@ -143,3 +158,7 @@ Separate token/schema migration from executable rollback. Never run two refresh 
 The [manager](../scripts/extension_manager.py), [Rust contracts](../src/extensions/mod.rs), [supervisor](../src/extensions/runtime.rs) and [native smoke probe](../scripts/extension_smoke.py) are the implementation sources. The smoke probe checks actual executables with synthetic loopback traffic; success is not real-provider qualification or permission to run an arbitrary third-party package.
 
 Keep the first role narrow. Extend contracts only for a demonstrated need: a pool requires credential and continuity review; an external wire adapter requires independent streaming/backpressure/cancellation validation; untrusted code requires real isolation. Broader SDK, signatures, remote discovery, Windows supervision and a management UI remain separate work. Keep third-party rights and corresponding-source requirements explicit when distributing extensions; subprocess separation is not a license determination.
+
+Usage accounting and the optional recorder are described in the
+[token usage accounting guide](usage-accounting.md). Recorder installation,
+local commit guarantees and external delivery are separate from HTTP metadata observation.

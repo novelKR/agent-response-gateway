@@ -12,7 +12,7 @@ Install and enable an optional metadata observer without rebuilding the gateway 
 
 Use Linux or macOS, Python 3.11 or later, and an exact compatible gateway build. The source example needs the repository's pinned Rust 1.98.0 toolchain. Packages must match the host OS/architecture: `linux-x64`, `linux-arm64`, `macos-x64` or `macos-arm64`. CI exercises Linux x64/ARM64 and macOS ARM64; recognition of macOS x64 is not separate hosted acceptance. Windows extension execution is unsupported; ordinary gateway operation is unchanged.
 
-Only `gateway-observer/v1` is accepted. It receives HTTP header-status/timing metadata, not prompts, tokens, response bodies, account quotas or tool results. Codex Pool, dynamic provider adapters, hot reload, remote registries, automatic downloads and credential access are not supported by this package role. The source manager and reference observer are not included as ready-to-install extension binaries in the ordinary gateway binary package.
+This guide covers `gateway-observer/v1`. This observer receives HTTP header-status/timing metadata, not prompts, tokens, response bodies, account quotas or tool results. Codex Pool, dynamic provider adapters, hot reload, remote registries, automatic downloads and credential access are not supported by this package role. The source manager and reference observer are not included as ready-to-install extension binaries in the ordinary gateway binary package.
 
 Run the following example from a reviewed source checkout with absolute, non-symlink paths. It uses a unique private directory and a deliberately inactive loopback provider. No live credentials or paid requests are required. Installing or inspecting a package never starts its executable.
 
@@ -121,3 +121,7 @@ python3 -B scripts/extension_smoke.py \
 The probe packages and runs the actual observer against the actual gateway with a synthetic loopback upstream. It checks offline installation/inspection, unchanged default manifests, exact native JSON/SSE forwarding, authentication separation, frozen activation, exclusive runtime ownership, observer exit/stall isolation and direct-child cleanup. No real OAuth, quota or model service is used. The standard repository format, Clippy, Rust, Python, license and publication checks remain required.
 
 A package error can indicate a wrong trusted digest, unsupported platform/protocol, missing notice, unlisted file, nonprivate mode or a link in the path. Do not bypass checks to make it run. A startup protocol error rejects that opted-in gateway launch. A runtime protocol failure is logged as a fixed diagnostic and disables that observer, not model routes. The smoke test names only a fixed failure phase; it does not print supplied paths, credentials or fixture bodies. Read [the implementation limits and planned roles](extensions-design.md) before treating the foundation as a general plugin SDK.
+
+Usage accounting and the optional recorder are described in the
+[token usage accounting guide](usage-accounting.md). Recorder installation,
+local commit guarantees and external delivery are separate from HTTP metadata observation.

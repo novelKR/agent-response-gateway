@@ -106,3 +106,7 @@ tracked files of a reviewed public commit and apply [documentation checks](docum
 for private paths and unsupported links/object types. Inspect Cargo contents with
 `cargo package --list --allow-dirty`. Neither `.gitignore` nor Cargo exclusion rules
 replace verification of the actual distribution contents.
+
+Usage accounting and the optional recorder are described in the
+[token usage accounting guide](usage-accounting.md). Recorder installation,
+local commit guarantees and external delivery are separate from HTTP metadata observation.

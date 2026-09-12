@@ -1,0 +1,471 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Gateway usage event v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "producer_id",
+    "request_id",
+    "attempt_id",
+    "event_id",
+    "provider",
+    "model_alias",
+    "upstream_model",
+    "reported_model",
+    "provider_request_id",
+    "provider_response_id",
+    "revision",
+    "started_at_ms",
+    "observed_at_ms",
+    "schema",
+    "kind",
+    "profile",
+    "configuration_sha256",
+    "finality",
+    "observation_incomplete",
+    "usage",
+    "upstream",
+    "gateway"
+  ],
+  "properties": {
+    "producer_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_/.:\\-]{1,200}$"
+    },
+    "request_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_/.:\\-]{1,200}$"
+    },
+    "attempt_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_/.:\\-]{1,200}$"
+    },
+    "event_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_/.:\\-]{1,200}$"
+    },
+    "provider": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_/.:\\-]{1,200}$"
+    },
+    "model_alias": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_/.:\\-]{1,200}$"
+    },
+    "upstream_model": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_/.:\\-]{1,200}$"
+    },
+    "reported_model": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_/.:\\-]{1,200}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "provider_request_id": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_/.:\\-]{1,200}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "provider_response_id": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_/.:\\-]{1,200}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 18446744073709551615
+    },
+    "started_at_ms": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 18446744073709551615
+    },
+    "observed_at_ms": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 18446744073709551615
+    },
+    "schema": {
+      "const": "gateway-usage-event/v1"
+    },
+    "kind": {
+      "enum": [
+        "attempt_started",
+        "usage_updated",
+        "attempt_finished"
+      ]
+    },
+    "profile": {
+      "enum": [
+        "responses_v1",
+        "chat_v1",
+        "messages_v1"
+      ]
+    },
+    "configuration_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "finality": {
+      "enum": [
+        "unobserved",
+        "partial",
+        "final"
+      ]
+    },
+    "observation_incomplete": {
+      "type": "boolean"
+    },
+    "usage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "counters",
+        "cache_write_details",
+        "reported",
+        "violations"
+      ],
+      "properties": {
+        "counters": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "input_tokens",
+            "output_tokens",
+            "total_tokens",
+            "input_regular_tokens",
+            "cache_read_input_tokens",
+            "cache_write_input_tokens",
+            "reasoning_output_tokens"
+          ],
+          "properties": {
+            "input_tokens": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "value",
+                "source"
+              ],
+              "properties": {
+                "value": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0,
+                  "maximum": 18446744073709551615
+                },
+                "source": {
+                  "enum": [
+                    "reported",
+                    "derived",
+                    "not_reported",
+                    "not_applicable",
+                    "invalid"
+                  ]
+                }
+              }
+            },
+            "output_tokens": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "value",
+                "source"
+              ],
+              "properties": {
+                "value": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0,
+                  "maximum": 18446744073709551615
+                },
+                "source": {
+                  "enum": [
+                    "reported",
+                    "derived",
+                    "not_reported",
+                    "not_applicable",
+                    "invalid"
+                  ]
+                }
+              }
+            },
+            "total_tokens": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "value",
+                "source"
+              ],
+              "properties": {
+                "value": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0,
+                  "maximum": 18446744073709551615
+                },
+                "source": {
+                  "enum": [
+                    "reported",
+                    "derived",
+                    "not_reported",
+                    "not_applicable",
+                    "invalid"
+                  ]
+                }
+              }
+            },
+            "input_regular_tokens": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "value",
+                "source"
+              ],
+              "properties": {
+                "value": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0,
+                  "maximum": 18446744073709551615
+                },
+                "source": {
+                  "enum": [
+                    "reported",
+                    "derived",
+                    "not_reported",
+                    "not_applicable",
+                    "invalid"
+                  ]
+                }
+              }
+            },
+            "cache_read_input_tokens": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "value",
+                "source"
+              ],
+              "properties": {
+                "value": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0,
+                  "maximum": 18446744073709551615
+                },
+                "source": {
+                  "enum": [
+                    "reported",
+                    "derived",
+                    "not_reported",
+                    "not_applicable",
+                    "invalid"
+                  ]
+                }
+              }
+            },
+            "cache_write_input_tokens": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "value",
+                "source"
+              ],
+              "properties": {
+                "value": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0,
+                  "maximum": 18446744073709551615
+                },
+                "source": {
+                  "enum": [
+                    "reported",
+                    "derived",
+                    "not_reported",
+                    "not_applicable",
+                    "invalid"
+                  ]
+                }
+              }
+            },
+            "reasoning_output_tokens": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "value",
+                "source"
+              ],
+              "properties": {
+                "value": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0,
+                  "maximum": 18446744073709551615
+                },
+                "source": {
+                  "enum": [
+                    "reported",
+                    "derived",
+                    "not_reported",
+                    "not_applicable",
+                    "invalid"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "cache_write_details": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "ttl_seconds",
+              "input_tokens"
+            ],
+            "properties": {
+              "ttl_seconds": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "input_tokens": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "value",
+                  "source"
+                ],
+                "properties": {
+                  "value": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "minimum": 0,
+                    "maximum": 18446744073709551615
+                  },
+                  "source": {
+                    "enum": [
+                      "reported",
+                      "derived",
+                      "not_reported",
+                      "not_applicable",
+                      "invalid"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "reported": {
+          "type": "object",
+          "maxProperties": 16,
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "value",
+              "source"
+            ],
+            "properties": {
+              "value": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0,
+                "maximum": 18446744073709551615
+              },
+              "source": {
+                "enum": [
+                  "reported",
+                  "derived",
+                  "not_reported",
+                  "not_applicable",
+                  "invalid"
+                ]
+              }
+            }
+          }
+        },
+        "violations": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {
+            "enum": [
+              "invalid_counter",
+              "input_partition",
+              "total_mismatch",
+              "subset_exceeds_total",
+              "ttl_mismatch",
+              "counter_decreased"
+            ]
+          }
+        }
+      }
+    },
+    "upstream": {
+      "enum": [
+        "unknown",
+        "in_progress",
+        "completed",
+        "incomplete",
+        "failed",
+        "cancelled",
+        "transport_lost",
+        "conversion_failed",
+        "observation_incomplete"
+      ]
+    },
+    "gateway": {
+      "enum": [
+        "unknown",
+        "in_progress",
+        "completed",
+        "incomplete",
+        "failed",
+        "cancelled",
+        "transport_lost",
+        "conversion_failed",
+        "observation_incomplete"
+      ]
+    }
+  }
+}

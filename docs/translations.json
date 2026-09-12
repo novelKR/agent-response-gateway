@@ -46,8 +46,8 @@
       "order": 0,
       "source": "README.md",
       "translation": "README.ko.md",
-      "source_sha256": "8e5c05edbc3c97cc6ebd7575c53654c48e1f46731d4349740ae97e88d78fb478",
-      "translation_sha256": "d776a0874b793c9f580e273f6a8909235941b3591ebabccb92861c0bca741301",
+      "source_sha256": "7a0def2c8b128e15f53c1922cf9b83cb9541222abbd39db39855e01b68b911d4",
+      "translation_sha256": "28318b6cef7007adde14e3a4bd8ba3a7665ab19ef36cb25ef5db2ef8b7ac0e68",
       "anchors": [
         "agent-response-gateway",
         "getting-started",
@@ -85,8 +85,8 @@
       "order": 2,
       "source": "docs/chat-completions.md",
       "translation": "docs/ko/chat-completions.md",
-      "source_sha256": "30857811966c98f9651cd30bb32e28abe12fc9615f87de4ea7ea2c4068c8f9d3",
-      "translation_sha256": "05948ce994327a6082fcd52fcac4514b2391f590290ff9eee5f94c735541030c",
+      "source_sha256": "79c85dc111e760602637d9fb9910371617663ba60892bb57691ec68245454607",
+      "translation_sha256": "b49dea120ac95649fd16afea0bc290bcd4922cb489dd73ebb2fa6bec9cd8c1f9",
       "anchors": [
         "chat-completions-adapter-support",
         "chat-completions-어댑터-지원",
@@ -132,7 +132,6 @@
       "source_sha256": "c3da97bfc4d1327797752c9a76d9c2c49da91f2c1cb7748fdc209562c5127349",
       "translation_sha256": "c3fdb32d311d66fe88e35957279f7b60e0352d367b08f7cfbbef208c6e8562de",
       "anchors": [
-        "protocol-conformance",
         "protocol-coverage",
         "running-the-suite",
         "test-coverage",
@@ -140,7 +139,6 @@
         "세-api-경로-적합성-검증",
         "시험-실행",
         "시험-항목",
-        "프로토콜-적합성-검증",
         "프로토콜-지원-범위"
       ],
       "route": "/guide/conformance"
@@ -186,8 +184,8 @@
       "order": 1,
       "source": "docs/continuity.md",
       "translation": "docs/ko/continuity.md",
-      "source_sha256": "2bb144a71d50c5218971bde5ec5ae37c43975b7d052bab9db2123b3761880a69",
-      "translation_sha256": "8aeb528c9fcaa8b3c5c778eddac5dc0f551b173c378bb617a062dd79d44c3c92",
+      "source_sha256": "aa2f2abe2b1fe85b6df991599e4509dca5edcc66e5acde05d3c5dd98a6155f37",
+      "translation_sha256": "9941f0eab335529ac91b4f6a477c350c2da5c774cef0d3e5531135f500ec5f8f",
       "anchors": [
         "host-owned-continuity-contract",
         "reproducible-validation",
@@ -206,8 +204,8 @@
       "order": 4,
       "source": "docs/documentation.md",
       "translation": "docs/ko/documentation.md",
-      "source_sha256": "b5ae5ff4aa690e6935bcd2602d8ea8aace954fe241242fd6c0b18cb00ff1e37c",
-      "translation_sha256": "625aa5f02166bc345aa69f42e2e5e63d45bdff3928aabff2739fa4933e439ef4",
+      "source_sha256": "97c1a1399d88c6c5bf92f295b36b5d766ae25d2be442672854c68fb550b5e938",
+      "translation_sha256": "b95a1a5c269c437870149705a7ae543067009004d95c6fdf759bd13e7336aa6b",
       "anchors": [
         "documentation-site-development",
         "independent-local-history",
@@ -238,8 +236,8 @@
       "order": 3,
       "source": "docs/embedded-design.md",
       "translation": "docs/ko/embedded-design.md",
-      "source_sha256": "e7430cbcf91f85d2dfd2f6b7bad0aac1c7b5de8ac8b7e8efbe1d3a854a66fb8a",
-      "translation_sha256": "19c1f78bb34cffd5fed8756fc859719fa6d9032db73783b4cf1d6e2ef1a5329b",
+      "source_sha256": "b0a2b70c88eb12641761fcee87a89c91f420b0c04f1998a4a450218aefec25a3",
+      "translation_sha256": "89b281a50535d3008fb7376a3b83325c22b68781bd42d401a1eb6c9f703ba8f8",
       "anchors": [
         "alternatives-cost-and-risks",
         "authentication-and-access",
@@ -304,8 +302,8 @@
       "order": 0,
       "source": "docs/integration.md",
       "translation": "docs/ko/integration.md",
-      "source_sha256": "c522a72080a0066e9af14a49578f845e476c03127fcdfb32f59a171a03530e82",
-      "translation_sha256": "8a55ba7c4bb5ce4944fb67b3d0d8cf39244e3b6ca6f8f697029a78d7b3cd8126",
+      "source_sha256": "963592101fc9238c4a2a6a45cffdc779b861c46bf8d526827e5425a65c5c29bc",
+      "translation_sha256": "7177735737ff7cf5e7765428a6062471c7c42710fb65623c60cfcab810ffbe76",
       "anchors": [
         "application-integration",
         "calling-from-a-backend-service",
@@ -335,8 +333,8 @@
       "order": 0,
       "source": "docs/ir.md",
       "translation": "docs/ko/ir.md",
-      "source_sha256": "6f5c4f5b14c02e12665452ecd3fcd826c4bd1a79670b01c395c5e4a746e5267f",
-      "translation_sha256": "fff3db18c4e010ebaba38378e2676010cddbca4b819dcc44f0c080efca3fa839",
+      "source_sha256": "f790a7c66ea956101844194c9989f25c5624ec7a2616863cea0cbb5effded5cf",
+      "translation_sha256": "cfbc07ccc02ccdb161c5443c829eedd50ce13dbf0b7e17913f1083695f6c2388",
       "anchors": [
         "capability-admission-and-execution-routes",
         "custom-tool-json-bridge",
@@ -396,8 +394,8 @@
       "order": 1,
       "source": "docs/messages.md",
       "translation": "docs/ko/messages.md",
-      "source_sha256": "35564a6150ffc664e62f475b919d5417748a2e8519263394ae9a021f198b42a3",
-      "translation_sha256": "71b2b84fde3dea297bbef7c5d70cea02e4ee1b345567cca16081af0edda14a85",
+      "source_sha256": "c773d93cbc1cfe93cf21a34be5acf955133eb84baa6c7a639efde153832e23a0",
+      "translation_sha256": "2e5655e6bd913c2a88332100af0767952e011a7a3c51297800d7478d56c2328b",
       "anchors": [
         "codex-test-profile",
         "codex-시험-프로필",
@@ -490,8 +488,8 @@
       "order": 0,
       "source": "docs/release.md",
       "translation": "docs/ko/release.md",
-      "source_sha256": "54b229247bada07cd41a9e32555c3fbc33d9ab2fb6d5c036099307b83f28dbca",
-      "translation_sha256": "626e1f661458abbff1cc299cca32bfafa7da97e8e849ae2674ba91bd3398f274",
+      "source_sha256": "3abbf134c70ca5f0b3bbf9b89d18443638c8f0937595818998f131600e4de702",
+      "translation_sha256": "01b2cc05697d583b0de544e8cbb431901d7971256970c70886a8042130b0824e",
       "anchors": [
         "consumer-adoption-and-recovery",
         "distribution-preparation-and-version-pinning",
@@ -512,8 +510,8 @@
       "order": 5,
       "source": "docs/roadmap.md",
       "translation": "docs/ko/roadmap.md",
-      "source_sha256": "40e84050296afb5bdc3c5423716f37714b6bb9810b66eb3b2310bc926d4ce414",
-      "translation_sha256": "610ea4227925d7863017338bdaccf6e5e3717ee57088e8f153479c47abd0cebf",
+      "source_sha256": "9d50e53bd262150f47c02117162f2582b3398964455e18cee41ee5233bb704c5",
+      "translation_sha256": "705090e6c93a165e66b429aa5cb9bdca491c48c83a5fc7c126e00cfa3d5a3b89",
       "anchors": [
         "available-capabilities",
         "before-production-use",
@@ -620,8 +618,8 @@
       "order": 3,
       "source": "licensing/README.md",
       "translation": "licensing/README.ko.md",
-      "source_sha256": "68c6442fd1e9e19a0442dd3cdad5cedae89fb58cbbe54cb0636726dd110f6d4e",
-      "translation_sha256": "4e4f952c360e0760b87a8aed61d38ddf11f5ea89ecd3dbc4451149e12260abd2",
+      "source_sha256": "15178cb0726357611c9304d96707c2a365b03c8ca11a27ac82d44ed228b389e0",
+      "translation_sha256": "96189e50f4c2179a2f7cd2f0cf4e1870270b6dcf5b015c7653aafb0e6959ec2b",
       "anchors": [
         "check-refresh-and-bundle",
         "evaluation-and-special-originals",
@@ -687,8 +685,8 @@
         "하나의-진입점-명시적인-경로",
         "현재-지원-범위"
       ],
-      "source_sha256": "1c9ca906f1f4f11f42bdc66c29359efa54665e3018697e0cbc5123d1a514ced3",
-      "translation_sha256": "3acff26c6f1f9c588d68fda2ae4bc4968730943f8f0edca1ca226abc0bac9631"
+      "source_sha256": "45a63aefedfadee06da61ff41e9050c2969dedac94d75dd30eb031e98ede9b23",
+      "translation_sha256": "4f0aad1ce6e7ebcca8d6259ca9877172d41bdf4071c46258fbb9e7541dadb163"
     },
     {
       "id": "usage",
@@ -773,8 +771,8 @@
         "패키지와-권한-계약",
         "프로세스-수명과-장애-정책"
       ],
-      "source_sha256": "f40d9f058f26bb91973bdabef7dd42c07a7b809041e309d6fec399ad9f991c1c",
-      "translation_sha256": "8854e11a0ec32989042515c9787b366df01f6b1f8527f8e8038d71f6d8ef3315"
+      "source_sha256": "e4c18c15afb0656e9f4c3fdf389f1ef0e9fee2575463826e87cc67abdcc1578b",
+      "translation_sha256": "8758c54e4d6b7b2520d4a595430d3abc096a7d8ce4f3db4a8842268cefcfb107"
     },
     {
       "id": "extensions",
@@ -799,8 +797,8 @@
         "설치와-승인-및-활성화",
         "요구사항과-지원-범위"
       ],
-      "source_sha256": "21d904efb0c60acfb08b652991cd4df154989e751f1c597c785ba6a516036621",
-      "translation_sha256": "d131d9e760a5eccdcb173a6494bb7e1ba0212c5bf3a5c003e3e2a178dc0b0c13"
+      "source_sha256": "e19928a3b48e501e69c904dfcc5ec17c6a8b3be3976e3737faade41f674013a1",
+      "translation_sha256": "ca29b9961df6788eb1c6ab39cadac7ce41f3ac9196b18b40585efb67ec530033"
     },
     {
       "id": "interactions-design",
@@ -811,17 +809,34 @@
       "source_sha256": "e8eb309f19dc86bb0c96a40c8c02423b943e577b8dd073ca9922f92b01b881ad",
       "translation_sha256": "0a58ef3ee0d78742d9be51073f98abc73a49f9e05b30136fcb867035e01ca246",
       "anchors": [
-        "compatibility-and-acceptance",
-        "data-and-execution-ownership",
-        "gemini-interactions-design",
-        "gemini-interactions-implementation-contract",
-        "gemini-interactions-구현-계약",
-        "recovery-and-compaction",
-        "데이터와-실행-소유권",
-        "복구와-압축",
-        "호환성과-수락"
+        "gemini-interactions-design"
       ],
       "route": "/guide/interactions-design"
+    },
+    {
+      "id": "usage-accounting",
+      "section": "integration",
+      "order": 30,
+      "source": "docs/usage-accounting.md",
+      "translation": "docs/ko/usage-accounting.md",
+      "source_sha256": "fdbf65c3f872dda35edc0d33fe68385b931f5bd8ced95a760fb7d3642be08e8d",
+      "translation_sha256": "fe9fbc47cf1de05020e02799964c458b37d81de829599073f1c2c0c6ac4e3a6d",
+      "anchors": [
+        "delivery-guarantees",
+        "external-export",
+        "queries-and-maintenance",
+        "recorder-installation",
+        "recorder-설치",
+        "token-meaning",
+        "token-usage-accounting",
+        "usage-accounting",
+        "외부-전송",
+        "전달-보장",
+        "조회와-유지보수",
+        "토큰-사용량-계측",
+        "토큰-의미"
+      ],
+      "route": "/guide/usage-accounting"
     },
     {
       "id": "interactions",
