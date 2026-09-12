@@ -148,6 +148,7 @@ pub(crate) async fn responses(
     let send = match route.auth {
         UpstreamAuth::Bearer => send.bearer_auth(key),
         UpstreamAuth::ApiKey => send.header("x-api-key", key),
+        UpstreamAuth::GoogleApiKey => send.header("x-goog-api-key", key),
     };
     let send = if let Some(version) = &route.messages_version {
         send.header("anthropic-version", version)
