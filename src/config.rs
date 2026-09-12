@@ -35,6 +35,13 @@ pub struct Provider {
     pub api_key_env: String,
 }
 
+#[derive(Clone, Copy, Debug, Deserialize, serde::Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ContinuationMode {
+    Stateless,
+    Managed,
+}
+
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Model {
@@ -45,6 +52,7 @@ pub struct Model {
     pub auth: Option<UpstreamAuth>,
     pub capability_profile: Option<String>,
     pub messages_version: Option<String>,
+    pub continuation_mode: Option<ContinuationMode>,
 }
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, serde::Serialize, PartialEq, Eq)]
@@ -71,6 +79,7 @@ pub enum DeclaredSupport {
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ModelProfile {
+    pub reasoning_contract: Option<crate::ir::reasoning::ReasoningContract>,
     pub version: String,
     pub provider: String,
     pub upstream_model: String,
@@ -85,6 +94,7 @@ pub struct ModelProfile {
 impl ModelProfile {
     pub fn capabilities(&self, id: &str) -> CapabilityProfile {
         CapabilityProfile {
+            reasoning_contract: self.reasoning_contract.clone(),
             id: id.into(),
             version: self.version.clone(),
             protocol: self.api,
@@ -272,8 +282,24 @@ impl Config {
 impl Config {
     pub(crate) fn validate_route(&self, model: &Model) -> Result<(), ConfigError> {
         let converted = model.api != ApiProtocol::Responses;
+        let managed =
+            model
+                .continuation_mode
+                .unwrap_or(if model.api == ApiProtocol::GeminiInteractions {
+                    ContinuationMode::Managed
+                } else {
+                    ContinuationMode::Stateless
+                })
+                == ContinuationMode::Managed;
+        if managed && (self.continuation.is_none() || model.api == ApiProtocol::Responses) {
+            return Err(ConfigError(
+                "Managed continuation requires storage and a supported adapter".into(),
+            ));
+        }
         if model.api == ApiProtocol::GeminiInteractions
-            && (self.continuation.is_none() || model.auth != Some(UpstreamAuth::GoogleApiKey))
+            && (!managed
+                || self.continuation.is_none()
+                || model.auth != Some(UpstreamAuth::GoogleApiKey))
         {
             return Err(ConfigError(
                 "Interactions requires continuation and google_api_key authentication".into(),
@@ -296,6 +322,17 @@ impl Config {
                 .capability_profiles
                 .get(id)
                 .ok_or_else(|| ConfigError("Unknown capability_profile".into()))?;
+            if (profile.reasoning_contract.is_some() && !managed)
+                || (managed
+                    && model.api != ApiProtocol::GeminiInteractions
+                    && profile.reasoning_contract.is_none())
+                || (model.api == ApiProtocol::GeminiInteractions
+                    && profile.reasoning_contract.is_some())
+            {
+                return Err(ConfigError(
+                    "Reasoning requires an explicit managed adapter contract".into(),
+                ));
+            }
             if profile.api != model.api
                 || profile.provider != model.provider
                 || profile.upstream_model != model.upstream_model

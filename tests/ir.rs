@@ -41,6 +41,7 @@ fn binding(api: ApiProtocol) -> ContinuityBinding {
             credential_binding: "synthetic-auth-reference".into(),
             adapter_version: "adapter/1".into(),
             capabilities: CapabilityProfile {
+                reasoning_contract: None,
                 id: "synthetic-native".into(),
                 version: "1".into(),
                 protocol: api,

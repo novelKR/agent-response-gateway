@@ -129,11 +129,22 @@ pub enum Outcome {
 pub enum NativeReplay {
     #[serde(rename = "gemini_steps")]
     Gemini { version: u32, steps: Vec<Value> },
+    #[serde(rename = "messages_content")]
+    Messages {
+        version: u32,
+        blocks: Vec<Value>,
+        controls: Value,
+    },
 }
 impl NativeReplay {
     pub fn validate(&self) -> std::result::Result<(), IrError> {
         match self {
             Self::Gemini { version: 1, steps } if !steps.is_empty() => Ok(()),
+            Self::Messages {
+                version: 1,
+                blocks,
+                controls,
+            } if !blocks.is_empty() && controls.is_object() => Ok(()),
             _ => Err(IrError::ContinuityMismatch),
         }
     }

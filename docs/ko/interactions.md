@@ -187,5 +187,5 @@ finalized digest로 인증·검증한 뒤 변환한다. 기존 Gemini 경로 bin
 replay_versions는 read [1, 2]와 write 2를 선언한다. 구버전 호스트는 새 manifest를
 거부하며 구버전 바이너리가 v2 기록을 읽는다고 보장하지 않는다. rollback에는
 호환되는 바이너리·DB·키·Codex 이력 조합이 필요하다. 공개 reasoning summary가
-있으면 원본 제공자 상태와 구분해 인증된 이력 digest에 포함한다. Messages와 Chat의
-reasoning은 명시적 계약 구현 전까지 활성화되지 않는다.
+있으면 원본 제공자 상태와 구분해 인증된 이력 digest에 포함한다. 관리형 Messages는 명시적 Claude reasoning 계약을 사용한다. Chat reasoning은
+명시적 계약 구현 전까지 활성화되지 않는다.

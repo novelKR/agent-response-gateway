@@ -1,6 +1,7 @@
 //! Provider-specific conversion ends here. The executor consumes typed outcomes.
 use super::{
     interactions::{DecodedInteraction, InteractionsStream, PreparedInteractions},
+    messages::{PreparedMessages, managed_stream::NativeMessagesStream},
     sse::SseEvent,
 };
 use crate::{
@@ -34,6 +35,7 @@ fn interaction_output(value: DecodedInteraction) -> Result<ManagedOutput, IrErro
 }
 pub(crate) enum ManagedAdapter {
     Gemini(PreparedInteractions),
+    Messages(PreparedMessages),
 }
 impl ManagedAdapter {
     pub fn encode(
@@ -41,46 +43,83 @@ impl ManagedAdapter {
         plan: &TranslationPlan,
         history: &VerifiedProviderHistory,
     ) -> Result<Self, IrError> {
-        PreparedInteractions::encode(request, plan, history).map(Self::Gemini)
+        match plan.route.api {
+            crate::ir::ApiProtocol::GeminiInteractions => {
+                PreparedInteractions::encode(request, plan, history).map(Self::Gemini)
+            }
+            crate::ir::ApiProtocol::Messages => {
+                super::messages::encode_with_history(request, plan, history, true)
+                    .map(Self::Messages)
+            }
+            _ => Err(IrError::WrongProtocol),
+        }
+    }
+    pub fn validate_pending_controls(
+        &self,
+        history: &VerifiedProviderHistory,
+    ) -> Result<(), IrError> {
+        if let Self::Messages(p) = self {
+            let Some((_, native)) = history.segments.values().last() else {
+                return Err(IrError::ContinuityMismatch);
+            };
+            let NativeReplay::Messages { controls, .. } = native else {
+                return Err(IrError::ContinuityMismatch);
+            };
+            if p.reasoning_controls.as_ref() != Some(controls) {
+                return Err(IrError::ContinuityMismatch);
+            }
+        }
+        Ok(())
     }
     pub fn payload(&self) -> &Value {
         match self {
             Self::Gemini(p) => &p.payload,
+            Self::Messages(p) => &p.payload,
         }
     }
     pub fn decode_bytes(&self, bytes: &[u8], id: &str) -> Result<ManagedOutput, IrError> {
         match self {
             Self::Gemini(p) => interaction_output(p.decode_bytes(bytes, id)?),
+            Self::Messages(p) => p.decode_managed(super::json::decode(bytes)?),
         }
     }
     pub fn stream(&self, limit: usize, id: String) -> ManagedStream<'_> {
         match self {
             Self::Gemini(p) => ManagedStream::Gemini(p.stream(limit, id)),
+            Self::Messages(p) => ManagedStream::Messages(NativeMessagesStream::new(p, limit)),
         }
     }
 }
 pub(crate) enum ManagedStream<'a> {
     Gemini(InteractionsStream<'a>),
+    Messages(NativeMessagesStream<'a>),
 }
 impl ManagedStream<'_> {
     pub fn event(&mut self, event: SseEvent) -> Result<(), IrError> {
         match self {
             Self::Gemini(s) => s.event(event),
+            Self::Messages(s) => s.event(event),
         }
     }
     pub fn take_progress(&mut self) -> Vec<Value> {
         match self {
             Self::Gemini(s) => s.take_progress(),
+            Self::Messages(s) => s.take_progress(),
         }
     }
     pub fn is_complete(&self) -> bool {
         match self {
             Self::Gemini(s) => s.is_complete(),
+            Self::Messages(s) => s.is_complete(),
         }
     }
     pub fn finish(self) -> Result<ManagedOutput, IrError> {
         match self {
             Self::Gemini(s) => interaction_output(s.finish()?),
+            Self::Messages(s) => s.finish(),
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

@@ -20,6 +20,7 @@ fn target() -> ContinuityBinding {
             credential_binding: "synthetic-generation".into(),
             adapter_version: "1".into(),
             capabilities: CapabilityProfile {
+                reasoning_contract: None,
                 id: "synthetic".into(),
                 version: "1".into(),
                 protocol: ApiProtocol::Messages,

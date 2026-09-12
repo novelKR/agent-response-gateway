@@ -49,6 +49,7 @@ fn target() -> ContinuityBinding {
             credential_binding: "generation-1".into(),
             adapter_version: "1".into(),
             capabilities: CapabilityProfile {
+                reasoning_contract: None,
                 id: "chat".into(),
                 version: "1".into(),
                 protocol: ApiProtocol::GeminiInteractions,

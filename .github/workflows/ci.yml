@@ -178,6 +178,14 @@ jobs:
           python3 -B tests/codex/interactions_continuity.py --resume-only
       - name: Require Interactions compaction and recovery acceptance
         run: python3 -B tests/codex/interactions_continuity.py
+      - name: Require managed Claude reasoning display and recovery
+        run: |
+          python3 -B tests/codex/reasoning_continuity.py
+          python3 -B tests/codex/reasoning_continuity.py --manual
+          python3 -B tests/codex/reasoning_continuity.py --opaque-only
+          python3 -B tests/codex/reasoning_continuity.py --manual --opaque-only
+          python3 -B tests/codex/reasoning_continuity.py --http-only
+          python3 -B tests/codex/reasoning_continuity.py --manual --http-only
       - name: Build the immutable Gemini v1 writer
         run: |
           git fetch --no-tags origin 7bb42c064a4e0aa26a17c821f8fe1c2e35d4175e

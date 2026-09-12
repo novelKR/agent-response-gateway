@@ -139,7 +139,7 @@ async fn history(
             }) {
                 return Err(rejected());
             }
-            if let Some(token) = item.get("encrypted_content") {
+            if let Some(token) = item.get("encrypted_content").filter(|v| !v.is_null()) {
                 tokens.push(token.as_str().ok_or_else(rejected)?.to_owned());
             } else if summary.is_empty() {
                 return Err(rejected());
@@ -288,7 +288,7 @@ pub(crate) async fn responses(
         ApiError::new(
             StatusCode::BAD_REQUEST,
             "unsupported_request",
-            "Request exceeds the declared Interactions capabilities",
+            "Request exceeds the declared managed capabilities",
         )
     })?;
     let crate::routing::AdmittedRequest::Translated { request, plan } = admitted else {
@@ -298,9 +298,14 @@ pub(crate) async fn responses(
         ApiError::new(
             StatusCode::BAD_REQUEST,
             "unsupported_request",
-            "Request cannot be represented by the pinned Interactions contract",
+            "Request cannot be represented by the pinned managed contract",
         )
     })?;
+    if session.pending_tools {
+        prepared
+            .validate_pending_controls(&replay)
+            .map_err(|_| rejected())?;
+    }
     let s = session.clone();
     let reserve = state.config.limits.max_response_bytes as u64;
     let attempt_id = runtime
@@ -338,6 +343,15 @@ pub(crate) async fn responses(
         .header(auth_name, auth_value);
     if let Some(version) = route.messages_version {
         request = request.header("anthropic-version", version);
+    }
+    if let Some(beta) = plan
+        .route
+        .capabilities
+        .reasoning_contract
+        .as_ref()
+        .and_then(|c| c.beta_header())
+    {
+        request = request.header("anthropic-beta", beta);
     }
     let request = request
         .header(header::ACCEPT_ENCODING, "identity")

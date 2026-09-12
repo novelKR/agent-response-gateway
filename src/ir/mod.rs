@@ -118,3 +118,5 @@ pub enum ToolKind {
     Function,
     Custom,
 }
+
+pub mod reasoning;
