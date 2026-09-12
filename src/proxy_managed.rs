@@ -1,13 +1,10 @@
-//! Opt-in Interactions dispatch. Durable attempts outlive HTTP connections.
+//! Common managed dispatch. Durable attempts outlive HTTP connections.
 use crate::{
-    adapters::{
-        interactions::{PreparedInteractions, ProviderHistory},
-        sse::SseDecoder,
-    },
-    continuation::{self, Replay, Session},
+    adapters::{managed::ManagedAdapter, sse::SseDecoder},
+    continuation::{self, ReplayV2, Session},
     error::ApiError,
     http::GatewayState,
-    ir::ApiProtocol,
+    ir::continuity::VerifiedProviderHistory as ProviderHistory,
 };
 use axum::{
     body::Body,
@@ -30,7 +27,7 @@ fn upstream() -> ApiError {
     ApiError::new(
         StatusCode::BAD_GATEWAY,
         "upstream_invalid_response",
-        "Interactions response could not be validated",
+        "Managed provider response could not be validated",
     )
 }
 // Normalize only Responses item metadata. Never edit user/tool content recursively.
@@ -119,10 +116,7 @@ async fn history(
                             | "internal_chat_message_metadata_passthrough"
                     )
                 })
-            }) || item
-                .get("summary")
-                .is_some_and(|s| !s.as_array().is_some_and(Vec::is_empty))
-            {
+            }) {
                 return Err(rejected());
             }
             if item
@@ -134,11 +128,30 @@ async fn history(
             {
                 return Err(rejected());
             }
-            let token = item
-                .get("encrypted_content")
-                .and_then(Value::as_str)
+            let summary = item
+                .get("summary")
+                .and_then(Value::as_array)
                 .ok_or_else(rejected)?;
-            tokens.push(token.to_owned());
+            if summary.iter().any(|part| {
+                part.as_object().is_none_or(|m| {
+                    m.len() != 2 || part["type"] != "summary_text" || !part["text"].is_string()
+                })
+            }) {
+                return Err(rejected());
+            }
+            if let Some(token) = item.get("encrypted_content") {
+                tokens.push(token.as_str().ok_or_else(rejected)?.to_owned());
+            } else if summary.is_empty() {
+                return Err(rejected());
+            }
+            if !summary.is_empty() {
+                let mut public = item.clone();
+                let fields = public.as_object_mut().expect("reasoning object");
+                fields.remove("encrypted_content");
+                fields.remove("content");
+                fields.remove("internal_chat_message_metadata_passthrough");
+                clean.push(public);
+            }
         } else {
             clean.push(item.clone());
         }
@@ -149,9 +162,10 @@ async fn history(
     let mut last_end = 0;
     for token in tokens {
         let replay = runtime
-            .restore(session.clone(), token)
+            .restore_record(session.clone(), token)
             .await
-            .map_err(|_| rejected())?;
+            .map_err(|_| rejected())?
+            .normalize();
         if !seen.insert(replay.response.clone()) || replay.parent != previous {
             return Err(rejected());
         }
@@ -169,7 +183,11 @@ async fn history(
             return Err(rejected());
         }
         let end = start + output.len();
-        if result.segments.insert(start, (end, replay.steps)).is_some() {
+        if result
+            .segments
+            .insert(start, (end, replay.native))
+            .is_some()
+        {
             return Err(rejected());
         }
         last_end = end;
@@ -177,6 +195,16 @@ async fn history(
     }
     if previous != session.head {
         return Err(rejected());
+    }
+    for (position, item) in clean.iter().enumerate() {
+        if item.get("type").and_then(Value::as_str) == Some("reasoning")
+            && !result
+                .segments
+                .iter()
+                .any(|(start, (end, _))| *start <= position && position < *end)
+        {
+            return Err(rejected());
+        }
     }
     if session.head.is_none()
         && let Some(expected) = &session.portable_sha256
@@ -266,10 +294,7 @@ pub(crate) async fn responses(
     let crate::routing::AdmittedRequest::Translated { request, plan } = admitted else {
         return Err(rejected());
     };
-    if plan.route.api != ApiProtocol::GeminiInteractions {
-        return Err(rejected());
-    }
-    let prepared = PreparedInteractions::encode(&request, &plan, &replay).map_err(|_| {
+    let prepared = ManagedAdapter::encode(&request, &plan, &replay).map_err(|_| {
         ApiError::new(
             StatusCode::BAD_REQUEST,
             "unsupported_request",
@@ -290,13 +315,31 @@ pub(crate) async fn responses(
         id: attempt_id.clone(),
         finalized: false,
     };
-    let request = state
+    let (auth_name, auth_value) = match route.auth {
+        crate::config::UpstreamAuth::GoogleApiKey => (
+            "x-goog-api-key",
+            state.secrets.upstream_keys[&route.snapshot.provider_id].clone(),
+        ),
+        crate::config::UpstreamAuth::ApiKey => (
+            "x-api-key",
+            state.secrets.upstream_keys[&route.snapshot.provider_id].clone(),
+        ),
+        crate::config::UpstreamAuth::Bearer => (
+            "authorization",
+            format!(
+                "Bearer {}",
+                state.secrets.upstream_keys[&route.snapshot.provider_id]
+            ),
+        ),
+    };
+    let mut request = state
         .client
         .post(route.endpoint)
-        .header(
-            "x-goog-api-key",
-            &state.secrets.upstream_keys[&route.snapshot.provider_id],
-        )
+        .header(auth_name, auth_value);
+    if let Some(version) = route.messages_version {
+        request = request.header("anthropic-version", version);
+    }
+    let request = request
         .header(header::ACCEPT_ENCODING, "identity")
         .header(
             header::ACCEPT,
@@ -306,7 +349,7 @@ pub(crate) async fn responses(
                 "application/json"
             },
         )
-        .json(&prepared.payload)
+        .json(prepared.payload())
         .send();
     let response = tokio::time::timeout(
         Duration::from_millis(state.config.limits.response_header_timeout_ms),
@@ -384,15 +427,15 @@ pub(crate) async fn responses(
                 }
             }
             if !complete {
-                yield Err(std::io::Error::other("Interactions stream interrupted"));
+                yield Err(std::io::Error::other("Managed stream interrupted"));
             } else {
                 match adapter.finish() {
-                    Ok(decoded) if decoded.provider_status != "incomplete" => {
-                        let record = Replay {
-                            schema: continuation::SCHEMA.into(), session: session.id.clone(),
+                    Ok(decoded) => {
+                        let record = ReplayV2 {
+                            schema: continuation::REPLAY_V2.into(), session: session.id.clone(),
                             epoch: session.epoch, origin: session.origin.clone(), response: attempt_id.clone(),
                             parent: session.head.clone(), input_len, input_sha256: input_sha256.clone(),
-                            provider_status: decoded.provider_status, steps: decoded.steps,
+                            outcome: decoded.outcome, native: decoded.native,
                             output: decoded.response["output"].as_array().cloned().expect("validated output"),
                         };
                         let checked_response = decoded.response.clone();
@@ -415,7 +458,7 @@ pub(crate) async fn responses(
                             Err(_) => yield Err(std::io::Error::other("Continuation finalization failed")),
                         }
                     }
-                    _ => yield Err(std::io::Error::other("Interactions output incomplete or invalid")),
+                    _ => yield Err(std::io::Error::other("Managed output incomplete or invalid")),
                 }
             }
         };
@@ -441,11 +484,8 @@ pub(crate) async fn responses(
         let mut decoded = prepared
             .decode_bytes(&bytes, &attempt_id)
             .map_err(|_| upstream())?;
-        if decoded.provider_status == "incomplete" {
-            return Err(upstream());
-        }
-        let record = Replay {
-            schema: continuation::SCHEMA.into(),
+        let record = ReplayV2 {
+            schema: continuation::REPLAY_V2.into(),
             session: session.id,
             epoch: session.epoch,
             origin: session.origin,
@@ -453,8 +493,8 @@ pub(crate) async fn responses(
             parent: session.head,
             input_len,
             input_sha256,
-            provider_status: decoded.provider_status,
-            steps: decoded.steps,
+            outcome: decoded.outcome,
+            native: decoded.native,
             output: decoded.response["output"]
                 .as_array()
                 .cloned()

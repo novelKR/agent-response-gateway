@@ -1,6 +1,10 @@
 //! Versioned continuation records. Storage never authorizes inference or tool execution.
 pub mod control;
+mod replay;
 mod sqlite;
+pub use replay::{
+    ENVELOPE_V2, NativeReplay, Outcome, REPLAY_V2, ReplayRecord, ReplayV2, public_reasoning,
+};
 use ring::{
     aead,
     rand::{SecureRandom, SystemRandom},
@@ -145,7 +149,20 @@ impl Protector {
         })
     }
     pub fn seal(&self, replay: &Replay) -> Result<String> {
+        self.seal_record(&ReplayRecord::V1(replay.clone()))
+    }
+    pub fn seal_record(&self, replay: &ReplayRecord) -> Result<String> {
         replay.validate()?;
+        let prefix = if replay.schema() == SCHEMA {
+            ENVELOPE_PREFIX
+        } else {
+            ENVELOPE_V2
+        };
+        let aad = if replay.schema() == SCHEMA {
+            self.id.clone()
+        } else {
+            format!("{prefix}{}", self.id)
+        };
         let mut bytes = serde_json::to_vec(replay).map_err(|_| Error("encoding"))?;
         if bytes.len() > MAX_PAYLOAD {
             return Err(Error("payload limit"));
@@ -157,23 +174,39 @@ impl Protector {
         self.key
             .seal_in_place_append_tag(
                 aead::Nonce::assume_unique_for_key(nonce),
-                aead::Aad::from(self.id.as_bytes()),
+                aead::Aad::from(aad.as_bytes()),
                 &mut bytes,
             )
             .map_err(|_| Error("encryption"))?;
         Ok(format!(
-            "{ENVELOPE_PREFIX}{}.{}.{}",
+            "{prefix}{}.{}.{}",
             self.id,
             hex(&nonce),
             hex(&bytes)
         ))
     }
     pub fn open(&self, envelope: &str) -> Result<Replay> {
+        match self.open_record(envelope)? {
+            ReplayRecord::V1(v) => Ok(v),
+            ReplayRecord::V2(_) => Err(Error("legacy replay required")),
+        }
+    }
+    pub fn open_record(&self, envelope: &str) -> Result<ReplayRecord> {
+        let prefix = if envelope.starts_with(ENVELOPE_PREFIX) {
+            ENVELOPE_PREFIX
+        } else {
+            ENVELOPE_V2
+        };
+        let aad = if prefix == ENVELOPE_PREFIX {
+            self.id.clone()
+        } else {
+            format!("{prefix}{}", self.id)
+        };
         if envelope.len() > 2 * MAX_PAYLOAD + 1024 {
             return Err(Error("payload limit"));
         }
         let mut fields = envelope
-            .strip_prefix(ENVELOPE_PREFIX)
+            .strip_prefix(prefix)
             .ok_or(Error("envelope version"))?
             .split('.');
         if fields.next() != Some(self.id.as_str()) {
@@ -190,12 +223,16 @@ impl Protector {
             .key
             .open_in_place(
                 aead::Nonce::assume_unique_for_key(nonce),
-                aead::Aad::from(self.id.as_bytes()),
+                aead::Aad::from(aad.as_bytes()),
                 &mut bytes,
             )
             .map_err(|_| Error("authentication"))?;
-        let replay: Replay = serde_json::from_slice(plain).map_err(|_| Error("replay format"))?;
+        let replay: ReplayRecord =
+            serde_json::from_slice(plain).map_err(|_| Error("replay format"))?;
         replay.validate()?;
+        if (prefix == ENVELOPE_PREFIX) != (replay.schema() == SCHEMA) {
+            return Err(Error("replay version mismatch"));
+        }
         Ok(replay)
     }
 }
@@ -266,9 +303,11 @@ impl Runtime {
         .await
         .map_err(|_| Error("worker failed"))?
     }
-    pub async fn restore(&self, session: Session, envelope: String) -> Result<Replay> {
+    pub async fn restore_record(&self, session: Session, envelope: String) -> Result<ReplayRecord> {
         self.access(move |store, key| {
-            let replay = key.open(&envelope)?;
+            let original = key.open_record(&envelope)?;
+            let hash = digest(&original)?;
+            let replay = original.clone().normalize();
             if replay.session != session.id
                 || replay.epoch != session.epoch
                 || replay.origin != session.origin
@@ -276,7 +315,6 @@ impl Runtime {
                 return Err(Error("origin mismatch"));
             }
             let record = store.record(&replay.response)?;
-            let hash = digest(&replay)?;
             if record.session != session.id
                 || record.epoch != session.epoch
                 || record.digest != hash
@@ -284,33 +322,47 @@ impl Runtime {
                 return Err(Error("record mismatch"));
             }
             if let Some(saved) = record.envelope {
-                if digest(&key.open(&saved)?)? != hash {
+                let authoritative = key.open_record(&saved)?;
+                if digest(&authoritative)? != hash {
                     return Err(Error("stored payload mismatch"));
                 }
+                Ok(authoritative)
             } else {
                 store.repair(&record.id, &hash, &envelope)?;
+                Ok(original)
             }
-            Ok(replay)
         })
         .await
     }
-    pub async fn finalize(&self, replay: Replay) -> Result<String> {
+    pub async fn restore(&self, session: Session, envelope: String) -> Result<Replay> {
+        match self.restore_record(session, envelope).await? {
+            ReplayRecord::V1(v) => Ok(v),
+            ReplayRecord::V2(_) => Err(Error("legacy replay required")),
+        }
+    }
+    pub async fn finalize(
+        &self,
+        replay: impl Into<ReplayRecord> + Send + 'static,
+    ) -> Result<String> {
         self.finalize_checked(replay, |_| Ok(())).await
     }
     pub async fn finalize_checked(
         &self,
-        replay: Replay,
+        replay: impl Into<ReplayRecord> + Send + 'static,
         check: impl FnOnce(&str) -> Result<()> + Send + 'static,
     ) -> Result<String> {
+        let record = replay.into();
         self.access(move |store, key| {
-            let envelope = key.seal(&replay)?;
+            let envelope = key.seal_record(&record)?;
             check(&envelope)?;
+            let hash = digest(&record)?;
+            let replay = record.normalize();
             store.finalize(
                 &replay.session,
                 &replay.response,
-                &digest(&replay)?,
+                &hash,
                 &envelope,
-                replay.provider_status == "requires_action",
+                replay.outcome == Outcome::AwaitingTools,
             )?;
             Ok(envelope)
         })

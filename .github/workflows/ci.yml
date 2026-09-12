@@ -178,6 +178,14 @@ jobs:
           python3 -B tests/codex/interactions_continuity.py --resume-only
       - name: Require Interactions compaction and recovery acceptance
         run: python3 -B tests/codex/interactions_continuity.py
+      - name: Build the immutable Gemini v1 writer
+        run: |
+          git fetch --no-tags origin 7bb42c064a4e0aa26a17c821f8fe1c2e35d4175e
+          mkdir -p .local/legacy-source
+          git archive 7bb42c064a4e0aa26a17c821f8fe1c2e35d4175e | tar -x -C .local/legacy-source
+          cargo build --locked --manifest-path .local/legacy-source/Cargo.toml --target-dir target/legacy
+      - name: Resume and repair mixed legacy and current replay with Codex
+        run: python3 -B tests/codex/interactions_continuity.py --legacy-gateway-bin target/legacy/debug/agent-response-gateway
       - name: Report payload-free outcomes
         if: ${{ always() }}
         run: |

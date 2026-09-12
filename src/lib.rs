@@ -19,4 +19,4 @@ pub mod adapters;
 
 pub mod continuation;
 
-mod proxy_interactions;
+mod proxy_managed;

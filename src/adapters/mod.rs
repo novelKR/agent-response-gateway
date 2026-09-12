@@ -68,3 +68,5 @@ impl ActiveStream<'_> {
 }
 
 pub mod interactions;
+
+pub(crate) mod managed;
