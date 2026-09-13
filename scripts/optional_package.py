@@ -3,6 +3,7 @@
 import argparse
 from pathlib import Path
 import re
+import shutil
 import sys
 import tarfile
 import tempfile
@@ -136,10 +137,20 @@ def build(root, base_directory, output):
         team_inventory=inventory(metadata,package.compiled_packages(raw))
         print('optional-package: verify and build static Web from exact exported source',flush=True)
         empty_npm=temporary/'npmrc';package.write_new(empty_npm,b'');node_env={**env,'NPM_CONFIG_USERCONFIG':str(empty_npm)}
-        npm='npm.cmd' if suffix else 'npm'
-        require(package.run([npm,'--version'],source,node_env).decode().strip()=='11.19.0','pinned npm is required')
-        package.run([npm,'ci','--prefix','management-web','--ignore-scripts'],source,node_env,logs/'web-install.log')
-        package.run([npm,'run','build','--prefix','management-web','--','--source-receipt',receipt],source,node_env,logs/'web-build.log')
+        npm_path=shutil.which('npm.cmd' if suffix else 'npm',path=node_env['PATH'])
+        require(npm_path is not None,'pinned npm executable is missing')
+        # Invoke the installed npm CLI with Node directly: Windows .cmd quoting and
+        # implicit command-shell behavior are not part of the source-build recipe.
+        npm_script=Path(npm_path).parent/'node_modules/npm/bin/npm-cli.js' if suffix else Path(npm_path).resolve()
+        require(npm_script.is_file(),'installed npm CLI entry point is missing')
+        npm=['node',npm_script]
+        print('optional-package: verify pinned npm version',flush=True)
+        require(package.run(npm+['--version'],source,node_env).decode().strip()=='11.19.0','pinned npm is required')
+        print('optional-package: install locked Web dependencies',flush=True)
+        package.run(npm+['ci','--prefix','management-web','--ignore-scripts'],source,node_env,logs/'web-install.log')
+        print('optional-package: build Web against source receipt',flush=True)
+        package.run(npm+['run','build','--prefix','management-web','--','--source-receipt',receipt],source,node_env,logs/'web-build.log')
+        print('optional-package: verify Web output',flush=True)
         package.run(['node','management-web/scripts/check-output.mjs',commit],source,node_env,logs/'web-check.log')
         web={};web_root=source/'.local/management-web/dist'
         for file in web_root.rglob('*'):
@@ -188,5 +199,7 @@ if __name__=='__main__':
     try:
         result=build(ROOT,args.base.resolve(),args.output.resolve()) if args.command=='build' else verify(args.directory.resolve(),args.commit,args.target)
         print('optional-package: verified '+result['source_commit']+' '+result['target'])
-    except (package.PackageError,check_public_boundary.BoundaryError,OSError,ValueError,KeyError,TypeError):
-        parser.exit(1,'optional-package: verification failed; inspect ignored build logs\n')
+    except (package.PackageError,check_public_boundary.BoundaryError,OSError,ValueError,KeyError,TypeError) as error:
+        # PackageError messages are fixed diagnostics; arbitrary OS/input text stays private.
+        detail=str(error) if isinstance(error,package.PackageError) else type(error).__name__
+        parser.exit(1,'optional-package: '+detail+'; inspect ignored build logs\n')

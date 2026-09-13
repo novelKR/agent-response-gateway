@@ -157,7 +157,8 @@ def verify(args):
         def apply(command,key):
             submission=prepare(command,key);code,_,response=call('/operations',submission);assert code==202
             operation=response['data']['operation_id']
-            for _ in range(300):
+            deadline=time.monotonic()+45
+            while time.monotonic()<deadline:
                 code,_,response=call(f'/operations/{operation}?target=gateway');assert code==200
                 state=response['data']['operation']['state']
                 if state not in ['queued','running']:
@@ -261,6 +262,23 @@ def verify(args):
                 code,_,scoped=call(f'/usage?target=gateway&from_ms={end-86400000}&to_ms={end}&timezone=UTC',token=read_key)
                 assert code==200 and scoped['data']['scope']=='own_subject'
                 assert all(row['record']['admission']['subject']==subject for row in scoped['data']['requests'])
+                if args.web:
+                    code,headers,_=call('/session',token=read_key,method='POST',headers={'Origin':base});assert code==200
+                    own_cookie=headers['set-cookie'].split(';')[0]
+                    code,_,caps=call('/capabilities?target=gateway',token=None,headers={'Cookie':own_cookie});assert code==200
+                    assert caps['data']['allowed_operations']==['read_usage']
+                    assert call('/state?target=gateway',token=None,headers={'Cookie':own_cookie})[0]==403
+                    assert call('/session',token=None,method='DELETE',headers={'Cookie':own_cookie,'Origin':base})[0]==200
+            if args.managed:
+                PHASE='team-managed-session'
+                apply({'kind':'team_permissions_change','subject':'alice','permissions':{'enabled':True,'routes':['a','m'],'management':[{'target':'gateway','action':'read_usage'}],'read_all_usage':False}},'allow-managed')
+                create={'model':'m','idempotency_key':'managed-session-once'}
+                code,_,raw=http(team_base,'/team/v1/sessions',keys[0],create);assert code==200
+                session=json.loads(raw);assert session['state']=='bound'
+                assert http(team_base,'/team/v1/sessions/'+session['session'],keys[0])[0]==200
+                assert http(team_base,'/team/v1/sessions/'+session['session'],keys[1])[0]==404
+                repeated=json.loads(http(team_base,'/team/v1/sessions',keys[0],create)[2])
+                assert repeated['session']==session['session']
             apply({'kind':'team_credential_revoke','credential':'alice-model'},'revoke-alice')
             assert http(team_base,'/v1/models',keys[0])[0]==401
             raw=call('/operations?target=gateway&after=0&limit=100')[2]

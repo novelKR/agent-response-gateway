@@ -12,7 +12,9 @@ use gateway_management_api::{
 };
 use gateway_management_extensions::{Command as PackageCommand, Manager, Selection};
 use gateway_management_runtime::Command as RuntimeCommand;
-use serde_json::{Value, json};
+use serde_json::Value;
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+use serde_json::json;
 use std::collections::BTreeSet;
 
 pub struct Adapters {

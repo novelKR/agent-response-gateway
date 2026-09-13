@@ -53,7 +53,7 @@ into the management package.
 
 | Path under `/management/v1` | Method | Required authority |
 |---|---|---|
-| `/capabilities` | GET | Read state; reports host-supported and actor-allowed actions |
+| `/capabilities` | GET | Authenticated credential with permitted operations for this target |
 | `/state` | GET | Read state and host support |
 | `/usage` | GET | Read usage and host support |
 | `/continuations/{id}` | GET | Read state and host-provided continuation query |
@@ -152,3 +152,5 @@ it. Synthetic tests cover authorization, Host/Origin boundaries, read sessions,
 queued permission changes, stale state, admission/result-record failures,
 idempotency and a real CLI/loopback HTTP exchange. Deployment archives, provided
 Web assets, team access and actual adapter composition have separate validation.
+
+Read sessions require at least one of `read_state`, `read_usage` or `read_operations`. Capability discovery reports the allowed set without granting access to other views; a usage-only reader cannot inspect configuration or audit history.

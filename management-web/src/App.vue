@@ -327,7 +327,7 @@ onUnmounted(()=>{clearInterval(timer);window.removeEventListener('keydown',keybo
 <span>{{ timezone }}</span>
 </div>
 <p v-if="viewErrors.usage" class="notice warn">{{ t(viewErrors.usage) }} {{ t('staleView') }}</p>
-<article class="panel">
+<article v-if="!Array.isArray(usage?.requests)" class="panel">
 <div class="table-wrap">
 <table>
 <thead>

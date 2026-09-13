@@ -460,9 +460,9 @@ async fn capabilities(
     let presented = service.presented(&headers, false)?;
     let value=service.blocking(move|service|{
         let work=service.work.lock().map_err(|_|unavailable())?;let p=service.principal(&presented,false)?;
-        p.actor.authorize(Action::ReadState,&service.target)?;
         let supported=work.dispatcher.supported();
         let allowed:Vec<_>=p.actor.capabilities(&service.target,&supported).into_iter().filter(|a|p.kind==CredentialKind::Management||matches!(a,Action::ReadState|Action::ReadUsage|Action::ReadOperations)).collect();
+        if allowed.is_empty() { return Err(error(StatusCode::FORBIDDEN,"forbidden")); }
         Ok(json!({"target":service.target,"features":work.dispatcher.features(),"supported_operations":supported,"allowed_operations":allowed,"read_sessions":service.web_sessions,"unsupported_operations":["package_remove","data_delete","remote_package_download"]}))
     }).await?;
     response(value, StatusCode::OK)
@@ -824,9 +824,16 @@ async fn login(
             if principal.kind != CredentialKind::ReadOnly {
                 return Err(error(StatusCode::FORBIDDEN, "read_credential_required"));
             }
-            principal
+            if principal
                 .actor
-                .authorize(Action::ReadState, &service.target)?;
+                .capabilities(
+                    &service.target,
+                    &[Action::ReadState, Action::ReadUsage, Action::ReadOperations],
+                )
+                .is_empty()
+            {
+                return Err(error(StatusCode::FORBIDDEN, "forbidden"));
+            }
             let created = now()?;
             let expires = created
                 .checked_add(service.session_ttl.as_millis() as u64)

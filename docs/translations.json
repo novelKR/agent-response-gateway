@@ -1063,8 +1063,8 @@
         "사전-검증시작-기록작업-증거",
         "인증과-호스트-경계"
       ],
-      "source_sha256": "e28a0304ba8e408f63d0dd637abb5e511611fb370d7cd7249b5da12b201b774a",
-      "translation_sha256": "8f11680a854328bdf6ef75f9b60fe90e0e3226f444719c3431410d9b8c958871"
+      "source_sha256": "ac4602ed67a7068e11ea9de76f0c8a3b154b86f6361d450886fec9f71eed4192",
+      "translation_sha256": "d17321f640a559293e7c28f30c69975c92a4d79abd13160d3cfa78880a3b1b36"
     },
     {
       "id": "management-web",

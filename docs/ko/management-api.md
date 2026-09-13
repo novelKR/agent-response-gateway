@@ -47,7 +47,7 @@ Envelope schema는 `gateway-management-http/v1`이며 Responses와 manifest/read
 
 | `/management/v1` 아래 경로 | 메서드 | 필요한 권한 |
 |---|---|---|
-| `/capabilities` | GET | 상태 조회; 호스트 지원 작업과 actor 허용 작업 보고 |
+| `/capabilities` | GET | 이 대상에 허용 작업이 있는 인증 credential |
 | `/state` | GET | 상태 조회와 호스트 지원 |
 | `/usage` | GET | 사용량 조회와 호스트 지원 |
 | `/continuations/{id}` | GET | 상태 조회와 호스트 제공 continuation 조회 |
@@ -132,3 +132,5 @@ cargo test -p gateway-management-api --locked
 제출 내용을 검토한 뒤 전송해야 합니다. 합성 테스트는 권한, Host/Origin 경계, 조회 세션,
 대기 중 권한 변경, 오래된 상태, 시작/결과 기록 실패, 중복 방지와 실제 CLI/loopback HTTP 교환을
 다룹니다. 배포 archive·제공 Web asset·팀 접근·실제 adapter 조립은 별도 검증 대상입니다.
+
+조회 세션에는 `read_state`, `read_usage`, `read_operations` 중 하나 이상의 권한이 필요합니다. 기능 조회는 허용 작업만 보고하며 다른 화면의 권한을 부여하지 않습니다. 사용량 전용 reader는 구성이나 감사 이력을 조회할 수 없습니다.
