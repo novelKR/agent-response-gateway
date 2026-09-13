@@ -936,6 +936,32 @@
         "패키지와-경로-선택"
       ],
       "route": "/guide/api-codecs"
+    },
+    {
+      "id": "editing-design",
+      "section": "integration",
+      "order": 33,
+      "source": "docs/editing-design.md",
+      "translation": "docs/ko/editing-design.md",
+      "route": "/guide/editing-design",
+      "anchors": [
+        "direct-context-editing",
+        "editing-compatibility-contract",
+        "helper-and-normalization-contracts",
+        "helper와-정규화-계약",
+        "independent-operation-bundles",
+        "ownership-and-activation",
+        "streaming-replay-and-versions",
+        "validation",
+        "검증",
+        "독립-작업-묶음",
+        "스트리밍재생버전",
+        "직접-문맥-편집",
+        "책임과-활성화",
+        "편집-호환-계약"
+      ],
+      "source_sha256": "8ea05eb25355b8cc177fd4141ab3b7463c343be372d449ec113ba6ed96ddf371",
+      "translation_sha256": "7fcf7dee1a84caf4d07131ee0e7ed1e6a7880746aae822039758b73c14a87b78"
     }
   ]
 }

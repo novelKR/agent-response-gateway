@@ -1,0 +1,31 @@
+{
+  "codex_version": "0.154.0",
+  "contracts": {
+    "code_mode": {
+      "format": {
+        "syntax": "lark",
+        "type": "grammar"
+      },
+      "grammar_sha256": "8eead048e20069c17fcd0b6fe5ee9ed29364868723f8e08889de146a2b4b7a8e",
+      "name": "exec",
+      "sha256": "45252b6667d98680a09fe0dc1ea59d0cc016257d57673282871d7ec47b123484",
+      "type": "custom"
+    },
+    "direct": {
+      "format": {
+        "syntax": "lark",
+        "type": "grammar"
+      },
+      "grammar_sha256": "d6367f4826ed608c424b0a308f3d6163527df63c22513d089b91863552f8bfeb",
+      "name": "apply_patch",
+      "sha256": "5947b870d79e16bddc34946a4afb6200ff14a97f8419a2d23f8e5040af9a7154",
+      "type": "custom"
+    }
+  },
+  "helper": "tools.apply_patch",
+  "qualification": "synthetic-only",
+  "result_type": "custom_tool_call_output",
+  "schema": "gateway-editing-client-fixture/v1",
+  "source": "runtime-lock.json",
+  "wrapper": "const result = await tools.apply_patch(PATCH_JSON);\ntext(result);"
+}
