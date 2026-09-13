@@ -1109,6 +1109,28 @@
       ],
       "source_sha256": "a5c918e4de98f8e3505a586140a7cefa68ac03865bf232095d5a98cc18029172",
       "translation_sha256": "c641c89028dae800e1870343c92d98fd4424ce66d41be1c3a8ac5e396ecfebe5"
+    },
+    {
+      "id": "team-model-access",
+      "section": "integration",
+      "order": 40,
+      "source": "docs/team-model-access.md",
+      "translation": "docs/ko/team-model-access.md",
+      "route": "/guide/team-model-access",
+      "anchors": [
+        "authentication-target-and-transport",
+        "initialization-backup-and-verification",
+        "managed-session-ownership",
+        "scoped-team-model-entry-point",
+        "usage-evidence-and-failure-semantics",
+        "관리형-세션-소유권",
+        "사용량-증거와-실패-의미",
+        "인증대상전송",
+        "초기화백업검증",
+        "팀-주체별-모델-진입점"
+      ],
+      "source_sha256": "c5fe97aba41b3687e808ec12924b9fb09a509514cf72f8d6b333dd9f1516c085",
+      "translation_sha256": "1ccf68f25eeb647675d12f5ab0f258b304a84118f459822737340d00a4c9799b"
     }
   ]
 }

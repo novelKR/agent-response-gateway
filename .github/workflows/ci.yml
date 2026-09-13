@@ -70,9 +70,9 @@ jobs:
             .local/cargo-home/registry
             target
           key: rust-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock') }}
-      - run: cargo +1.98.0 clippy -p agent-response-gateway -p gateway-management -p gateway-management-runtime -p gateway-management-extensions -p gateway-management-api -p gateway-team-access --all-targets --locked -- -D warnings
-      - run: cargo +1.98.0 test -p agent-response-gateway -p gateway-management -p gateway-management-runtime -p gateway-management-extensions -p gateway-management-api -p gateway-team-access --locked
-      - run: cargo +1.98.0 build --locked
+      - run: cargo +1.98.0 clippy -p agent-response-gateway -p gateway-management -p gateway-management-runtime -p gateway-management-extensions -p gateway-management-api -p gateway-team-access -p gateway-team-http --all-targets --locked -- -D warnings
+      - run: cargo +1.98.0 build -p agent-response-gateway --locked
+      - run: cargo +1.98.0 test -p agent-response-gateway -p gateway-management -p gateway-management-runtime -p gateway-management-extensions -p gateway-management-api -p gateway-team-access -p gateway-team-http --locked
       - name: Build the optional native observer example
         run: cargo +1.98.0 build --locked --example metadata_observer
       - name: Exercise extension installation, supervision and isolation

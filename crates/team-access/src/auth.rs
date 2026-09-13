@@ -22,6 +22,10 @@ struct Authority {
     confirmed: BTreeMap<Id, (Digest, Digest)>,
 }
 impl Authenticator {
+    /// The single registered gateway target for this authority store.
+    pub fn target(&self) -> &Id {
+        &self.target
+    }
     pub fn open(path: &Path, target: Id, audit: Reader) -> Result<Self> {
         let db = open_db(path, &target, false)?;
         let evidence_actor = Actor::new(
