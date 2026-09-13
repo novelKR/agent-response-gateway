@@ -1041,6 +1041,30 @@
       ],
       "source_sha256": "ba189eec0c89ceaf88bf9283112867a313eb58f294ff3187c3811acba4598230",
       "translation_sha256": "c5d15920a2e78aa8bb03a0070056a53a97f04be81d1eb6a320325ff334abc897"
+    },
+    {
+      "id": "management-api",
+      "section": "integration",
+      "order": 37,
+      "source": "docs/management-api.md",
+      "translation": "docs/ko/management-api.md",
+      "route": "/guide/management-api",
+      "anchors": [
+        "authentication-and-host-boundary",
+        "browser-read-sessions",
+        "cli-use-and-verification",
+        "cli-사용과-검증",
+        "http-surface",
+        "http-인터페이스",
+        "management-http-and-cli-contracts",
+        "preflight-admission-and-operation-evidence",
+        "관리-http-및-cli-계약",
+        "브라우저-조회-세션",
+        "사전-검증시작-기록작업-증거",
+        "인증과-호스트-경계"
+      ],
+      "source_sha256": "64a1b3ace656083826ff3675d7214c0e33bd55162788bcfaaf02429ff7d2eac9",
+      "translation_sha256": "1f9e8ae6e30e349cc107bd8dacbd5e9e96a39523a4f89fe8b7450f12de24d942"
     }
   ]
 }

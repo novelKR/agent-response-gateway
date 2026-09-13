@@ -554,6 +554,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "gateway-management-api"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "clap",
+ "futures-util",
+ "gateway-management",
+ "reqwest",
+ "ring",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "subtle",
+ "tempfile",
+ "tokio",
+ "tower",
+ "url",
+]
+
+[[package]]
 name = "gateway-management-extensions"
 version = "0.1.0"
 dependencies = [
