@@ -137,7 +137,8 @@ pub(crate) fn encode_with_history(
             return Err(unsupported());
         }
     }
-    let registry = CustomToolBridge::new(request.tools.as_deref().unwrap_or(&[]))?;
+    let registry = CustomToolBridge::new(request.tools.as_deref().unwrap_or(&[]))?
+        .with_editing(plan.editing.as_ref(), request)?;
     let mut messages = Vec::new();
     let instruction_bridge = plan.bridges.contains(&BridgeRule::ChatInstructionEnvelope);
     if dialect == Some(crate::ir::reasoning::ChatDialect::DeepSeek)

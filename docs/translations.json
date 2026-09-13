@@ -952,16 +952,18 @@
         "independent-operation-bundles",
         "ownership-and-activation",
         "streaming-replay-and-versions",
+        "using-direct-context-editing",
         "validation",
         "검증",
         "독립-작업-묶음",
         "스트리밍재생버전",
         "직접-문맥-편집",
+        "직접-문맥-편집-사용",
         "책임과-활성화",
         "편집-호환-계약"
       ],
-      "source_sha256": "8ea05eb25355b8cc177fd4141ab3b7463c343be372d449ec113ba6ed96ddf371",
-      "translation_sha256": "7fcf7dee1a84caf4d07131ee0e7ed1e6a7880746aae822039758b73c14a87b78"
+      "source_sha256": "1bc3125e9457d61cfee036291ecfab64e78f206584104b092db8b5f114b10663",
+      "translation_sha256": "8421f942e76eca50aa1e9579542256f203252682b1eed3d979aec5ca4df3086f"
     }
   ]
 }

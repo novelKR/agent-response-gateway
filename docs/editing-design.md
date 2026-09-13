@@ -11,9 +11,9 @@
 
 [English](editing-design.md) | [한국어](ko/editing-design.md)
 
-This design defines opt-in editing compatibility. The runtime does not yet expose
-the editing policies described here. Existing custom string bridging remains the
-default. The synthetic fixture verifies direct patch execution and Code Mode helper
+This contract includes implemented direct context editing and separately planned
+helper, normalization and bundle representations. Existing custom string bridging
+remains the default. The synthetic fixture verifies direct patch execution and Code Mode helper
 execution with pinned Codex 0.154.0; it does not qualify any real provider.
 
 ## Ownership and activation
@@ -95,3 +95,47 @@ checks both application and approval denial for direct and helper calls. Publish
 fixtures contain contract hashes and synthetic metadata, never copied runtime
 prompts. Native and external codecs, inline and imported policies, stateless and
 managed history must preserve the same public contract when implemented.
+
+<a id="using-direct-context-editing"></a>
+<a id="직접-문맥-편집-사용"></a>
+
+## Using direct context editing
+
+The following model fragment requires a separately defined provider and capability
+profile with native function support plus the existing custom and grammar bridges.
+Values are synthetic, not a qualified provider configuration.
+
+```toml
+[models.writer]
+provider="mock"
+upstream_model="synthetic-model"
+api="messages"
+auth="api_key"
+messages_version="2023-06-01"
+capability_profile="verified-functions"
+editing_policy="line-edit"
+
+[editing_policies.line-edit]
+version=1
+client_contract="codex-direct-custom/v1"
+representation="context-lines/v1"
+patch_dialect="codex-patch/1"
+normalization="none"
+```
+
+`old_lines` must contain at least one line. This version replaces or removes an
+existing line block; insertion-only edits use the original patch tool. Limits are
+16384 total lines and 8 MiB of compiled patch. No trimming or line-ending repair
+occurs. Code Mode, normalization, operation bundles, external codecs and imported
+packs are not enabled by this implementation.
+
+Synthetic names are deterministic over original tool identity and policy; a name
+collision rejects instead of reassigning a historical provider name. Canonical
+patches invert exactly. Old noncanonical patches remain on the original tool path.
+Managed provider-original content and restored public output already fit replay v2;
+this representation adds no new replay fields and does not claim v3 support.
+The editing policy is bound into the route origin. Changes require a new session.
+
+CLI and library callers configure the same Config and router path. Selecting this
+policy yields the reserved manifest/readiness v7 contract. Pure compiler output is
+not permission to bypass router admission, output validation or host approval.

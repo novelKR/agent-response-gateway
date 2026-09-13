@@ -14,6 +14,8 @@ use crate::{
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Config {
+    #[serde(default)]
+    pub editing_policies: BTreeMap<String, crate::editing::Policy>,
     #[serde(default = "default_listen")]
     pub listen: SocketAddr,
     #[serde(default = "default_token_env")]
@@ -55,6 +57,7 @@ pub enum ContinuationMode {
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Model {
+    pub editing_policy: Option<String>,
     pub provider: String,
     pub upstream_model: String,
     #[serde(default)]
@@ -229,6 +232,12 @@ impl Config {
     }
     pub fn validate(&self) -> Result<(), ConfigError> {
         self.validate_profile_imports()?;
+        for policy in self.editing_policies.values() {
+            policy
+                .validate()
+                .map_err(|_| ConfigError("Invalid editing policy".into()))?;
+        }
+
         for (id, policy) in &self.compatibility_policies {
             if !safe_label(id) {
                 return Err(ConfigError(
@@ -330,6 +339,26 @@ impl Config {
 
 impl Config {
     pub(crate) fn validate_route(&self, model: &Model) -> Result<(), ConfigError> {
+        if let Some(id) = &model.editing_policy
+            && (!self.editing_policies.contains_key(id)
+                || model.capability_profile.is_none()
+                || model.auth.is_none()
+                || model.api_codec.is_some()
+                || self.profile_packs.is_some()
+                || !model
+                    .capability_profile
+                    .as_ref()
+                    .and_then(|id| self.capability_profiles.get(id))
+                    .is_some_and(|p| {
+                        matches!(
+                            p.support.get(&Feature::FunctionTools),
+                            Some(DeclaredSupport::Native)
+                        )
+                    })
+                || (model.api == ApiProtocol::Responses && model.compatibility_policy.is_none()))
+        {
+            return Err(ConfigError("Editing requires a known policy, explicit profile/auth and checked Responses; codec and packs are not yet supported".into()));
+        }
         self.validate_profile_imports()?;
         if let Some(id) = &model.api_codec
             && (!self.codecs.contains_key(id)

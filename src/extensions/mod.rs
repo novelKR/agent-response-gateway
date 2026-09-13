@@ -383,6 +383,7 @@ impl ExtensionPlan {
     }
 
     pub fn manifest(&self, base_manifest: &Value) -> Result<Value, ConfigError> {
+        let editing = base_manifest["schema"] == "gateway-embedded-manifest/v7";
         let codecs = base_manifest["schema"] == "gateway-embedded-manifest/v6"
             || self
                 .packages
@@ -408,7 +409,7 @@ impl ExtensionPlan {
         }
         let execution_sha256 = hash(&canonical(&configuration)?);
         Ok(
-            json!({"schema":if codecs { "gateway-extended-manifest/v6" } else if profile_packs { "gateway-extended-manifest/v5" } else if compatibility { "gateway-extended-manifest/v4" } else if managed { "gateway-extended-manifest/v3" } else { self.manifest_schema() }, "configuration":configuration,
+            json!({"schema":if editing { "gateway-extended-manifest/v7" } else if codecs { "gateway-extended-manifest/v6" } else if profile_packs { "gateway-extended-manifest/v5" } else if compatibility { "gateway-extended-manifest/v4" } else if managed { "gateway-extended-manifest/v3" } else { self.manifest_schema() }, "configuration":configuration,
             "execution_sha256":execution_sha256}),
         )
     }

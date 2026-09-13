@@ -24,3 +24,5 @@ pub mod continuation;
 
 mod proxy_managed;
 pub mod usage;
+
+pub mod editing;

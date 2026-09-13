@@ -144,7 +144,8 @@ impl PreparedInteractions {
                 return Err(unsupported());
             }
         }
-        let registry = bridge::CustomToolBridge::new(request.tools.as_deref().unwrap_or(&[]))?;
+        let registry = bridge::CustomToolBridge::new(request.tools.as_deref().unwrap_or(&[]))?
+            .with_editing(plan.editing.as_ref(), request)?;
         let mut input = Vec::new();
         let mut instructions = Vec::new();
         if let Some(t) = &request.instructions {

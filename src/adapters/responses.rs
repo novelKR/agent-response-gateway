@@ -73,7 +73,8 @@ pub(crate) fn encode_admitted(
     let registry = CustomToolBridge::for_responses(
         request.tools.as_deref().unwrap_or(&[]),
         &plan.route.capabilities,
-    )?;
+    )?
+    .with_editing(plan.editing.as_ref(), request)?;
     let original = responses::encode(request, None)?;
     let mut lowered = request.clone();
     if request.tools.is_some() {

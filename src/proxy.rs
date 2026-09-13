@@ -132,7 +132,10 @@ pub(crate) async fn responses(
         .config
         .resolve_route(&model_id)
         .expect("configuration was validated");
-    if route.compatibility.is_some() || state.config.models[&model_id].api_codec.is_some() {
+    if route.compatibility.is_some()
+        || route.editing.is_some()
+        || state.config.models[&model_id].api_codec.is_some()
+    {
         crate::adapters::json::decode(&raw).map_err(|_| {
             bad(
                 "invalid_json",
