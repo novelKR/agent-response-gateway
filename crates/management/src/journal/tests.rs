@@ -107,10 +107,14 @@ struct Fixture {
     before: Snapshot,
     effects: Rc<Cell<usize>>,
     effect: Effect,
+    observe_journal: Option<std::path::PathBuf>,
+    accepted: Option<Id>,
 }
 impl Fixture {
     fn new() -> Self {
         Self {
+            observe_journal: None,
+            accepted: None,
             before: snapshot(0),
             effects: Rc::new(Cell::new(0)),
             effect: Effect::Applied {
@@ -125,7 +129,32 @@ impl PreparedOperation for Prepared<'_> {
     fn before(&self) -> &Snapshot {
         &self.0.before
     }
+    fn accepted(&mut self, id: &Id) {
+        if let Some(path) = &self.0.observe_journal {
+            let db =
+                Connection::open_with_flags(path.join(DATABASE), OpenFlags::SQLITE_OPEN_READ_ONLY)
+                    .unwrap();
+            let events: i64 = db
+                .query_row("SELECT COUNT(*) FROM events", [], |row| row.get(0))
+                .unwrap();
+            assert_eq!(
+                events, 1,
+                "accept hook follows the durable intent and precedes the start record"
+            );
+        }
+        self.0.accepted = Some(id.clone());
+    }
     fn apply(&mut self) -> Effect {
+        if let Some(path) = &self.0.observe_journal {
+            assert!(self.0.accepted.is_some());
+            let db =
+                Connection::open_with_flags(path.join(DATABASE), OpenFlags::SQLITE_OPEN_READ_ONLY)
+                    .unwrap();
+            let events: i64 = db
+                .query_row("SELECT COUNT(*) FROM events", [], |row| row.get(0))
+                .unwrap();
+            assert_eq!(events, 2, "effects follow the durable start record");
+        }
         self.0.effects.set(self.0.effects.get() + 1);
         self.0.effect.clone()
     }
@@ -145,6 +174,7 @@ fn applies_once_and_records_authority_and_actual_evidence() {
     let path = root(&d);
     let mut journal = Journal::initialize(&path, LIMIT).unwrap();
     let mut backend = Fixture::new();
+    backend.observe_journal = Some(path.clone());
     let op = journal
         .execute(&actor("alice"), &request(), &mut backend)
         .unwrap();

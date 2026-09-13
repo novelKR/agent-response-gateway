@@ -29,6 +29,48 @@ pub struct EmbeddedManifest {
     configuration_sha256: String,
 }
 impl EmbeddedManifest {
+    /// Produce the existing readiness projection from this exact inspected configuration.
+    /// Optional hosts and the CLI share the version mapping and address binding.
+    pub fn readiness(
+        &self,
+        bound: std::net::SocketAddr,
+        extensions: Option<&crate::extensions::ExtensionPlan>,
+    ) -> Result<Value, ConfigError> {
+        let configured: std::net::SocketAddr = self.configuration["listen"]
+            .as_str()
+            .and_then(|value| value.parse().ok())
+            .ok_or_else(|| ConfigError("Invalid readiness address binding".into()))?;
+        if !bound.ip().is_loopback()
+            || bound.port() == 0
+            || configured.ip() != bound.ip()
+            || (configured.port() != 0 && configured.port() != bound.port())
+        {
+            return Err(ConfigError("Invalid readiness address binding".into()));
+        }
+        let mut ready = json!({"event":"ready","address":bound.to_string(),
+            "base_url":format!("http://{bound}/v1"),"version":self.package.version,
+            "schema":self.ready_schema(),"manifest_schema":self.schema,
+            "configuration_sha256":self.configuration_sha256});
+        if let Some(plan) = extensions {
+            let base = serde_json::to_value(self)
+                .map_err(|_| ConfigError("Cannot serialize inspected configuration".into()))?;
+            let extended = plan.manifest(&base)?;
+            let schema = match extended["schema"].as_str() {
+                Some("gateway-extended-manifest/v1") => "gateway-extended-ready/v1",
+                Some("gateway-extended-manifest/v2") => "gateway-extended-ready/v2",
+                Some("gateway-extended-manifest/v3") => "gateway-extended-ready/v3",
+                Some("gateway-extended-manifest/v4") => "gateway-extended-ready/v4",
+                Some("gateway-extended-manifest/v5") => "gateway-extended-ready/v5",
+                Some("gateway-extended-manifest/v6") => "gateway-extended-ready/v6",
+                Some("gateway-extended-manifest/v7") => "gateway-extended-ready/v7",
+                _ => return Err(ConfigError("Unsupported readiness schema".into())),
+            };
+            ready["schema"] = json!(schema);
+            ready["manifest_schema"] = extended["schema"].clone();
+            ready["execution_sha256"] = extended["execution_sha256"].clone();
+        }
+        Ok(ready)
+    }
     pub fn configuration(&self) -> &Value {
         &self.configuration
     }

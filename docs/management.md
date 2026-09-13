@@ -35,6 +35,9 @@ arbitrary paths or programs. Payloads and secrets never belong in identifiers.
 `PreparedOperation` holds the target lock or equivalent host lease while the
 journal checks the snapshot, commits authorization and intent, and starts the
 effect. Conditions not protected by that lease must be rechecked at application.
+`PreparedOperation::accepted` receives the durable operation ID before application;
+it must not change the target. Adapters can use that ID for immutable evidence.
+The [owned runtime adapter](managed-runtime.md) is a separate integration.
 The library does not add filesystem, process, package or credential authority.
 Hosts retain tool approval and workflow responsibilities.
 

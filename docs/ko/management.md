@@ -32,6 +32,9 @@ HTTP 본문에서 actor를 역직렬화할 수 없습니다. 권한은 정확한
 `PreparedOperation`은 journal이 snapshot을 확인하고 권한과 의도를
 영속 저장한 뒤 실행을 시작하는 동안 대상 잠금 또는 동등한 호스트 lease를
 유지합니다. lease로 보호되지 않는 조건은 적용 시 다시 확인해야 합니다.
+`PreparedOperation::accepted`는 적용 전에 영속 저장된 작업 ID를 받으며
+대상을 변경하면 안 됩니다. adapter는 이 ID를 불변 증거에 사용할 수 있습니다.
+[소유 실행 adapter](managed-runtime.md)는 별도 연결입니다.
 라이브러리는 파일시스템, 프로세스, 패키지, credential 권한을 추가하지 않습니다.
 도구 승인과 업무 흐름은 호스트의 책임으로 유지됩니다.
 
