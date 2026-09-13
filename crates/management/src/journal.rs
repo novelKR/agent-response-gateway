@@ -508,7 +508,10 @@ AND json_extract(e.event,'$.state') IN ('queued','running')",
             .map_err(storage)?;
         drop(backup);
         output.close().map_err(|_| Error::Storage)?;
-        File::open(destination)
+        // FlushFileBuffers requires GENERIC_WRITE on Windows.
+        OpenOptions::new()
+            .write(true)
+            .open(destination)
             .and_then(|f| f.sync_all())
             .map_err(|_| Error::Storage)
     }
