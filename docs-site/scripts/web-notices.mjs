@@ -2,6 +2,9 @@ import { readFileSync, existsSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { createHash } from 'node:crypto';
 
+// npm lock keys and Rollup module IDs use forward slashes on every host.
+export const npmPath = value => value.replaceAll('\\', '/');
+
 // Rollup's client module inventory excludes server-only tools.
 export function webNoticesPlugin(root, project = 'docs-site', introduction = 'Web dependencies shipped by this documentation build.\nOriginal license and notice bytes follow each package heading.\n') {
   const projectRoot = root + project + '/';
@@ -14,10 +17,10 @@ export function webNoticesPlugin(root, project = 'docs-site', introduction = 'We
       for (const chunk of Object.values(bundle)) {
         if (chunk.type !== 'chunk') continue;
         for (const id of Object.keys(chunk.modules)) {
-          const clean = id.split('?')[0];
+          const clean = npmPath(id.split('?')[0]);
           if (!clean.includes('/node_modules/')) continue;
           let directory = dirname(clean);
-          while (directory.includes('/node_modules/')) {
+          while (npmPath(directory).includes('/node_modules/')) {
             if (existsSync(join(directory, 'package.json'))) {
               const metadata = JSON.parse(readFileSync(join(directory, 'package.json'), 'utf8'));
               if (!metadata.name || !metadata.version) throw new Error('Invalid shipped package metadata');
@@ -31,10 +34,10 @@ export function webNoticesPlugin(root, project = 'docs-site', introduction = 'We
       const records = [];
       const supplements = JSON.parse(readFileSync(projectRoot + 'licensing/supplements.json', 'utf8'));
       const lock = JSON.parse(readFileSync(projectRoot + 'package-lock.json', 'utf8'));
-      writeFileSync(stateRoot + 'client-package-candidates.json', JSON.stringify([...packages].map(([id, p]) => ({ id, path: relative(projectRoot, p.directory) })), null, 2) + '\n');
+      writeFileSync(stateRoot + 'client-package-candidates.json', JSON.stringify([...packages].map(([id, p]) => ({ id, path: npmPath(relative(projectRoot, p.directory)) })), null, 2) + '\n');
       const parts = [introduction];
       for (const [identity, { directory, metadata }] of [...packages].sort(([a], [b]) => a.localeCompare(b))) {
-        const locked = lock.packages[relative(projectRoot, directory)];
+        const locked = lock.packages[npmPath(relative(projectRoot, directory))];
         if (!locked || locked.version !== metadata.version || locked.license !== metadata.license
             || !locked.integrity || !locked.resolved.startsWith('https://registry.npmjs.org/')) {
           throw new Error('Shipped package differs from the npm lock: ' + identity);

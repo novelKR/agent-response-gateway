@@ -35,7 +35,7 @@ async function load() {
   busy.value=true; const current=generation;
   const until=Date.now(), from=until-Number(days.value)*86400000;
   try { const result=await client.capabilities(); if(current!==generation)return;capabilities.value=result.data; }
-  catch(failure){if(current===generation){clearViews();busy.value=false;readFailure(failure,'state');}return;}
+  catch(failure){if(current===generation){clearViews();busy.value=false;readFailure(failure,'capabilities');}return;}
   if(!visiblePages.value.includes(page.value))page.value=visiblePages.value[0]||'overview';
   if(!allowed('read_usage'))usage.value=null;
   if(!allowed('read_operations')){operations.value=[];selectedOperation.value=null;}
@@ -126,7 +126,7 @@ onUnmounted(()=>{clearInterval(timer);window.removeEventListener('keydown',keybo
 <span>{{ t('title') }} <span class="slash">/</span> <strong>{{ authenticated ? t(page) : t('waiting') }}</strong>
 </span>
 <div class="top-actions">
-<span class="connection" :class="{ online: authenticated }">● {{ authenticated ? t('connected') : t('waiting') }}</span>
+<span class="connection" :class="{ online: authenticated && !viewErrors.capabilities }">● {{ authenticated && !viewErrors.capabilities ? t('connected') : t('waiting') }}</span>
 <button v-if="authenticated" class="text-button" @click="signOut">{{ t('signOut') }}</button>
 </div>
 </header>
@@ -151,7 +151,8 @@ onUnmounted(()=>{clearInterval(timer);window.removeEventListener('keydown',keybo
 </div>
       </section>
       <div v-else class="content">
-<p v-if="!visiblePages.length" class="notice warn">{{ t('forbidden') }}</p>
+<p v-if="viewErrors.capabilities" class="notice warn" role="status">{{ t(viewErrors.capabilities) }} {{ t('staleView') }}</p>
+<p v-else-if="capabilities && !visiblePages.length" class="notice warn">{{ t('forbidden') }}</p>
         <div class="page-heading">
 <div>
 <div class="eyebrow">{{ target }} <span>·</span> {{ t('readOnly') }}</div>
