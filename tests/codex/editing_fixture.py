@@ -21,12 +21,23 @@ normalization="none"
     return configured
 
 
-def block(tools, invalid=False):
-    choices = [t for t in tools if "before_context" in t.get("input_schema", {}).get("properties", {})]
+def edit_input(operations=False, invalid=False, file_conflict=False):
+    edit={"path":"fixture.txt", "before_context":[], "old_lines":["missing-context" if file_conflict else "synthetic-old"],
+          "new_lines":["synthetic-old" if invalid else "synthetic-content"], "after_context":[]}
+    if not operations: return edit
+    result={"operations":[{"operation":"create","path":"created.txt","lines":["synthetic-created"]},
+                          {"operation":"delete","path":"deleted.txt"},
+                          {"operation":"move","source":"source.txt","destination":"moved.txt","context":["synthetic-moved"]},
+                          {"operation":"update","edit":edit}]}
+    if invalid: result["operations"].append({"operation":"delete","path":"moved.txt"})
+    return result
+
+
+def block(tools, invalid=False, operations=False, file_conflict=False):
+    key="operations" if operations else "before_context"
+    choices = [t for t in tools if key in t.get("input_schema", {}).get("properties", {})]
     c.require(len(choices) == 1, "synthetic edit missing")
-    return {"type":"tool_use", "id":"call_fixture", "name":choices[0]["name"], "input":{
-        "path":"fixture.txt", "before_context":[], "old_lines":["synthetic-old"],
-        "new_lines":["synthetic-old" if invalid else "synthetic-content"], "after_context":[]}}
+    return {"type":"tool_use", "id":"call_fixture", "name":choices[0]["name"], "input":edit_input(operations,invalid,file_conflict)}
 
 
 def main():
@@ -35,19 +46,32 @@ def main():
     parser.add_argument('--runtime-dir',type=Path,default=c.runtime.BUNDLE)
     parser.add_argument('--codec-bin',type=Path)
     parser.add_argument('--profile-packs',action='store_true')
+    parser.add_argument('--operations',action='store_true')
+    parser.add_argument('--embedded-host-bin',type=Path)
     parser.add_argument('--code-mode',action='store_true')
     parser.add_argument('--normalize-envelope',action='store_true')
     args=parser.parse_args()
     if args.code_mode and args.normalize_envelope: parser.error('Envelope normalization is direct-patch only')
     binary=c.runtime.verify_bundle(args.runtime_dir.resolve(),json.loads(c.runtime.LOCK.read_text()))
+    if args.embedded_host_bin:
+        if args.codec_bin or args.profile_packs or args.normalize_envelope: parser.error('Embedded example uses inline policies and builtin adapters')
+        for api in ['messages','chat_completions','responses_checked']:
+            for scenario in ['custom_patch','approval_denial','grammar_failure']:
+                print(json.dumps(c.run_scenario(scenario,binary,args.gateway_bin.resolve(),api,editing=True,code_mode=args.code_mode,operations=args.operations,embedded_binary=args.embedded_host_bin.resolve())),flush=True)
+        return
     for api in ['messages','chat_completions','responses_checked','gemini_interactions']:
         for scenario in (['custom_patch','approval_denial','grammar_failure','contract_failure','cancellation','cancellation_heartbeat','transport_failure'] if args.code_mode else ['custom_patch','approval_denial','grammar_failure']):
-            print(json.dumps(c.run_scenario(scenario,binary,args.gateway_bin.resolve(),api,editing=True,codec_binary=args.codec_bin,profile_packs=args.profile_packs,code_mode=args.code_mode,normalization=args.normalize_envelope)),flush=True)
+            print(json.dumps(c.run_scenario(scenario,binary,args.gateway_bin.resolve(),api,editing=True,codec_binary=args.codec_bin,profile_packs=args.profile_packs,code_mode=args.code_mode,normalization=args.normalize_envelope,operations=args.operations)),flush=True)
 
     for contract in ['claude_adaptive','claude_manual','deep_seek','open_router']:
         api='messages' if contract.startswith('claude_') else 'chat_completions'
         for scenario in (['custom_patch','approval_denial','grammar_failure','contract_failure','cancellation','cancellation_heartbeat','transport_failure'] if args.code_mode else ['custom_patch','approval_denial','grammar_failure']):
-            print(json.dumps(c.run_scenario(scenario,binary,args.gateway_bin.resolve(),api,managed_contract=contract,editing=True,codec_binary=args.codec_bin,profile_packs=args.profile_packs,code_mode=args.code_mode,normalization=args.normalize_envelope)),flush=True)
+            print(json.dumps(c.run_scenario(scenario,binary,args.gateway_bin.resolve(),api,managed_contract=contract,editing=True,codec_binary=args.codec_bin,profile_packs=args.profile_packs,code_mode=args.code_mode,normalization=args.normalize_envelope,operations=args.operations)),flush=True)
+
+
+    if args.operations:
+        for api in ['messages','chat_completions','responses_checked','gemini_interactions']:
+            print(json.dumps(c.run_scenario('custom_patch',binary,args.gateway_bin.resolve(),api,editing=True,codec_binary=args.codec_bin,profile_packs=args.profile_packs,code_mode=args.code_mode,operations=True,file_conflict=True)),flush=True)
 
 
 if __name__=='__main__': main()

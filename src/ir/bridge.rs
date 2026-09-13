@@ -6,7 +6,7 @@ use super::{IrError, ToolIdentity, ToolKind, grammar::Grammar, request::*};
 
 struct Binding {
     normalize: bool,
-    structured: bool,
+    structured: Option<crate::editing::Representation>,
     original: ToolIdentity,
     grammar: Option<Grammar>,
     wrapped: bool,
@@ -167,7 +167,7 @@ impl CustomToolBridge {
                 alias,
                 Binding {
                     normalize: false,
-                    structured: false,
+                    structured: None,
                     original: tool.identity,
                     grammar,
                     wrapped,
@@ -328,15 +328,15 @@ impl CustomToolBridge {
             }
             let alias = ToolIdentity::new(None, name)?;
             self.definitions.push(ToolDefinition {
-                identity: alias.clone(), description: Some("Propose one context-based line edit. The host checks the supplied context and applies the patch; this is not replace-all. Use the original patch tool for other operations.".into()),
-                kind: ToolDefinitionKind::Function { parameters: Some(crate::editing::ContextEdit::schema()), strict: None },
+                identity: alias.clone(), description: Some(if policy.representation == crate::editing::Representation::Operations { "Propose independent create, delete, move or context update operations. Move requires unchanged context. Repeated or dependent paths are rejected. The host executes one patch; atomicity and rollback are not guaranteed." } else { "Propose one context-based line edit. The host checks the supplied context and applies the patch; this is not replace-all. Use the original patch tool for other operations." }.into()),
+                kind: ToolDefinitionKind::Function { parameters: Some(policy.representation.schema()), strict: None },
                 extensions: Extensions::responses(),
             });
             self.reverse.insert(
                 alias,
                 Binding {
                     normalize: false,
-                    structured: true,
+                    structured: Some(policy.representation),
                     original,
                     grammar: Some(
                         if policy.client_contract == crate::editing::ClientContract::CodeMode {
@@ -397,20 +397,21 @@ impl CustomToolBridge {
             _ => None,
         };
         if let Some(text) = original_patch
-            && let Ok(edit) = crate::editing::ContextEdit::from_patch(&text)
-            && let Some((alias, _)) = self
+            && let Some((alias, binding)) = self
                 .reverse
                 .iter()
-                .find(|(_, b)| b.structured && b.original == original.tool)
+                .find(|(_, b)| b.structured.is_some() && b.original == original.tool)
+            && let Ok(edit) = binding
+                .structured
+                .ok_or(IrError::InvalidToolMapping)?
+                .decode(&text)
         {
             return Ok(ToolCall {
                 status: original.status,
                 item_id: original.item_id.clone(),
                 call_id: original.call_id.clone(),
                 tool: alias.clone(),
-                input: ToolInput::Json(
-                    serde_json::to_string(&edit).map_err(|_| IrError::InvalidToolMapping)?,
-                ),
+                input: ToolInput::Json(edit),
                 extensions: Extensions::responses(),
             });
         }
@@ -479,11 +480,11 @@ impl CustomToolBridge {
             .reverse
             .get(&lowered.tool)
             .ok_or(IrError::InvalidToolMapping)?;
-        let input = if binding.structured {
+        let input = if let Some(representation) = binding.structured {
             let ToolInput::Json(raw) = &lowered.input else {
                 return Err(IrError::InvalidToolMapping);
             };
-            let patch = crate::editing::ContextEdit::from_json(raw)?.compile()?;
+            let patch = representation.compile(raw)?;
             ToolInput::Freeform(if binding.grammar == Some(Grammar::CodeModeSourceV1) {
                 crate::editing::helper_program(&patch)?
             } else {
@@ -698,7 +699,7 @@ mod normalization_tests {
                 Binding {
                     original,
                     grammar: Some(Grammar::CodexPatchV1),
-                    structured: false,
+                    structured: None,
                     wrapped: true,
                     normalize: true,
                 },

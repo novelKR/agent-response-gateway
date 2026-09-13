@@ -12,7 +12,7 @@
 [English](editing-design.md) | [한국어](ko/editing-design.md)
 
 This contract includes direct context editing, explicit helper execution and
-opt-in envelope normalization. Independent bundles remain planned. Existing custom string bridging
+opt-in envelope normalization and independent operation bundles. Existing custom string bridging
 remains the default. The synthetic fixture verifies direct patch execution and Code Mode helper
 execution with pinned Codex 0.154.0; it does not qualify any real provider.
 
@@ -63,7 +63,7 @@ after normalization. Do not recover fences, prose, partial patches or other tool
 
 ## Independent operation bundles
 
-The later `operations/v1` representation supports ordered create, delete, move
+The `operations/v1` representation supports ordered create, delete, move
 and context update operations. A bundle becomes one patch and one execution result.
 Repeated paths, move dependencies and detectable lexical aliases reject. No inode
 identity, atomicity, rollback or per-file success is inferred without host evidence.
@@ -126,7 +126,7 @@ normalization="none"
 `old_lines` must contain at least one line. This version replaces or removes an
 existing line block; insertion-only edits use the original patch tool. Limits are
 16384 total lines and 8 MiB of compiled patch. No trimming or line-ending repair
-occurs. Operation bundles remain a planned representation.
+occurs. Independent bundles use a separately selected representation.
 
 Synthetic names are deterministic over original tool identity and policy; a name
 collision rejects instead of reassigning a historical provider name. Canonical
@@ -246,3 +246,49 @@ reports that rule and the number of distinct normalized call IDs through
 metadata contains no patch text and does not attest file execution or success.
 It introduces no global logger or new HTTP/replay fields. Native and wrapped
 custom arguments remain buffered until their final normalized value is validated.
+
+<a id="using-independent-operations"></a>
+<a id="독립-작업-사용"></a>
+
+## Using independent operations
+
+Select `representation="operations/v1"` with a verified direct or Code Mode
+contract. The synthetic function requires one ordered `operations` array:
+
+```json
+{"operations":[
+  {"operation":"create","path":"new.txt","lines":["content"]},
+  {"operation":"delete","path":"obsolete.txt"},
+  {"operation":"move","source":"source.txt","destination":"destination.txt","context":["unchanged line"]},
+  {"operation":"update","edit":{"path":"existing.txt","before_context":[],"old_lines":["old"],"new_lines":["new"],"after_context":[]}}
+]}
+```
+
+All variant fields are required; unknown and duplicate keys reject. A move
+requires nonempty unchanged context because pinned Codex rejects a move without
+a hunk. The gateway never reads source content to invent this context. Create
+requires at least one content line; empty-file creation and insertion-only updates
+remain outside the structured subset. The original patch tool remains available.
+
+Bundles allow at most 64 operations, 16384 total content/context lines and an
+8 MiB compiled patch. The compiler preserves operation order, text and paths.
+For conflict detection only, portable lexical keys collapse separators and dot
+components and compare lowercase names. Parent/child paths, repeated source or
+destination paths, unresolved parent traversal and trailing dot/space components
+reject conservatively. No filesystem, symlink, current-directory or inode lookup
+is performed; unrelated absolute and relative strings may still refer to one file.
+
+Canonical patches invert to the exact ordered bundle. Noncanonical legacy patches
+retain the original tool. The whole patch or helper program returns one actual
+Codex result. The gateway neither divides it into file statuses nor guarantees
+all-or-nothing application or rollback. File-context conflicts remain execution
+results, distinct from compiler rejection and approval denial.
+
+The synthetic fixture covers all four operations, next-turn input identity,
+approval denial, lexical dependencies, file-context conflicts, managed replay and
+recorder restart. Pure compiler tests do not imply host permission or real-provider
+qualification. Policy selection changes route origin without a database migration.
+
+The host-owned Rust example emits readiness from the same validated manifest.
+Synthetic Codex tests use that example to verify actual file operations, denial
+and history through the library router, independently of the CLI server.

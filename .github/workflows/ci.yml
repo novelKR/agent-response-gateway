@@ -179,6 +179,10 @@ jobs:
           python3 -B scripts/managed_usage_smoke.py --gateway-bin target/debug/agent-response-gateway --recorder-bin target/debug/gateway-usage-recorder --editing --codec-bin target/debug/examples/api_codec_editing --profile-packs
       - name: Verify opt-in patch envelope normalization
         run: python3 -B tests/codex/editing_fixture.py --gateway-bin target/debug/agent-response-gateway --normalize-envelope --codec-bin target/debug/examples/api_codec_editing --profile-packs
+      - name: Verify external operation bundles and durable restart
+        run: |
+          python3 -B tests/codex/editing_fixture.py --gateway-bin target/debug/agent-response-gateway --operations --code-mode --codec-bin target/debug/examples/api_codec_editing --profile-packs
+          python3 -B scripts/managed_usage_smoke.py --gateway-bin target/debug/agent-response-gateway --recorder-bin target/debug/gateway-usage-recorder --operations --code-mode --codec-bin target/debug/examples/api_codec_editing --profile-packs
       - name: Verify explicit Code Mode editing and recorder barriers
         run: |
           python3 -B tests/codex/editing_fixture.py --gateway-bin target/debug/agent-response-gateway --code-mode --codec-bin target/debug/examples/api_codec_editing --profile-packs
@@ -213,6 +217,12 @@ jobs:
       - run: cargo +1.98.0 build --locked
       - name: Verify structured editing with pinned Codex
         run: python3 -B tests/codex/editing_fixture.py --gateway-bin target/debug/agent-response-gateway
+      - name: Verify independent operation bundles
+        run: python3 -B tests/codex/editing_fixture.py --gateway-bin target/debug/agent-response-gateway --operations
+      - name: Verify host-owned Rust router file execution
+        run: |
+          cargo +1.98.0 build --locked --example embedded_editing
+          python3 -B tests/codex/editing_fixture.py --gateway-bin target/debug/agent-response-gateway --embedded-host-bin target/debug/examples/embedded_editing --operations
       - name: Verify native Code Mode editing
         run: python3 -B tests/codex/editing_fixture.py --gateway-bin target/debug/agent-response-gateway --code-mode
       - name: Verify pinned direct and Code Mode editing contracts

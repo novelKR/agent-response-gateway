@@ -337,8 +337,8 @@
       "order": 0,
       "source": "docs/ir.md",
       "translation": "docs/ko/ir.md",
-      "source_sha256": "8557c66f75ad60e55ce5874e2037f7434fcc738774e6914a5f3216f8001f65a2",
-      "translation_sha256": "3adc31e2aa0f4f47769f22195cca71be02492c5ac3b0ac7ba7a3ddb4a954466e",
+      "source_sha256": "cbd4521d44aaa304132e1823afd40c7de5bafb3cb574666e1c47d7cf7cd2245a",
+      "translation_sha256": "4ae4c786da18314c12c7b8a84abd54a18967fce9ac8d3ae1aa83aadef406eaee",
       "anchors": [
         "capability-admission-and-execution-routes",
         "custom-tool-json-bridge",
@@ -442,8 +442,8 @@
       "order": 0,
       "source": "docs/protocol.md",
       "translation": "docs/ko/protocol.md",
-      "source_sha256": "90a64bea403516e176ca6b6b45a469e610dd621cd46edb1f78d6b3af346bd328",
-      "translation_sha256": "1489434bc17a3d3d7f25b891394b01d419d44900501550561f0dbff2c86ac218",
+      "source_sha256": "ad927482944b487d13fff0a2909367321e97872e68c7e645625b42a79df263d5",
+      "translation_sha256": "5a144230dccd6afb175f865960ed7f1e6702be9cf63570bf0c70f3340bdd375b",
       "anchors": [
         "checked-responses-tools",
         "configuration-and-authentication",
@@ -956,9 +956,11 @@
         "ownership-and-activation",
         "streaming-replay-and-versions",
         "using-direct-context-editing",
+        "using-independent-operations",
         "validation",
         "검증",
         "독립-작업-묶음",
+        "독립-작업-사용",
         "명시적-code-mode-편집",
         "선택형-envelope-정규화",
         "스트리밍재생버전",
@@ -968,8 +970,8 @@
         "편집-팩과-codec-통합",
         "편집-호환-계약"
       ],
-      "source_sha256": "cb054bc7006d06ec9cb0838f0aac5faa48f73e2c5be2d1f926fd8da355361560",
-      "translation_sha256": "7ae25f40912ae1bf03c25e533468b833574316952dac05839891d025c0ca95fa"
+      "source_sha256": "f000c8d5c808085f7b120f0ed5330b6ef37ccf559afc133ccc3b511d75104244",
+      "translation_sha256": "667445d494d088b0dd074a9cb1a6dc8e6461cca4ae054b82bcb44430900bad98"
     }
   ]
 }

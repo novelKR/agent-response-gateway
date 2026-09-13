@@ -64,9 +64,10 @@ class Provider(BaseHTTPRequestHandler):
             frames[-2] = b'data: ' + encode(last) + b'\n\n'
         if getattr(self.server,'editing',False):
             definitions=[t.get('function',t) for t in body['tools']]
-            selected=[t for t in definitions if 'before_context' in t.get('parameters',t.get('input_schema',{})).get('properties',{})]
+            selected=[t for t in definitions if ('operations' if getattr(self.server,'operations',False) else 'before_context') in t.get('parameters',t.get('input_schema',{})).get('properties',{})]
             assert len(selected)==1
             args={'path':'synthetic.txt','before_context':[],'old_lines':['old'],'new_lines':['new'],'after_context':[]}
+            if getattr(self.server,'operations',False): args=__import__('editing_fixture').edit_input(True)
             def replace(v):
                 if isinstance(v,dict):
                     if v.get('name')=='echo':
@@ -89,15 +90,15 @@ class Provider(BaseHTTPRequestHandler):
         if getattr(self.server,'resume_editing',False):
             if name=='gemini':
                 calls=[v for v in body['input'] if v.get('type')=='function_call']
-                assert any(v['name'].startswith('arg_edit_') and v['arguments']['old_lines']==['old'] for v in calls)
+                assert any(v['name'].startswith('arg_edit_') and v['arguments']==args for v in calls)
                 value['status']='completed';value['steps']=[{'type':'thought','signature':'synthetic-private-signature'},{'type':'model_output','content':[{'type':'text','text':'resumed'}]}]
             elif name.startswith('claude'):
                 calls=[v for m in body['messages'] for v in m.get('content',[]) if isinstance(v,dict) and v.get('type')=='tool_use']
-                assert any(v['name'].startswith('arg_edit_') and v['input']['old_lines']==['old'] for v in calls)
+                assert any(v['name'].startswith('arg_edit_') and v['input']==args for v in calls)
                 value['content']=value['content'][:2]+[{'type':'text','text':'resumed'}];value['stop_reason']='end_turn'
             else:
                 calls=[v for m in body['messages'] for v in m.get('tool_calls',[])]
-                assert any(v['function']['name'].startswith('arg_edit_') and json.loads(v['function']['arguments'])['old_lines']==['old'] for v in calls)
+                assert any(v['function']['name'].startswith('arg_edit_') and json.loads(v['function']['arguments'])==args for v in calls)
                 value['choices'][0]['message'].pop('tool_calls',None);value['choices'][0]['message']['content']='resumed';value['choices'][0]['finish_reason']='stop'
             assert not streaming
         if streaming and getattr(self.server, 'decreasing_usage', False):
@@ -114,14 +115,14 @@ class Provider(BaseHTTPRequestHandler):
         self.wfile.write(raw)
 
 
-def run(binary, recorder, compatibility_policy=False, profile_packs=False, codec_binary=None, editing=False, runtime_dir=None, code_mode=False):
+def run(binary, recorder, compatibility_policy=False, profile_packs=False, codec_binary=None, editing=False, runtime_dir=None, code_mode=False, operations=False):
     patch_formats=[]
     declarations=[]
     descriptor=None
     if editing:
         import editing_contract as ec
         lock=json.loads(ec.c.runtime.LOCK.read_text())
-        codex=ec.c.runtime.verify_bundle(runtime_dir or ec.c.runtime.BUNDLE,lock)
+        codex=ec.c.runtime.verify_bundle((runtime_dir or ec.c.runtime.BUNDLE).resolve(),lock)
         ec.run(codex,binary,'code_mode' if code_mode else 'direct',capture=patch_formats,declarations=declarations)
         assert len(declarations)==1
         if code_mode:
@@ -155,6 +156,8 @@ def run(binary, recorder, compatibility_policy=False, profile_packs=False, codec
                 from editing_fixture import configure
                 config.write_text(configure(config.read_text(), code_mode=code_mode, descriptor=descriptor))
             upstream.editing=editing
+            upstream.operations=operations
+            if operations: config.write_text(config.read_text().replace('representation="context-lines/v1"','representation="operations/v1"'))
             env = {**os.environ, 'ARG_LOCAL_TOKEN': 'L'*40, 'SYNTHETIC_KEY': 'synthetic-key'}
             control_token = gemini.setup(folder, binary, config, env)
             args = ['--config', str(config), '--extensions-lock', str(store / 'active.json')]
@@ -295,7 +298,8 @@ def main():
     parser.add_argument('--editing',action='store_true')
     parser.add_argument('--runtime-dir',type=Path)
     parser.add_argument('--code-mode',action='store_true')
-    args = parser.parse_args(); print(json.dumps(run(args.gateway_bin.resolve(), args.recorder_bin.resolve(), args.compatibility_policy, args.profile_packs, args.codec_bin, args.editing or args.code_mode, args.runtime_dir, args.code_mode), sort_keys=True))
+    parser.add_argument('--operations',action='store_true')
+    args = parser.parse_args(); print(json.dumps(run(args.gateway_bin.resolve(), args.recorder_bin.resolve(), args.compatibility_policy, args.profile_packs, args.codec_bin, args.editing or args.code_mode or args.operations, args.runtime_dir, args.code_mode, args.operations), sort_keys=True))
 
 
 if __name__ == '__main__':
