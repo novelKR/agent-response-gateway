@@ -117,3 +117,20 @@ synthetic test values, not product credentials. Check both languages, keyboard
 navigation and dialog focus, small screens, differing extension selections,
 unknown usage counters, permission failures and logout. Fixture success is
 separate from actual adapter assembly, hosted CI or consumer acceptance.
+
+<a id="appearance-and-shared-presentation"></a>
+<a id="화면-표현과-공통-테마"></a>
+
+## Appearance and shared presentation
+
+The dashboard offers Light, Dark and System themes. With no saved selection it
+uses Light. System follows the browser's color preference while selected.
+Only language and theme preferences are stored locally; credentials and server
+state are not persisted in browser storage. Restricted browser storage does not
+prevent theme selection for the current page.
+
+Both themes use shared semantic CSS tokens for surfaces, text, status, focus,
+spacing and typography. The read-only views and authorization rules are the same
+in either theme. Client and clock injection are internal presentation seams;
+the production entry point always defaults to the real same-origin API client.
+Disposing a view cancels its pending client requests and presentation listeners.

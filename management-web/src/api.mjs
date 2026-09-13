@@ -5,11 +5,14 @@ export class ApiError extends Error {
 const safeId = value => typeof value === 'string' && /^[A-Za-z0-9_.:-]{1,96}$/.test(value);
 export function createClient(target, fetcher = globalThis.fetch.bind(globalThis)) {
   if (!safeId(target)) throw new ApiError('invalid_target');
+  const active = new Set(); let disposed = false;
   async function request(method, path, token) {
+    if (disposed) throw new ApiError('connection_unavailable');
     const headers = { Accept: 'application/json' };
     if (token !== undefined) headers.Authorization = `Bearer ${token}`;
     let response, text = '';
     const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 15000);
+    active.add(controller);
     try {
       response = await fetcher('/management/v1/' + path, { method, headers, credentials: 'same-origin', cache: 'no-store', redirect: 'error', signal: controller.signal });
       const reader = response.body?.getReader(), decoder = new TextDecoder('utf-8', { fatal: true });
@@ -22,7 +25,7 @@ export function createClient(target, fetcher = globalThis.fetch.bind(globalThis)
       }
       text += decoder.decode();
     } catch (error) { if (error instanceof ApiError) throw error; throw new ApiError('connection_unavailable'); }
-    finally { clearTimeout(timer); }
+    finally { clearTimeout(timer); active.delete(controller); }
     let value;
     try { value = JSON.parse(text, (_key, item, context) => {
       if (typeof item === 'number' && Number.isInteger(item) && !Number.isSafeInteger(item)) {
@@ -37,6 +40,7 @@ export function createClient(target, fetcher = globalThis.fetch.bind(globalThis)
   }
   const query = extra => new URLSearchParams({ target, ...extra }).toString();
   return Object.freeze({
+    dispose() { disposed = true; for (const controller of active) controller.abort(); active.clear(); },
     login(token) {
       if (typeof token !== 'string' || !/^[\x21-\x7e]{32,4096}$/.test(token)) throw new ApiError('invalid_read_credential');
       return request('POST', 'session', token);

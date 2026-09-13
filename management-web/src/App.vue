@@ -2,11 +2,26 @@
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import { createClient, modulesOf, observed, inventoryRows } from './api.mjs';
 import { messages } from './i18n.mjs';
-const savedLanguage = (() => { try { return localStorage.getItem('gateway-view-language'); } catch { return null; } })();
-const language = ref(['en','ko'].includes(savedLanguage) ? savedLanguage : navigator.language.startsWith('ko') ? 'ko' : 'en');
+import { createTheme, themeChoices } from './theme.mjs';
+const props = defineProps({
+  clientFactory: { type: Function, default: createClient },
+  clock: { type: Function, default: () => Date.now() },
+  persistPreferences: { type: Boolean, default: true },
+  initialPage: { type: String, default: 'overview' },
+  initialLanguage: { type: String, default: undefined },
+  initialTheme: { type: String, default: undefined },
+});
+let preferenceStorage;
+try { if (props.persistPreferences) preferenceStorage = localStorage; } catch {}
+const themeController = createTheme({ root: document.documentElement, media: matchMedia('(prefers-color-scheme: dark)'), storage: preferenceStorage, initial: props.initialTheme });
+const theme = ref(themeController.choice);
+function changeTheme() { themeController.set(theme.value); }
+
+const savedLanguage = (() => { try { return preferenceStorage?.getItem('gateway-view-language'); } catch { return null; } })();
+const language = ref(['en','ko'].includes(props.initialLanguage) ? props.initialLanguage : ['en','ko'].includes(savedLanguage) ? savedLanguage : navigator.language.startsWith('ko') ? 'ko' : 'en');
 const t = key => messages[language.value][key] || key;
 const pages = ['overview','runtime','configuration','extensions','usage','activity'];
-const page = ref('overview'), target = ref(new URLSearchParams(location.search).get('target') || 'gateway');
+const page = ref(pages.includes(props.initialPage) ? props.initialPage : 'overview'), target = ref(new URLSearchParams(location.search).get('target') || 'gateway');
 const credential = ref(''), authenticated = ref(false), busy = ref(false), loginBusy = ref(false), error = ref('');
 const capabilities = ref(null), state = ref(null), usage = ref(null), operations = ref([]), viewErrors = ref({});
 const selectedOperation = ref(null), days = ref(7), cursor = ref(0), hasMore = ref(false);
@@ -28,12 +43,12 @@ const short = value => value ? String(value).slice(0,12) : '—';
 const time = value => Number.isSafeInteger(value) && value > 0 ? new Intl.DateTimeFormat(language.value, { dateStyle:'medium', timeStyle:'medium' }).format(value) : t('noObservation');
 const pretty = value => value ? JSON.stringify(value,null,2) : t('noObservation');
 const statusClass = value => ['succeeded','running','verified'].includes(value) ? 'good' : ['uncertain','pending','unowned'].includes(value) ? 'warn' : ['failed','invalid'].includes(value) ? 'bad' : 'neutral';
-function changeLanguage() { document.documentElement.lang=language.value; try { localStorage.setItem('gateway-view-language',language.value); } catch {} }
+function changeLanguage() { document.documentElement.lang=language.value; try { preferenceStorage?.setItem('gateway-view-language',language.value); } catch {} }
 function clearViews() { state.value=null; capabilities.value=null; usage.value=null; operations.value=[]; selectedOperation.value=null; cursor.value=0; hasMore.value=false; viewErrors.value={}; viewTimes.value={}; }
 async function load() {
   if (!authenticated.value || busy.value) return;
   busy.value=true; const current=generation;
-  const until=Date.now(), from=until-Number(days.value)*86400000;
+  const until=props.clock(), from=until-Number(days.value)*86400000;
   try { const result=await client.capabilities(); if(current!==generation)return;capabilities.value=result.data; }
   catch(failure){if(current===generation){clearViews();busy.value=false;readFailure(failure,'capabilities');}return;}
   if(!visiblePages.value.includes(page.value))page.value=visiblePages.value[0]||'overview';
@@ -58,7 +73,7 @@ async function load() {
 function readFailure(failure, view){if(failure.status===401){generation++;authenticated.value=false;busy.value=false;clearViews();error.value='unauthorized';}else{viewErrors.value={...viewErrors.value,[view]:failure.code||'error'};}}
 async function signIn() {
   error.value='';loginBusy.value=true;generation++;busy.value=false;
-  try {client=createClient(target.value);const pending=client.login(credential.value);credential.value='';await pending;generation++;authenticated.value=true;clearViews();await load();}
+  try {client?.dispose?.();client=props.clientFactory(target.value);const pending=client.login(credential.value);credential.value='';await pending;generation++;authenticated.value=true;clearViews();await load();}
   catch(failure){error.value=failure.code || 'error';}
   finally {credential.value='';loginBusy.value=false;}
 }
@@ -85,8 +100,15 @@ async function inspectOperation(id) {
 }
 function closeDetails(){selectedOperation.value=null;nextTick(()=>{if(detailTrigger?.isConnected)detailTrigger.focus();});}
 function keyboard(event){if(!selectedOperation.value)return;if(event.key==='Escape'){event.preventDefault();closeDetails();}if(event.key==='Tab'){const items=[...document.querySelectorAll('.drawer button,.drawer summary,.drawer a,.drawer input,.drawer select')];const first=items[0],last=items.at(-1);if(event.shiftKey&&document.activeElement===first){event.preventDefault();last?.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus();}}}
-onMounted(async()=>{changeLanguage();window.addEventListener('keydown',keyboard);const current=generation;try{client=createClient(target.value);await client.capabilities();if(current===generation){authenticated.value=true;await load();}}catch(failure){if(current===generation&&failure.status!==401)error.value=failure.code||'error';}timer=setInterval(()=>{if(!document.hidden&&authenticated.value&&operations.value.length<=20)load();},15000);});
-onUnmounted(()=>{clearInterval(timer);window.removeEventListener('keydown',keyboard);generation++;});
+onMounted(async()=>{changeLanguage();window.addEventListener('keydown',keyboard);const current=generation;try{client=props.clientFactory(target.value);await client.capabilities();if(current===generation){authenticated.value=true;await load();}}catch(failure){if(current===generation&&failure.status!==401)error.value=failure.code||'error';}timer=setInterval(()=>{if(!document.hidden&&authenticated.value&&operations.value.length<=20)load();},15000);});
+onUnmounted(()=>{client?.dispose?.();themeController.dispose();clearInterval(timer);window.removeEventListener('keydown',keyboard);generation++;});
+defineExpose({
+  present({ page: requestedPage, language: requestedLanguage, theme: requestedTheme }) {
+    if (pages.includes(requestedPage) && visiblePages.value.includes(requestedPage)) page.value = requestedPage;
+    if (['en','ko'].includes(requestedLanguage)) { language.value = requestedLanguage; changeLanguage(); }
+    if (themeChoices.includes(requestedTheme)) { theme.value = requestedTheme; changeTheme(); }
+  },
+});
 </script>
 
 <template>
@@ -117,6 +139,12 @@ onUnmounted(()=>{clearInterval(timer);window.removeEventListener('keydown',keybo
 <select v-model="language" @change="changeLanguage">
 <option value="en">English</option>
 <option value="ko">한국어</option>
+</select>
+</label>
+<label class="language theme-choice">
+<span>{{ t('theme') }}</span>
+<select v-model="theme" :aria-label="t('theme')" @change="changeTheme">
+<option v-for="choice in themeChoices" :key="choice" :value="choice">{{ t('theme_' + choice) }}</option>
 </select>
 </label>
 </div>

@@ -1074,6 +1074,7 @@
       "translation": "docs/ko/management-web.md",
       "route": "/guide/management-web",
       "anchors": [
+        "appearance-and-shared-presentation",
         "browser-session-boundary",
         "build-and-source-provenance",
         "read-only-management-web",
@@ -1083,10 +1084,11 @@
         "빌드와-소스-근거",
         "조회-전용-관리-web",
         "합성-브라우저-검증",
+        "화면-표현과-공통-테마",
         "화면과-관측-의미"
       ],
-      "source_sha256": "3563ae023a0e6555b4d298d5e5166907d427f5b559f8cbe94f5bc79fb98ae40f",
-      "translation_sha256": "de5baf712c0e025ff457d6df73e51ce19b59ce4d65a9d5e4707a006dd81cb02b"
+      "source_sha256": "29bdcdc0570287d91337e335be07661c3ab14cef053bf9daaded62856ab22859",
+      "translation_sha256": "069a3b48b6082d6a9261d887e0a333ec1732fe10cfd8ba8db131de5a167461e8"
     },
     {
       "id": "team-access",

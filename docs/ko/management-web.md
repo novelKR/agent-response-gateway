@@ -103,3 +103,17 @@ credential `synthetic-browser-read-key-01234567890123456789`를 사용합니다.
 이 값들은 제품 credential이 아닌 합성 테스트 값입니다. 두 언어, 키보드 탐색과 dialog
 focus, 작은 화면, 서로 다른 확장 선택, 알 수 없는 사용량 카운터, 권한 거절과 로그아웃을
 확인합니다. Fixture 통과는 실제 adapter 조립·hosted CI·소비자 운영 승인과 구분합니다.
+
+<a id="appearance-and-shared-presentation"></a>
+
+## 화면 표현과 공통 테마
+
+대시보드는 Light, Dark, System 테마를 제공합니다. 저장한 선택이 없으면 Light를
+사용합니다. System을 선택한 동안 브라우저의 색상 설정을 따릅니다.
+언어와 테마 선택만 로컬에 저장하며 credential과 서버 상태는 브라우저 저장소에
+보존하지 않습니다. 브라우저 저장소가 제한되어도 현재 페이지의 테마를 선택할 수 있습니다.
+
+두 테마는 표면·텍스트·상태·포커스·간격·타이포그래피의 의미 기반 CSS 토큰을 공유합니다.
+어느 테마에서도 조회 화면과 권한 규칙은 같습니다. Client와 시각 주입은 내부 화면 표현
+접점이며 제품 진입점의 기본값은 항상 실제 same-origin API client입니다.
+화면을 해제하면 진행 중인 client 요청과 화면 표현 listener도 정리합니다.
