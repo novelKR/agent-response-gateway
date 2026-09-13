@@ -604,6 +604,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "gateway-team-access"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "gateway-management",
+ "gateway-management-api",
+ "ring",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tower",
+ "zeroize",
+]
+
+[[package]]
 name = "gateway-usage-contract"
 version = "0.1.0"
 dependencies = [
