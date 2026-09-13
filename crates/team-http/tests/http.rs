@@ -11,7 +11,7 @@ use futures_util::StreamExt;
 use gateway_management::{Action, Actor, Digest, Grant, Id, Identity, Journal, Reader, Request};
 use gateway_team_access::{Authenticator, Command, Manager, Permissions, Purpose, Secret};
 use gateway_team_http::{Ledger, Limits, Peer, PeerSource, Route, Service, SqliteUsage};
-use gateway_usage_contract::{EventKind, Finality, Outcome, Profile, RecorderConfig, UsageEvent};
+use gateway_usage_contract::{EventKind, Finality, Outcome, Profile, UsageEvent};
 use serde_json::{Value, json};
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -329,18 +329,27 @@ async fn real_core_enforces_stateless_routes_credentials_and_exact_usage_scope()
     .await;
     let usage_dir = accounts.root.path().join("recorder");
     private(&usage_dir);
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
     let mut recorder = gateway_usage_recorder::Store::open(&usage_dir, true, true).unwrap();
-    let producer_id = id(&recorder.producer().unwrap());
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    let producer_id = Some(id(&recorder.producer().unwrap()));
+    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
+    let producer_id: Option<Id> = None;
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    let usage: Option<Box<dyn gateway_team_http::UsageReader>> =
+        Some(Box::new(SqliteUsage::open(&usage_dir).unwrap()));
+    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
+    let usage: Option<Box<dyn gateway_team_http::UsageReader>> = None;
     let (ledger, ledger_path) = accounts.ledger();
     let endpoint = team(
         &accounts,
         Arc::new(peer(
             &gateway.url,
             configuration.clone(),
-            Some(producer_id.clone()),
+            producer_id.clone(),
         )),
         ledger,
-        Some(Box::new(SqliteUsage::open(&usage_dir).unwrap())),
+        usage,
         Limits::default(),
     )
     .await;
@@ -412,60 +421,73 @@ async fn real_core_enforces_stateless_routes_credentials_and_exact_usage_scope()
             .as_array()
             .unwrap()
             .iter()
-            .all(|r| r["usage"]["state"] == "unobserved")
+            .all(|r| r["usage"]["state"]
+                == if producer_id.is_some() {
+                    "unobserved"
+                } else {
+                    "unattributed"
+                })
     );
-    let rec_config = RecorderConfig {
-        schema: "gateway-usage-recorder-config/v1".into(),
-        destinations: vec![],
-    };
-    for (index, (request, model)) in observed.iter().enumerate() {
-        let event = UsageEvent {
-            schema: gateway_usage_contract::SCHEMA.into(),
-            producer_id: producer_id.to_string(),
-            request_id: request.clone(),
-            attempt_id: format!("attempt-{index}"),
-            event_id: format!("event-{index}"),
-            revision: 1,
-            kind: EventKind::AttemptFinished,
-            started_at_ms: now(),
-            observed_at_ms: now(),
-            provider: "mock".into(),
-            model_alias: (*model).into(),
-            upstream_model: format!("native-{model}"),
-            reported_model: None,
-            provider_request_id: None,
-            provider_response_id: None,
-            profile: Profile::ResponsesV1,
-            configuration_sha256: configuration.as_str().into(),
-            upstream: Outcome::Incomplete,
-            gateway: Outcome::TransportLost,
-            finality: Finality::Partial,
-            observation_incomplete: true,
-            usage: gateway_usage_contract::normalize(
-                Profile::ResponsesV1,
-                gateway_usage_contract::extract(Profile::ResponsesV1, &json!({"input_tokens":42})),
-            ),
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    {
+        let rec_config = gateway_usage_contract::RecorderConfig {
+            schema: "gateway-usage-recorder-config/v1".into(),
+            destinations: vec![],
         };
-        recorder.record(&event, &rec_config).unwrap();
-    }
-    let alice = report(&client, &endpoint, &accounts.alice, false).await;
-    let observed_alice: Vec<_> = alice["requests"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .filter(|r| r["usage"]["state"] == "observed")
-        .collect();
-    assert_eq!(observed_alice.len(), 1);
-    assert_eq!(
-        observed_alice[0]["usage"]["attempts"][0]["finality"],
-        "partial"
-    );
-    assert!(
+        for (index, (request, model)) in observed.iter().enumerate() {
+            let event = UsageEvent {
+                schema: gateway_usage_contract::SCHEMA.into(),
+                producer_id: producer_id.as_ref().unwrap().to_string(),
+                request_id: request.clone(),
+                attempt_id: format!("attempt-{index}"),
+                event_id: format!("event-{index}"),
+                revision: 1,
+                kind: EventKind::AttemptFinished,
+                started_at_ms: now(),
+                observed_at_ms: now(),
+                provider: "mock".into(),
+                model_alias: (*model).into(),
+                upstream_model: format!("native-{model}"),
+                reported_model: None,
+                provider_request_id: None,
+                provider_response_id: None,
+                profile: Profile::ResponsesV1,
+                configuration_sha256: configuration.as_str().into(),
+                upstream: Outcome::Incomplete,
+                gateway: Outcome::TransportLost,
+                finality: Finality::Partial,
+                observation_incomplete: true,
+                usage: gateway_usage_contract::normalize(
+                    Profile::ResponsesV1,
+                    gateway_usage_contract::extract(
+                        Profile::ResponsesV1,
+                        &json!({"input_tokens":42}),
+                    ),
+                ),
+            };
+            recorder.record(&event, &rec_config).unwrap();
+        }
+        let alice = report(&client, &endpoint, &accounts.alice, false).await;
+        let observed_alice: Vec<_> = alice["requests"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|r| r["usage"]["state"] == "observed")
+            .collect();
+        assert_eq!(observed_alice.len(), 1);
+        assert_eq!(
+            observed_alice[0]["usage"]["attempts"][0]["finality"],
+            "partial"
+        );
+        assert!(
         observed_alice[0]["usage"]["attempts"][0]["usage"]["counters"]["output_tokens"]["value"]
             .is_null()
     );
+    }
     let bob = report(&client, &endpoint, &accounts.bob, false).await;
     assert_eq!(bob["requests"].as_array().unwrap().len(), 1);
+    assert_eq!(bob["requests"][0]["record"]["admission"]["subject"], "bob");
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
     assert_eq!(
         bob["requests"][0]["usage"]["attempts"][0]["model_alias"],
         "b"
@@ -1574,4 +1596,17 @@ async fn permission_change_during_peer_selection_rejects_the_stale_admission() {
         .query_row("SELECT COUNT(*) FROM requests", [], |r| r.get(0))
         .unwrap();
     assert_eq!(count, 0);
+}
+
+#[test]
+fn builtin_recorder_capability_does_not_enable_unsupported_native_platforms() {
+    assert_eq!(
+        SqliteUsage::supported(),
+        cfg!(any(target_os = "linux", target_os = "macos"))
+    );
+    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
+    assert!(matches!(
+        SqliteUsage::open(Path::new("unregistered-store")),
+        Err(gateway_management::Error::Unsupported)
+    ));
 }

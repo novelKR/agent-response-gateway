@@ -71,9 +71,11 @@ Producer/request 쌍에는 하나의 팀 요청 소유자만 있습니다. `Sqli
 Recorder의 명시적 조회 전용 열기와 현재 이벤트 조회를 재사용합니다. 정확한 producer와
 Gateway가 반환한 request ID로 조회하고 attempt ID를 유지하며 route·구성 정체성을
 검사합니다. 중복 attempt·불일치 증거는 중복 집계·재귀속하지 않고 미관측으로 둡니다.
-Recorder schema 변환·전달 worker는 추가하지 않습니다. Native Recorder 실행은 기존
-Linux/macOS 제한을 유지하며 호스트 제공 SQLite fixture 조회로 Windows native 지원을
-확대했다고 간주하지 않습니다.
+Recorder schema 변환·전달 worker는 추가하지 않습니다. 내장 `SqliteUsage` adapter와
+Recorder 의존성은 Linux/macOS에서만 제공하며 다른 플랫폼에서는 저장소를 열지 않고
+미지원으로 표시합니다. 호스트가 별도 `UsageReader`를 명시적으로 제공할 수 있습니다.
+모델 전송·일반 연결 계약은 독립적으로 제공하며 Windows Native Recorder 지원은
+확대하지 않습니다.
 
 사용량 조회는 `from_ms`, `to_ms`, 선택형 `after`·`all`을 받습니다. 최대 366일 범위에서
 cursor 오름차순으로 요청 기록 최대 100개를 반환합니다. 조회 구간은 명시적으로

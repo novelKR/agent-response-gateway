@@ -81,8 +81,11 @@ Recorder's explicit read-only open and current-event query. It looks up the exac
 producer and returned Gateway request ID, retains attempt IDs and checks route and
 configuration identity. Duplicate attempts or mismatched evidence are unobserved,
 not double-counted or reassigned. There is no Recorder schema migration or delivery
-worker here. Native Recorder execution retains its existing Linux/macOS limits;
-reading a host-provided SQLite fixture does not expand native Windows support.
+worker here. The built-in `SqliteUsage` adapter and its Recorder dependency are
+available only on Linux/macOS. Other platforms report this capability unsupported
+without opening a store; a host can explicitly supply another `UsageReader`.
+Model transport and generic correlation remain independently available. Native
+Recorder support is not expanded to Windows.
 
 Usage queries take `from_ms`, `to_ms`, optional `after` and optional `all`. A query
 covers at most 366 days and returns at most 100 request records by ascending cursor.

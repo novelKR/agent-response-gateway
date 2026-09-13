@@ -6,16 +6,28 @@ pub trait UsageReader: Send {
     fn lookup(&mut self, producer: &Id, request: &Id) -> Result<Vec<UsageEvent>>;
 }
 /// Uses the existing Recorder's explicit read-only opening and current-event schema.
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 pub struct SqliteUsage {
     store: gateway_usage_recorder::Store,
 }
+#[cfg(not(any(target_os = "linux", target_os = "macos")))]
+pub struct SqliteUsage;
 impl SqliteUsage {
+    pub const fn supported() -> bool {
+        cfg!(any(target_os = "linux", target_os = "macos"))
+    }
+    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
+    pub fn open(_path: &Path) -> Result<Self> {
+        Err(Error::Unsupported)
+    }
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
     pub fn open(path: &Path) -> Result<Self> {
         gateway_usage_recorder::Store::open(path, false, false)
             .map(|store| Self { store })
             .map_err(|_| Error::InvalidStore)
     }
 }
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 impl UsageReader for SqliteUsage {
     fn lookup(&mut self, producer: &Id, request: &Id) -> Result<Vec<UsageEvent>> {
         if self.store.producer().map_err(|_| Error::Storage)? != producer.as_str() {
@@ -46,5 +58,12 @@ impl UsageReader for SqliteUsage {
             return Err(Error::Conflict);
         }
         Ok(values)
+    }
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "macos")))]
+impl UsageReader for SqliteUsage {
+    fn lookup(&mut self, _producer: &Id, _request: &Id) -> Result<Vec<UsageEvent>> {
+        Err(Error::Unsupported)
     }
 }
