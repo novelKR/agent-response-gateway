@@ -1,0 +1,22 @@
+import { build } from 'vite';
+import vue from '@vitejs/plugin-vue';
+import { fileURLToPath } from 'node:url';
+import { mkdirSync, readFileSync, writeFileSync, copyFileSync, readdirSync } from 'node:fs';
+import { relative, join } from 'node:path';
+import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
+import { webNoticesPlugin } from '../../docs-site/scripts/web-notices.mjs';
+const site=fileURLToPath(new URL('../',import.meta.url)), root=fileURLToPath(new URL('../../',import.meta.url));
+if(process.versions.node!=='24.21.0')throw new Error('Use Node 24.21.0');
+const state=root+'.local/management-web/', output=state+'dist/';mkdirSync(state,{recursive:true});
+await build({root:site,configFile:false,base:'./',plugins:[vue(),webNoticesPlugin(root,'management-web','Web dependencies shipped by the optional management dashboard.\nOriginal license and notice bytes follow each package heading.\n')],build:{outDir:output,emptyOutDir:true,sourcemap:false,target:'es2022'}});
+copyFileSync(root+'LICENSE',output+'LICENSE.txt');
+const generated=readFileSync(state+'shipped-packages.json'),review=site+'licensing/dependencies.json';
+if(process.argv.includes('--record-notices'))writeFileSync(review,generated);
+else if(!generated.equals(readFileSync(review)))throw new Error('Management web notice review is missing or stale');
+const files={};
+function walk(directory){for(const item of readdirSync(directory,{withFileTypes:true})){const path=join(directory,item.name);if(item.isSymbolicLink())throw new Error('Build output cannot contain links');if(item.isDirectory())walk(path);else if(item.isFile())files[relative(output,path).split('\\').join('/')]=createHash('sha256').update(readFileSync(path)).digest('hex');else throw new Error('Unexpected build artifact');}}
+walk(output);
+const manifest={schema:'gateway-management-web/v1',api_contract:'gateway-management-http/v1',state_contract:'gateway-management-state/v1',source_commit:execFileSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'}).trim(),source_dirty:execFileSync('git',['status','--porcelain','--untracked-files=all'],{cwd:root,encoding:'utf8'}).trim().length>0,source_url:'https://github.com/novelKR/agent-response-gateway',read_only:true,files};
+writeFileSync(output+'web-manifest.json',JSON.stringify(manifest,null,2)+'\n');
+console.log(`Management Web build: ${Object.keys(files).length} static files; runtime Node is not required`);

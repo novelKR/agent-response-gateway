@@ -385,6 +385,34 @@ jobs:
           path: .local/docs-site/dist/
           retention-days: 14
 
+  management-web:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24.21.0'
+          cache: npm
+          cache-dependency-path: management-web/package-lock.json
+      - run: rustup toolchain install 1.98.0 --profile minimal
+      - run: npm ci --prefix management-web --ignore-scripts
+      - run: npm run build --prefix management-web
+      - run: node management-web/scripts/check-output.mjs "$GITHUB_SHA"
+      - run: cargo +1.98.0 build -p gateway-management-api --example web_fixture --locked
+      - name: Verify the client against the real API with synthetic state
+        run: WEB_FIXTURE_BIN="$PWD/target/debug/examples/web_fixture" npm test --prefix management-web
+      - name: Retain verified read-only static files
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          archive: true
+          name: management-web
+          path: .local/management-web/dist/
+          if-no-files-found: error
+          retention-days: 14
+
   usage-recorder:
     runs-on: ubuntu-24.04
     timeout-minutes: 25
@@ -422,7 +450,7 @@ jobs:
 
   ci-required:
     if: ${{ always() }}
-    needs: [targets, format, rust, publication, licenses, codex-conformance, package-smoke, docs, usage-recorder, api-codecs]
+    needs: [targets, format, rust, publication, licenses, codex-conformance, package-smoke, docs, usage-recorder, api-codecs, management-web]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
