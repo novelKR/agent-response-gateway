@@ -264,10 +264,12 @@ fn issue_is_one_time_and_no_raw_secret_is_persisted_or_replayed() {
             .unwrap()
             .contains("verifier")
     );
-    for root in [&f.team, &f.audit] {
-        for entry in fs::read_dir(root).unwrap() {
-            let path = entry.unwrap().path();
-            if path.is_file() {
+    // Only the database and WAL carry application records. Windows deliberately
+    // locks the owner marker and SQLite shared-memory lock bookkeeping.
+    for (root, database) in [(&f.team, "team.sqlite3"), (&f.audit, "management.sqlite3")] {
+        for suffix in ["", "-wal"] {
+            let path = root.join(format!("{database}{suffix}"));
+            if suffix.is_empty() || path.exists() {
                 let bytes = fs::read(path).unwrap();
                 assert!(
                     !bytes
