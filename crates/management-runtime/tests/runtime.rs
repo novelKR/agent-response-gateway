@@ -67,6 +67,21 @@ fn registration(path: PathBuf, config: PathBuf) -> Registration {
     let executable = PathBuf::from(env!("CARGO_BIN_EXE_gateway-managed-child"))
         .canonicalize()
         .unwrap();
+    let environment = BTreeMap::from([
+        ("LOCAL_KEY".into(), LOCAL.into()),
+        ("PROVIDER_KEY".into(), PROVIDER.into()),
+        (
+            "MANAGEMENT_UNUSED".into(),
+            "synthetic-manager-secret".into(),
+        ),
+        ("TEAM_UNUSED".into(), "synthetic-team-secret".into()),
+    ]);
+    #[cfg(windows)]
+    let environment = {
+        let mut environment = environment;
+        environment.insert("SYSTEMROOT".into(), std::env::var("SYSTEMROOT").unwrap());
+        environment
+    };
     Registration {
         target: id("instance"),
         directory: path,
@@ -81,15 +96,7 @@ fn registration(path: PathBuf, config: PathBuf) -> Registration {
                 profile_packs_lock: None,
             },
         )]),
-        environment: BTreeMap::from([
-            ("LOCAL_KEY".into(), LOCAL.into()),
-            ("PROVIDER_KEY".into(), PROVIDER.into()),
-            (
-                "MANAGEMENT_UNUSED".into(),
-                "synthetic-manager-secret".into(),
-            ),
-            ("TEAM_UNUSED".into(), "synthetic-team-secret".into()),
-        ]),
+        environment,
         startup_timeout: Duration::from_secs(20),
         stop_timeout: Duration::from_secs(3),
     }
@@ -313,15 +320,17 @@ fn launch_unowned(f: &Fixture, contents: &str) -> (Process, Ready) {
         configuration_sha256: Digest::try_from(manifest.configuration_sha256().to_owned()).unwrap(),
         execution_sha256: None,
     };
-    let mut child = ProcessCommand::new(env!("CARGO_BIN_EXE_gateway-managed-child"))
+    let mut command = ProcessCommand::new(env!("CARGO_BIN_EXE_gateway-managed-child"));
+    command
         .env_clear()
         .env("LOCAL_KEY", LOCAL)
         .env("PROVIDER_KEY", PROVIDER)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-        .unwrap();
+        .stderr(Stdio::inherit());
+    #[cfg(windows)]
+    command.env("SYSTEMROOT", std::env::var("SYSTEMROOT").unwrap());
+    let mut child = command.spawn().unwrap();
     let mut frame = serde_json::to_vec(&launch).unwrap();
     frame.push(b'\n');
     child.stdin.as_mut().unwrap().write_all(&frame).unwrap();
@@ -646,4 +655,37 @@ fn audit_failure_blocks_changes_and_completion_recovery_uses_retained_evidence()
     db.execute_batch("CREATE TRIGGER fail_admission BEFORE INSERT ON operations BEGIN SELECT RAISE(ABORT,'injected'); END;").unwrap();
     f.runtime.stop_owned().unwrap();
     assert_eq!(f.runtime.status().unwrap().ownership, "stopped");
+}
+
+#[cfg(windows)]
+#[test]
+fn windows_requires_an_explicit_system_root_without_inheriting_other_environment() {
+    let contents = raw("http://127.0.0.1:9", "127.0.0.1:0");
+    let mut f = Fixture::new(&contents);
+    configure(&mut f.runtime, &mut f.journal, &contents);
+    let Fixture {
+        _source,
+        _runtime,
+        _journal,
+        config,
+        root,
+        runtime,
+        mut journal,
+    } = f;
+    drop(runtime);
+    let mut registered = registration(root, config);
+    registered.environment.remove("SYSTEMROOT");
+    let mut runtime = Runtime::open(registered).unwrap();
+    let request = Request {
+        target: id("instance"),
+        action: Action::RuntimeStart,
+        expected: runtime.snapshot().unwrap(),
+        idempotency_key: id("missing-os-binding"),
+        parameters_sha256: Command::Start.digest().unwrap(),
+    };
+    assert!(matches!(
+        journal.execute(&actor(), &request, &mut runtime.bind(Command::Start)),
+        Err(Error::InvalidInput)
+    ));
+    assert_eq!(runtime.status().unwrap().ownership, "stopped");
 }

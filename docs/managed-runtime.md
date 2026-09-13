@@ -60,7 +60,8 @@ before publishing an endpoint. Duplicate or unknown readiness fields reject.
 The existing manifest/readiness versions through v7 remain separate contracts.
 
 Only the selected configuration's local credential, provider credential and
-continuation credential references are passed. The child does not inherit the
+continuation credential references are passed. Windows also requires an explicit
+`SYSTEMROOT` binding for operating-system socket support. The child does not inherit the
 manager environment, proxy variables or unrelated management/team keys. A trusted
 host must supply distinct credential realms and advance its credential-generation
 ID when bindings change. Secrets never appear in the launch frame or status.

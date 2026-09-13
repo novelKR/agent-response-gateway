@@ -58,7 +58,7 @@ pub struct Registration {
     pub executable_sha256: Digest,
     pub credential_generation: Id,
     pub sources: BTreeMap<Id, Source>,
-    /// Explicit host bindings; only references required by the selected Config are passed.
+    /// Explicit host bindings; only Config references and Windows SYSTEMROOT are passed.
     pub environment: BTreeMap<String, String>,
     pub startup_timeout: Duration,
     pub stop_timeout: Duration,
@@ -439,6 +439,10 @@ impl Runtime {
     }
     fn environment(&self, config: &Config) -> Result<BTreeMap<String, String>> {
         let mut names = BTreeSet::from([config.local_token_env.as_str()]);
+        // The Windows socket provider needs the operating-system environment binding.
+        // Require an explicit host value; never fall back to inheriting the manager environment.
+        #[cfg(windows)]
+        names.insert("SYSTEMROOT");
         for provider in config.providers.values() {
             names.insert(&provider.api_key_env);
         }

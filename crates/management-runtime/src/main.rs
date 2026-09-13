@@ -35,23 +35,38 @@ async fn run() -> Result<()> {
         return Err(Error::InvalidInput);
     }
     let mut input = std::io::BufReader::new(std::io::stdin());
-    let launch: Launch =
-        serde_json::from_slice(&frame(&mut input)?).map_err(|_| Error::InvalidInput)?;
+    let launch: Launch = serde_json::from_slice(&at("launch_read", frame(&mut input))?)
+        .map_err(|_| Error::InvalidInput)?;
     if launch.schema != LAUNCH_SCHEMA {
         return Err(Error::InvalidInput);
     }
-    filesystem::directory(&launch.directory)?;
-    let _lease = filesystem::lease(&launch.directory.join("runtime.lease"))?;
-    let inspected = gateway_management_runtime::prepare_launch(&launch)?;
+    at("directory", filesystem::directory(&launch.directory))?;
+    let _lease = at(
+        "lease",
+        filesystem::lease(&launch.directory.join("runtime.lease")),
+    )?;
+    let inspected = at(
+        "inspection",
+        gateway_management_runtime::prepare_launch(&launch),
+    )?;
     let manifest = inspected
         .config
         .manifest()
         .map_err(|_| Error::InvalidInput)?;
-    let secrets = Secrets::from_env(&inspected.config).map_err(|_| Error::InvalidInput)?;
+    let secrets = at(
+        "credentials",
+        Secrets::from_env(&inspected.config).map_err(|_| Error::InvalidInput),
+    )?;
     let grace = std::time::Duration::from_millis(inspected.config.limits.shutdown_grace_ms);
-    let listener = tokio::net::TcpListener::bind(inspected.config.listen)
-        .await
-        .map_err(|_| Error::Storage)?;
+    let listener = at(
+        "bind",
+        tokio::net::TcpListener::bind(inspected.config.listen)
+            .await
+            .map_err(|error| {
+                eprintln!("managed_gateway_bind_os_code:{:?}", error.raw_os_error());
+                Error::Storage
+            }),
+    )?;
     let bound = listener.local_addr().map_err(|_| Error::Storage)?;
     let (stop_tx, stop_rx) = tokio::sync::oneshot::channel();
     std::thread::spawn(move || {
@@ -59,29 +74,38 @@ async fn run() -> Result<()> {
         let _ = frame(&mut input);
         let _ = stop_tx.send(());
     });
-    let extensions = inspected
-        .extensions
-        .as_ref()
-        .map(ExtensionRuntime::start)
-        .transpose()
-        .map_err(|_| Error::InvalidInput)?;
+    let extensions = at(
+        "extensions",
+        inspected
+            .extensions
+            .as_ref()
+            .map(ExtensionRuntime::start)
+            .transpose()
+            .map_err(|_| Error::InvalidInput),
+    )?;
     let ready = Ready {
         schema: READY_SCHEMA.into(),
         instance_id: launch.instance_id,
-        gateway: serde_json::from_value(
-            manifest
-                .readiness(bound, inspected.extensions.as_ref())
-                .map_err(|_| Error::InvalidInput)?,
-        )
-        .map_err(|_| Error::InvalidInput)?,
+        gateway: at(
+            "readiness",
+            serde_json::from_value(
+                manifest
+                    .readiness(bound, inspected.extensions.as_ref())
+                    .map_err(|_| Error::InvalidInput)?,
+            )
+            .map_err(|_| Error::InvalidInput),
+        )?,
     };
-    let router = agent_response_gateway::router_with_usage(
-        inspected.config,
-        secrets,
-        extensions.as_ref().map(ExtensionRuntime::sink),
-        extensions.as_ref().and_then(ExtensionRuntime::usage_sink),
-    )
-    .map_err(|_| Error::InvalidInput)?;
+    let router = at(
+        "router",
+        agent_response_gateway::router_with_usage(
+            inspected.config,
+            secrets,
+            extensions.as_ref().map(ExtensionRuntime::sink),
+            extensions.as_ref().and_then(ExtensionRuntime::usage_sink),
+        )
+        .map_err(|_| Error::InvalidInput),
+    )?;
     println!(
         "{}",
         serde_json::to_string(&ready).map_err(|_| Error::InvalidInput)?
@@ -101,4 +125,9 @@ async fn run() -> Result<()> {
     }
     drop(extensions);
     Ok(())
+}
+
+fn at<T>(stage: &'static str, result: Result<T>) -> Result<T> {
+    // Fixed lifecycle stages only; errors, paths, frames and credentials are never logged.
+    result.inspect_err(|_| eprintln!("managed_gateway_stage_failed:{stage}"))
 }

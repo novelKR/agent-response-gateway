@@ -53,7 +53,8 @@ transport·확장 runtime을 사용합니다. 부모는 endpoint 공개 전에
 numeric loopback 주소, 고정·임시 포트, 스키마, 실제 digest를 검사합니다. 중복되거나 알 수
 없는 readiness 필드는 거절합니다. 기존 v7까지의 manifest/readiness는 별도 계약으로 유지합니다.
 
-선택된 구성에 필요한 로컬·provider·continuation credential 참조만 전달합니다. 자식은
+선택된 구성에 필요한 로컬·provider·continuation credential 참조만 전달합니다. Windows에서는
+운영체제 socket 지원을 위한 명시적인 `SYSTEMROOT` 바인딩도 필요합니다. 자식은
 관리자 환경·proxy 변수·관계없는 관리/팀 key를 상속하지 않습니다. 신뢰된 호스트는 credential
 영역을 구분하고 바인딩이 바뀌면 credential-generation ID를 변경해야 합니다. 비밀값은 실행
 frame이나 상태에 나타나지 않습니다.
