@@ -571,6 +571,33 @@ dependencies = [
  "tokio",
  "tower",
  "url",
+ "zeroize",
+]
+
+[[package]]
+name = "gateway-management-app"
+version = "0.1.0"
+dependencies = [
+ "agent-response-gateway",
+ "axum",
+ "clap",
+ "gateway-management",
+ "gateway-management-api",
+ "gateway-management-extensions",
+ "gateway-management-runtime",
+ "gateway-team-access",
+ "gateway-team-http",
+ "gateway-usage-recorder",
+ "reqwest",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tower",
+ "url",
+ "uuid",
+ "zeroize",
 ]
 
 [[package]]

@@ -57,7 +57,7 @@ export function createClient(target, fetcher = globalThis.fetch.bind(globalThis)
     },
     operations: (after = 0) => request('GET', 'operations?' + query({ after: String(after), limit: '20' })),
     operation(id) { if (!safeId(id) || id === '.' || id === '..') throw new ApiError('invalid_operation'); return request('GET', 'operations/' + encodeURIComponent(id) + '?' + query({})); },
-    usage: (from, to, timezone) => request('GET', 'usage?' + query({ from_ms: String(from), to_ms: String(to), timezone })),
+    usage: (from, to, timezone, after=0) => request('GET', 'usage?' + query({ from_ms: String(from), to_ms: String(to), timezone, ...(after ? {after:String(after)} : {}) })),
   });
 }
 export function modulesOf(view) { return Array.isArray(view?.modules) ? view.modules : []; }

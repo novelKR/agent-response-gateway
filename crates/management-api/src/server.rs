@@ -177,6 +177,7 @@ pub struct Service {
     web_sessions: bool,
     session_ttl: Duration,
     jobs: Arc<Semaphore>,
+    closing: std::sync::atomic::AtomicBool,
 }
 impl Service {
     pub fn new(
@@ -213,7 +214,15 @@ impl Service {
             web_sessions,
             session_ttl: Duration::from_secs(900),
             jobs: Arc::new(Semaphore::new(64)),
+            closing: std::sync::atomic::AtomicBool::new(false),
         }))
+    }
+    /// Irreversibly stop admitting management effects during host shutdown. An already
+    /// executing effect may finish; queued work rechecks this after acquiring the writer.
+    /// Emergency owned-process cleanup must remain independent of the journal.
+    pub fn close_admission(&self) {
+        self.closing
+            .store(true, std::sync::atomic::Ordering::SeqCst);
     }
     pub fn router(self: &Arc<Self>) -> Router {
         let mut router = Router::new()
@@ -223,6 +232,7 @@ impl Service {
             .route("/management/v1/continuations/{id}", get(continuation))
             .route("/management/v1/preflight", post(preflight))
             .route("/management/v1/operations", get(operations).post(submit))
+            .route("/management/v1/credential-delivery", post(deliver))
             .route("/management/v1/operations/{id}", get(operation))
             .route("/management/v1/operations/{id}/reconcile", post(reconcile));
         if self.web_sessions {
@@ -304,6 +314,9 @@ impl Service {
         selected.map(Presented::Session).ok_or_else(unauthorized)
     }
     fn principal(&self, presented: &Presented, mutation: bool) -> Result<Principal> {
+        if mutation && self.closing.load(std::sync::atomic::Ordering::SeqCst) {
+            return Err(unavailable());
+        }
         let principal = match presented {
             Presented::Bearer(value) => self.auth.authenticate(value).ok_or_else(unauthorized)?,
             Presented::Session(key) => {
@@ -425,6 +438,8 @@ fn default_limit() -> usize {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct UsageQuery {
+    #[serde(default)]
+    after: u64,
     target: Id,
     from_ms: u64,
     to_ms: u64,
@@ -490,6 +505,7 @@ async fn usage(
     HttpQuery(query): HttpQuery<UsageQuery>,
 ) -> Result<Response> {
     let range = UsageRange {
+        after: query.after,
         from_ms: query.from_ms,
         to_ms: query.to_ms,
         timezone: query.timezone,
@@ -633,6 +649,12 @@ async fn submit(
     body: Bytes,
 ) -> Result<Response> {
     let submission: Submission = decode(&body)?;
+    if submission.command.requires_delivery() {
+        return Err(error(
+            StatusCode::BAD_REQUEST,
+            "protected_delivery_required",
+        ));
+    }
     let request = submission.request()?;
     service.target(&submission.target)?;
     let presented = service.presented(&headers, true)?;
@@ -659,22 +681,21 @@ async fn submit(
                 journal,
                 dispatcher,
             } = &mut *work;
-            let result = journal
-                .execute(
-                    &p.actor,
-                    &request,
-                    &mut Bound {
-                        dispatcher: dispatcher.as_mut(),
-                        command: Some(&submission.command),
-                        accepted: Some(accepted_tx),
-                        execution: &worker.execution,
-                    },
-                )
-                .map_err(ApiError::from);
+            let result = journal.execute(
+                &p.actor,
+                &request,
+                &mut Bound {
+                    dispatcher: dispatcher.as_mut(),
+                    command: Some(&submission.command),
+                    accepted: Some(accepted_tx),
+                    execution: &worker.execution,
+                },
+            );
+            drop(dispatcher.completed(&result));
             if result.is_ok() {
                 observation.completed();
             }
-            result
+            result.map_err(ApiError::from)
         })();
         let _ = completed_tx.send(result);
     });
@@ -683,6 +704,68 @@ async fn submit(
         completed=&mut completed_rx=>completed.map_err(|_|unavailable())??.id,
     };
     response(json!({"operation_id":id}), StatusCode::ACCEPTED)
+}
+async fn deliver(
+    State(service): State<Arc<Service>>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Result<Response> {
+    // A browser never receives mutation credentials. Refuse browser-originated delivery
+    // even if a bearer is accidentally pasted into a page; sessions cannot mutate.
+    if headers.contains_key(header::ORIGIN) || headers.contains_key(header::COOKIE) {
+        return Err(error(StatusCode::FORBIDDEN, "protected_delivery_required"));
+    }
+    let submission: Submission = decode(&body)?;
+    if !submission.command.requires_delivery() {
+        return Err(invalid());
+    }
+    let request = submission.request()?;
+    service.target(&submission.target)?;
+    let presented = service.presented(&headers, true)?;
+    let (operation, secret) = service
+        .blocking(move |service| {
+            let mut work = service.work.lock().map_err(|_| unavailable())?;
+            let p = service.principal(&presented, true)?;
+            p.actor.authorize(request.action, &service.target)?;
+            Service::supported(work.dispatcher.as_ref(), request.action)?;
+            let mut observation = ExecutionGuard {
+                observation: &service.execution,
+                complete: false,
+            };
+            let Work {
+                journal,
+                dispatcher,
+            } = &mut *work;
+            let result = journal.execute(
+                &p.actor,
+                &request,
+                &mut Bound {
+                    dispatcher: dispatcher.as_mut(),
+                    command: Some(&submission.command),
+                    accepted: None,
+                    execution: &service.execution,
+                },
+            );
+            let secret = dispatcher.completed(&result);
+            if result.is_ok() {
+                observation.completed();
+            }
+            let operation = result.map_err(ApiError::from)?;
+            // This is a one-time transfer. A detached HTTP caller drops the returned secret;
+            // no persisted delivery mailbox or automatic reissue is created.
+            if operation.state != gateway_management::State::Succeeded {
+                return Ok((operation, None));
+            }
+            Ok((operation, secret))
+        })
+        .await?;
+    response(
+        json!({"operation_id":operation.id,"state":operation.state,
+        "credential_id":secret.as_ref().map(|s|&s.credential),
+        "credential":secret.as_ref().map(|s|s.expose()),
+        "delivery":if secret.is_some(){"one_time"}else{"not_available"}}),
+        StatusCode::OK,
+    )
 }
 async fn reconcile(
     State(service): State<Arc<Service>>,

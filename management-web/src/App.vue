@@ -72,6 +72,12 @@ async function more() {
   catch(failure){if(current===generation)readFailure(failure,'operations');}
   finally{if(current===generation)busy.value=false;}
 }
+async function moreUsage() {
+  if(!usage.value?.next_after || busy.value)return;busy.value=true;const current=generation;
+  try {const old=usage.value;const result=await client.usage(old.from_ms,old.to_ms,timezone,old.next_after);if(current!==generation)return;usage.value={...result.data,requests:[...old.requests,...result.data.requests]};viewTimes.value.usage=result.observed_at_ms;}
+  catch(failure){if(current===generation)readFailure(failure,'usage');}
+  finally{if(current===generation)busy.value=false;}
+}
 async function inspectOperation(id) {
   const current=generation;detailTrigger=document.activeElement;
   try {const result=await client.operation(id);if(current===generation){selectedOperation.value=result.data;await nextTick();document.querySelector('.drawer button')?.focus();}}
@@ -353,7 +359,18 @@ onUnmounted(()=>{clearInterval(timer);window.removeEventListener('keydown',keybo
 </tbody>
 </table>
 </div>
-<p v-if="!usageGroups?.length" class="empty">{{ usageGroups ? t('noUsage') : t('noData') }}</p>
+<p v-if="!usageGroups?.length && !usage?.requests" class="empty">{{ usageGroups ? t('noUsage') : t('noData') }}</p>
+</article>
+<article v-if="Array.isArray(usage?.requests)" class="panel">
+<p>{{ t('teamUsage') }} · {{ t(usage.scope) }}</p>
+<p class="small-muted">{{ t('admissionWindow') }}</p>
+<div v-for="item in usage.requests" :key="item.record.admission.id" class="panel">
+<h3>{{ item.record.admission.route }} · {{ short(item.record.admission.id) }}</h3>
+<p>{{ item.record.admission.subject }} · {{ t(item.usage.state) }}</p>
+<details><summary>{{ t('details') }}</summary><pre class="json-view">{{ pretty(item) }}</pre></details>
+</div>
+<p v-if="!usage.requests.length" class="empty">{{ t('noTeamUsage') }}</p>
+<button v-if="usage.next_after" :disabled="busy" @click="moreUsage">{{ t('more') }}</button>
 </article>
 </template>
         <template v-if="page==='activity'">

@@ -202,3 +202,5 @@ origin에도 결합된다. 실행 확장을 사용하면 외부 계약은
 사용한다. 선택한 패키지 식별은 영향을 받는 각 경로 origin에 결합된다.
 전송·자격 증명 선택·숫자 사용량 기록·보호된 replay 저장 권한은 코어에 남는다.
 권한, IPC, 한도와 복구는 [외부 API codec](api-codecs.md)을 참고한다.
+
+선택형 관리·조회 Web·Team 접근과 별도 archive는 [Standalone 운영](standalone-management.md)을 참고합니다. 기본 Gateway 인터페이스와 archive는 독립적으로 유지합니다.

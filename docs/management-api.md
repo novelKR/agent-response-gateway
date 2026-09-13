@@ -15,6 +15,8 @@ supplies its initialized journal, reader and dispatcher. This package starts no
 server automatically and does not assemble runtime, package, usage or team
 services by itself. The default gateway does not depend on it.
 
+The supplied [standalone management application](standalone-management.md) composes these adapters with explicit stores, read-only Web and optional Team access.
+
 ## Authentication and host boundary
 
 `Service::new` requires the actual bound numeric loopback address and one registered
@@ -60,22 +62,30 @@ into the management package.
 | `/preflight` | POST | Management credential and the requested action grant |
 | `/operations` | POST | Management credential and the requested action grant |
 | `/operations/{id}/reconcile` | POST | Management credential, reconciliation grant and host support |
+| `/credential-delivery` | POST | Management grant, synchronous one-time Team issuance/rotation; browser Origin/cookies refused |
 | `/session` | POST, DELETE | Optional read-session boundary described below |
 
 Read requests include the registered target. Operation listing uses a local row
 cursor, a default page size of 20 and a maximum of 100. Usage takes `from_ms`,
-`to_ms` and `timezone`; a request covers at most 366 days. Module adapters retain
+`to_ms`, `timezone` and an optional `after` cursor; a request covers at most 366 days. Module adapters retain
 their own query validation and observation semantics. Request bodies are bounded
 to 64 KiB and responses to 2 MiB. At most 64 blocking requests/jobs are admitted;
 capacity exhaustion returns an explicit busy response without applying a change.
 
 Wire commands have a closed set of registered-ID fields for runtime start/stop/
 restart, configuration staging/selection, package install/enable/disable/selection
-and host continuation transitions. They cannot name a server executable, shell
+host continuation transitions, and Team subject/permission/credential operations. They cannot name a server executable, shell
 or arbitrary server path. Package family and exact selection are explicit.
 Unknown fields and unsupported removal commands reject. A host must independently
 verify continuation workflow conditions; client-supplied pending flags do not
 transfer tool approval or business-state ownership to the gateway.
+
+Team issue/rotation commands reject asynchronous submission and require the protected
+credential-delivery path. A dispatcher must consume transient output in `completed`
+after every journal result, including failure; retries and reads never return it.
+The supplied CLI writes first delivery to a new protected local file. A host can
+irreversibly call `Service::close_admission` before cleanup: queued mutations recheck
+that state after acquiring the writer, while reads and emergency cleanup remain separate.
 
 ## Preflight, admission and operation evidence
 

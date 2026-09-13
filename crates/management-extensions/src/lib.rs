@@ -61,7 +61,8 @@ fn fresh() -> Id {
     Id::new(uuid::Uuid::new_v4().to_string()).expect("UUID identifier")
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct LocalSource {
     pub path: PathBuf,
     pub package_sha256: Digest,
@@ -445,35 +446,51 @@ struct Prepared<'a> {
     inventory: Inventory,
     operation: Option<Id>,
 }
-impl Backend for Bound<'_> {
-    fn prepare<'a>(&'a mut self, request: &'a Request) -> Result<Box<dyn PreparedOperation + 'a>> {
-        if request.target != self.manager.registration.target
-            || request.action != self.command.action()
-            || request.parameters_sha256 != self.command.digest()?
+impl Manager {
+    /// Prepare the existing domain command with its canonical digest.
+    pub fn prepare_command<'a>(
+        &'a mut self,
+        request: &'a Request,
+        command: &Command,
+    ) -> Result<Box<dyn PreparedOperation + 'a>> {
+        self.prepare_mapped(request, command, &command.digest()?)
+    }
+    /// Trusted transport composition only: the caller validates the closed wire command,
+    /// computes its complete digest and maps it to this domain command. Keep the original
+    /// request unchanged so journal idempotency and adapter receipts prove the same intent.
+    pub fn prepare_mapped<'a>(
+        &'a mut self,
+        request: &'a Request,
+        command: &Command,
+        transport_sha256: &Digest,
+    ) -> Result<Box<dyn PreparedOperation + 'a>> {
+        let _ = command.digest()?;
+        if request.target != self.registration.target
+            || request.action != command.action()
+            || request.parameters_sha256 != *transport_sha256
         {
             return Err(Error::InvalidInput);
         }
         let inventory = self
-            .manager
             .registration
             .driver
-            .inventory(&self.manager.registration.store)?;
-        self.manager.validate(&self.command, &inventory)?;
-        let before = self.manager.snapshot_for(&inventory)?;
+            .inventory(&self.registration.store)?;
+        self.validate(command, &inventory)?;
+        let before = self.snapshot_for(&inventory)?;
         Ok(Box::new(Prepared {
-            manager: self.manager,
-            command: self.command.clone(),
+            manager: self,
+            command: command.clone(),
             request: request.clone(),
             before,
             inventory,
             operation: None,
         }))
     }
-    fn reconcile(&mut self, operation: &Operation) -> Result<Effect> {
-        if operation.request.target != self.manager.registration.target {
+    pub fn reconcile(&mut self, operation: &Operation) -> Result<Effect> {
+        if operation.request.target != self.registration.target {
             return Err(Error::NotFound);
         }
-        let raw = match bytes(&self.manager.receipt_path(&operation.id), 4096, true) {
+        let raw = match bytes(&self.receipt_path(&operation.id), 4096, true) {
             Ok(bytes) => bytes,
             Err(_) => {
                 return Ok(Effect::Uncertain {
@@ -502,6 +519,14 @@ impl Backend for Bound<'_> {
             after: receipt.after,
             evidence_sha256: Digest::of(&raw),
         })
+    }
+}
+impl Backend for Bound<'_> {
+    fn prepare<'a>(&'a mut self, request: &'a Request) -> Result<Box<dyn PreparedOperation + 'a>> {
+        self.manager.prepare_command(request, &self.command)
+    }
+    fn reconcile(&mut self, operation: &Operation) -> Result<Effect> {
+        self.manager.reconcile(operation)
     }
 }
 impl PreparedOperation for Prepared<'_> {

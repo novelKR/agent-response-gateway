@@ -16,6 +16,8 @@ reader. The default Gateway does not depend on this package. Constructing the
 router starts no listener, provider, Gateway process or recurring task. Standalone
 process ownership and distribution assembly require their own host configuration.
 
+The supplied [standalone management application](standalone-management.md) composes these adapters with explicit stores, read-only Web and optional Team access.
+
 ## Authentication, target and transport
 
 The credential store, request ledger and each current peer must name the same

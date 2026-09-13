@@ -1,0 +1,46 @@
+[package]
+name = "gateway-management-app"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.98"
+license = "AGPL-3.0-only"
+publish = false
+
+[features]
+default = []
+team = ["dep:gateway-team-access", "dep:gateway-team-http"]
+
+[[bin]]
+name = "gateway-manager"
+path = "src/main.rs"
+
+[[bin]]
+name = "gateway-team-manager"
+path = "src/team_main.rs"
+required-features = ["team"]
+
+[dependencies]
+agent-response-gateway = { path = "../.." }
+gateway-management = { path = "../management" }
+gateway-management-api = { path = "../management-api" }
+gateway-management-runtime = { path = "../management-runtime" }
+gateway-management-extensions = { path = "../management-extensions" }
+gateway-team-access = { path = "../team-access", optional = true }
+gateway-team-http = { path = "../team-http", optional = true }
+axum = "0.8"
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["arbitrary_precision"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "signal", "sync", "time"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "blocking"] }
+url = "2"
+uuid = { version = "1", features = ["v4"] }
+zeroize = "1"
+
+[target.'cfg(any(target_os = "linux", target_os = "macos"))'.dependencies]
+gateway-usage-recorder = { path = "../../extensions/usage-recorder" }
+
+[dev-dependencies]
+tempfile = "3"
+tower = { version = "0.5", features = ["util"] }
+rusqlite = { version = "=0.40.2", features = ["bundled"] }

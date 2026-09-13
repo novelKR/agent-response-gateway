@@ -70,9 +70,9 @@ jobs:
             .local/cargo-home/registry
             target
           key: rust-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock') }}
-      - run: cargo +1.98.0 clippy -p agent-response-gateway -p gateway-management -p gateway-management-runtime -p gateway-management-extensions -p gateway-management-api -p gateway-team-access -p gateway-team-http -p gateway-management-embedded --features gateway-management-embedded/team --all-targets --locked -- -D warnings
+      - run: cargo +1.98.0 clippy -p agent-response-gateway -p gateway-management -p gateway-management-runtime -p gateway-management-extensions -p gateway-management-api -p gateway-team-access -p gateway-team-http -p gateway-management-embedded -p gateway-management-app --features gateway-management-embedded/team,gateway-management-app/team --all-targets --locked -- -D warnings
       - run: cargo +1.98.0 build -p agent-response-gateway --locked
-      - run: cargo +1.98.0 test -p agent-response-gateway -p gateway-management -p gateway-management-runtime -p gateway-management-extensions -p gateway-management-api -p gateway-team-access -p gateway-team-http -p gateway-management-embedded --features gateway-management-embedded/team --locked
+      - run: cargo +1.98.0 test -p agent-response-gateway -p gateway-management -p gateway-management-runtime -p gateway-management-extensions -p gateway-management-api -p gateway-team-access -p gateway-team-http -p gateway-management-embedded -p gateway-management-app --features gateway-management-embedded/team,gateway-management-app/team --locked
       - name: Verify explicit host authentication and bounded host shutdown
         run: |
           cargo +1.98.0 build -p gateway-management-embedded --example synthetic_host --locked
@@ -313,6 +313,11 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.14'
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24.21.0'
+          cache: npm
+          cache-dependency-path: management-web/package-lock.json
       - run: rustup toolchain install 1.98.0 --profile minimal
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -334,6 +339,20 @@ jobs:
         run: |
           python -B scripts/release_package.py build --target "$PACKAGE_TARGET" --output .local/package-candidate
           python -B scripts/release_package.py verify .local/package-candidate --commit "$GITHUB_SHA" --target "$PACKAGE_TARGET"
+      - name: Build and execute separate optional archives
+        env:
+          PACKAGE_TARGET: ${{ matrix.target }}
+        run: |
+          python -B scripts/optional_package.py build --base .local/package-candidate --output .local/optional-candidate
+          python -B scripts/optional_package.py verify .local/optional-candidate --commit "$GITHUB_SHA" --target "$PACKAGE_TARGET"
+      - name: Retain verified optional modules separately
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          archive: true
+          name: optional-package-${{ matrix.target }}
+          path: .local/optional-candidate/*
+          if-no-files-found: error
+          retention-days: 14
       - name: Retain only verified public candidate files
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

@@ -18,10 +18,62 @@ pub struct PackageSelection {
     pub version: String,
     pub package_sha256: Digest,
 }
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TeamPurpose {
+    Model,
+    Management,
+    ReadOnly,
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TeamPermissions {
+    pub enabled: bool,
+    pub routes: std::collections::BTreeSet<String>,
+    pub management: std::collections::BTreeSet<gateway_management::Grant>,
+    pub read_all_usage: bool,
+}
+impl TeamPermissions {
+    fn validate(&self) -> Result<()> {
+        if self.routes.len() > 128
+            || self.management.len() > 256
+            || self.routes.iter().any(|r| {
+                r.is_empty() || r.len() > 256 || r.trim() != r || r.chars().any(char::is_control)
+            })
+            || serde_json::to_vec(self)
+                .map_err(|_| gateway_management::Error::InvalidInput)?
+                .len()
+                > 48 * 1024
+        {
+            return Err(gateway_management::Error::InvalidInput);
+        }
+        Ok(())
+    }
+}
 /// Closed wire commands carry registered IDs and review metadata, never host paths or programs.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Command {
+    TeamSubjectRegister {
+        subject: Id,
+        permissions: TeamPermissions,
+    },
+    TeamPermissionsChange {
+        subject: Id,
+        permissions: TeamPermissions,
+    },
+    TeamCredentialIssue {
+        subject: Id,
+        credential: Id,
+        purpose: TeamPurpose,
+    },
+    TeamCredentialRevoke {
+        credential: Id,
+    },
+    TeamCredentialRotate {
+        credential: Id,
+        replacement: Id,
+    },
     RuntimeStart {},
     RuntimeStop {},
     RuntimeRestart {},
@@ -66,6 +118,11 @@ pub enum Command {
 impl Command {
     pub fn action(&self) -> Action {
         match self {
+            Self::TeamSubjectRegister { .. } => Action::TeamSubjectRegister,
+            Self::TeamPermissionsChange { .. } => Action::TeamPermissionsChange,
+            Self::TeamCredentialIssue { .. } => Action::TeamCredentialIssue,
+            Self::TeamCredentialRevoke { .. } => Action::TeamCredentialRevoke,
+            Self::TeamCredentialRotate { .. } => Action::TeamCredentialRotate,
             Self::RuntimeStart { .. } => Action::RuntimeStart,
             Self::RuntimeStop { .. } => Action::RuntimeStop,
             Self::RuntimeRestart { .. } => Action::RuntimeRestart,
@@ -80,6 +137,12 @@ impl Command {
     }
     pub fn validate(&self) -> Result<()> {
         match self {
+            Self::TeamSubjectRegister { permissions, .. }
+            | Self::TeamPermissionsChange { permissions, .. } => permissions.validate()?,
+            Self::TeamCredentialRotate {
+                credential,
+                replacement,
+            } if credential == replacement => return Err(gateway_management::Error::InvalidInput),
             Self::PackageEnable {
                 package, grants, ..
             }
@@ -124,6 +187,12 @@ impl Command {
             .map(|v| Digest::of(&v))
             .map_err(|_| gateway_management::Error::InvalidInput)
     }
+    pub fn requires_delivery(&self) -> bool {
+        matches!(
+            self,
+            Self::TeamCredentialIssue { .. } | Self::TeamCredentialRotate { .. }
+        )
+    }
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -159,13 +228,16 @@ impl Submission {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct UsageRange {
+    #[serde(default)]
+    pub after: u64,
     pub from_ms: u64,
     pub to_ms: u64,
     pub timezone: String,
 }
 impl UsageRange {
     pub fn validate(&self) -> Result<()> {
-        if self.from_ms >= self.to_ms
+        if self.after > i64::MAX as u64
+            || self.from_ms >= self.to_ms
             || self.to_ms > i64::MAX as u64
             || self.to_ms - self.from_ms > 366 * 24 * 60 * 60 * 1000
             || self.timezone.is_empty()
@@ -215,6 +287,28 @@ pub trait Dispatcher: Send {
         command: &'a Command,
     ) -> Result<Box<dyn PreparedOperation + 'a>>;
     fn reconcile(&mut self, operation: &Operation) -> Result<Effect>;
+    /// Called immediately after every execution result, under the writer lock. Implementations
+    /// must consume any transient output even on failure. Never retain output for a retry.
+    fn completed(&mut self, _result: &Result<Operation>) -> Option<SecretDelivery> {
+        None
+    }
+}
+
+/// Transient protected HTTP delivery, deliberately without Debug or Serialize.
+pub struct SecretDelivery {
+    pub credential: Id,
+    value: zeroize::Zeroizing<String>,
+}
+impl SecretDelivery {
+    pub fn new(credential: Id, value: String) -> Self {
+        Self {
+            credential,
+            value: zeroize::Zeroizing::new(value),
+        }
+    }
+    pub(crate) fn expose(&self) -> &str {
+        &self.value
+    }
 }
 
 pub const STATE_SCHEMA: &str = "gateway-management-state/v1";

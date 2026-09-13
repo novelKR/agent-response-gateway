@@ -106,3 +106,5 @@ selected real model and your application's permissions and recovery.
 ## Find your next step
 
 <CardGrid :ids="['getting-started', 'packaging', 'contributing']" />
+
+For opt-in management, read-only Web, Team access and their separate archives, see [standalone operations](standalone-management.md). The base Gateway interface and archive remain independent.

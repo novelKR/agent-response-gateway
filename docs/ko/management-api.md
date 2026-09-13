@@ -14,6 +14,8 @@
 전달합니다. 이 패키지가 서버를 자동 시작하거나 runtime·패키지·사용량·팀 서비스를 자체 조립하지는
 않습니다. 기본 Gateway는 이 패키지에 의존하지 않습니다.
 
+제공 [Standalone 관리 애플리케이션](standalone-management.md)은 명시적 저장소, 조회 Web, 선택형 Team 접근으로 이 adapter를 조립합니다.
+
 ## 인증과 호스트 경계
 
 `Service::new`는 실제 bind된 numeric loopback 주소와 등록 대상 하나를 요구합니다.
@@ -54,19 +56,27 @@ Envelope schema는 `gateway-management-http/v1`이며 Responses와 manifest/read
 | `/preflight` | POST | 관리 credential과 요청 작업 권한 |
 | `/operations` | POST | 관리 credential과 요청 작업 권한 |
 | `/operations/{id}/reconcile` | POST | 관리 credential·상태 조정 권한·호스트 지원 |
+| `/credential-delivery` | POST | 관리 grant와 동기 일회 Team 발급·교체. 브라우저 Origin·cookie 거절 |
 | `/session` | POST, DELETE | 아래의 선택형 조회 세션 경계 |
 
 조회 요청에는 등록 대상이 포함됩니다. 작업 목록은 로컬 행 cursor를 사용하며 기본 페이지 크기는
-20, 최대는 100입니다. 사용량은 `from_ms`, `to_ms`, `timezone`을 받고 요청 범위는 최대
+20, 최대는 100입니다. 사용량은 `from_ms`, `to_ms`, `timezone`, 선택형 `after` cursor를 받고 요청 범위는 최대
 366일입니다. Module adapter의 자체 조회 검증과 관측 의미도 유지됩니다. 요청 본문은 64 KiB,
 응답은 2 MiB로 제한합니다. Blocking 요청/작업은 최대 64개를 수용하며 용량 초과는 변경 없이
 명시적인 busy 응답으로 반환합니다.
 
 Wire 명령은 runtime 시작/종료/재시작, 구성 후보 저장/선택, 패키지 설치/활성화/비활성화/버전 선택,
-호스트 continuation 전환을 위한 닫힌 등록-ID 필드를 사용합니다. 서버 실행 파일·shell·임의 서버
+호스트 continuation 전환, Team 주체·권한·credential 작업을 위한 닫힌 등록-ID 필드를 사용합니다. 서버 실행 파일·shell·임의 서버
 경로를 지정할 수 없습니다. 패키지 종류와 정확한 선택을 명시해야 하며 알 수 없는 필드와 미지원 제거
 명령은 거절합니다. 호스트는 continuation 업무 조건을 독립적으로 확인해야 합니다. Client가 보낸
 pending flag가 도구 승인이나 업무 상태 소유권을 Gateway로 이전하지 않습니다.
+
+Team 발급·교체는 비동기 제출을 거절하고 보호된 credential 전달 경로를 사용합니다.
+Dispatcher는 실패를 포함한 모든 journal 결과 직후 `completed`에서 일시적 출력을 소비해야
+하며 재시도·조회에서 다시 반환하지 않습니다. 제공 CLI는 처음 전달한 값을 새 비공개 로컬
+파일에 씁니다. 호스트는 정리 전에 `Service::close_admission`을 호출해 변경 접수를 영구히
+닫을 수 있습니다. 대기하던 변경은 writer 잠금 후 이 상태를 다시 검사하며 조회와 비상 정리는
+별개로 유지합니다.
 
 ## 사전 검증·시작 기록·작업 증거
 

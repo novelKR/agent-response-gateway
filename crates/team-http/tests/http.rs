@@ -1447,7 +1447,11 @@ async fn body_loss_idle_timeout_and_response_limit_never_become_eof_success() {
             ledger,
             None,
             Limits {
-                idle_timeout: Duration::from_millis(80),
+                idle_timeout: if mode == 1 {
+                    Duration::from_millis(80)
+                } else {
+                    Duration::from_secs(3)
+                },
                 max_response_bytes: 1024,
                 ..Limits::default()
             },

@@ -16,6 +16,8 @@ must serve its verified static files and the management API at the same numeric
 loopback origin. Concrete runtime and extension assembly has separate validation;
 the synthetic browser fixture is not a product configuration.
 
+The supplied [standalone management application](standalone-management.md) composes these adapters with explicit stores, read-only Web and optional Team access.
+
 ## Views and observation semantics
 
 The application uses `gateway-management-http/v1` and

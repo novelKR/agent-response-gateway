@@ -15,6 +15,8 @@ Gateway는 이 패키지에 의존하지 않습니다. 라이브러리는 listen
 초기화하고 adapter를 연결합니다. 이 패키지만으로 모델 전달, 사용량 귀속, credential
 전달 HTTP endpoint나 Standalone 서비스를 제공하지 않습니다.
 
+제공 [Standalone 관리 애플리케이션](standalone-management.md)은 명시적 저장소, 조회 Web, 선택형 Team 접근으로 이 adapter를 조립합니다.
+
 ## 정체성과 용도
 
 주체에는 활성화 여부, revision, 정확한 허용 route alias, 명시적 관리 대상·작업 grant,

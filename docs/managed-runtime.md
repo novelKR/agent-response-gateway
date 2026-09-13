@@ -15,6 +15,8 @@ reverse dependency and keeps its existing CLI, loopback listener and archive.
 A management HTTP server, command interface and dashboard require separate
 composition; installing this adapter does not provide them automatically.
 
+The supplied [standalone management application](standalone-management.md) composes these adapters with explicit stores, read-only Web and optional Team access.
+
 ## Host registration and configuration
 
 A trusted host registers one target, a private state directory, an absolute child

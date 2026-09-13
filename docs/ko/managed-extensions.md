@@ -12,6 +12,8 @@
 관리자를 영속 관리 journal에 연결합니다. Gateway·listener·상주 worker를 시작하지 않으며,
 HTTP·대시보드 조립은 별도입니다. 기본 Gateway는 이 패키지에 의존하지 않습니다.
 
+제공 [Standalone 관리 애플리케이션](standalone-management.md)은 명시적 저장소, 조회 Web, 선택형 Team 접근으로 이 adapter를 조립합니다.
+
 ## 저장소와 원본의 소유권
 
 신뢰된 호스트는 대상 하나, 기존 패키지 저장소, 비공개 증거 디렉터리, 패키지 SHA-256으로 고정한

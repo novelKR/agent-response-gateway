@@ -110,3 +110,5 @@ replace verification of the actual distribution contents.
 Usage accounting and the optional recorder are described in the
 [token usage accounting guide](usage-accounting.md). Recorder installation,
 local commit guarantees and external delivery are separate from HTTP metadata observation.
+
+For opt-in management, read-only Web, Team access and their separate archives, see [standalone operations](standalone-management.md). The base Gateway interface and archive remain independent.

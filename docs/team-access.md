@@ -17,6 +17,8 @@ connects the adapter when Team Access is enabled. This package alone does not
 supply model forwarding, usage attribution, credential-delivery HTTP endpoints
 or a standalone service.
 
+The supplied [standalone management application](standalone-management.md) composes these adapters with explicit stores, read-only Web and optional Team access.
+
 ## Identity and purpose
 
 A subject has an enabled flag, a revision, exact allowed route aliases, explicit

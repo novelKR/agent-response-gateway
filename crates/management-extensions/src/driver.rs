@@ -12,7 +12,8 @@ use std::{
     time::{Duration, Instant},
 };
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct NativeDriver {
     pub python: PathBuf,
     pub python_sha256: Digest,

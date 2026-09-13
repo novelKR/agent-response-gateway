@@ -372,6 +372,42 @@ CREATE TRIGGER credentials_no_delete BEFORE DELETE ON credentials BEGIN SELECT R
         }
         Ok(Completion { operation, secret })
     }
+    /// Trusted closed-command transport bridge. The caller validates and maps the wire
+    /// command; its full digest and original request are retained in issuance evidence.
+    /// Always consume/drop the output slot immediately after the journal result, including
+    /// errors. Preflight never invokes apply and therefore never issues a secret.
+    pub fn prepare_mapped<'a>(
+        &'a mut self,
+        request: &'a Request,
+        command: &Command,
+        transport_sha256: &Digest,
+        secret: &'a mut Option<Secret>,
+    ) -> Result<Box<dyn PreparedOperation + 'a>> {
+        if request.target != self.target
+            || request.action != command.action()
+            || request.parameters_sha256 != *transport_sha256
+        {
+            return Err(Error::InvalidInput);
+        }
+        let _ = command.digest()?;
+        if secret.is_some() {
+            return Err(Error::Conflict);
+        }
+        let tx = self
+            .db
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(storage)?;
+        validate(&tx, command)?;
+        let before = snapshot(&tx)?;
+        Ok(Box::new(Prepared {
+            tx: Some(tx),
+            command: command.clone(),
+            before,
+            request_sha256: request.fingerprint()?,
+            operation: None,
+            secret,
+        }))
+    }
     pub fn reconcile(&mut self, operation: &Operation) -> Result<Effect> {
         if operation.request.target != self.target {
             return Err(Error::InvalidInput);
@@ -421,21 +457,8 @@ struct Bound<'a> {
 }
 impl Backend for Bound<'_> {
     fn prepare<'a>(&'a mut self, request: &'a Request) -> Result<Box<dyn PreparedOperation + 'a>> {
-        let tx = self
-            .manager
-            .db
-            .transaction_with_behavior(TransactionBehavior::Immediate)
-            .map_err(storage)?;
-        validate(&tx, self.command)?;
-        let before = snapshot(&tx)?;
-        Ok(Box::new(Prepared {
-            tx: Some(tx),
-            command: self.command,
-            before,
-            request_sha256: request.fingerprint()?,
-            operation: None,
-            secret: self.secret,
-        }))
+        self.manager
+            .prepare_mapped(request, self.command, &self.command.digest()?, self.secret)
     }
     fn reconcile(&mut self, operation: &Operation) -> Result<Effect> {
         self.manager.reconcile(operation)
@@ -443,7 +466,7 @@ impl Backend for Bound<'_> {
 }
 struct Prepared<'a> {
     tx: Option<Transaction<'a>>,
-    command: &'a Command,
+    command: Command,
     before: Snapshot,
     request_sha256: Digest,
     operation: Option<Id>,
@@ -517,7 +540,7 @@ impl PreparedOperation for Prepared<'_> {
             };
         };
         let effect = (|| -> Result<(Snapshot, Digest, Option<Secret>)> {
-            let secret = match self.command {
+            let secret = match &self.command {
                 Command::Register {
                     subject: id,
                     permissions,

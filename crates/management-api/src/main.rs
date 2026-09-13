@@ -45,6 +45,8 @@ enum Command {
         id: String,
     },
     Usage {
+        #[arg(long, default_value_t = 0)]
+        after: u64,
         #[arg(long)]
         target: String,
         #[arg(long)]
@@ -61,6 +63,13 @@ enum Command {
     Submit {
         #[arg(long)]
         file: PathBuf,
+    },
+    DeliverCredential {
+        #[arg(long)]
+        file: PathBuf,
+        /// New file in an existing private directory. Never overwritten or sent to the server.
+        #[arg(long)]
+        output: PathBuf,
     },
     Reconcile {
         #[arg(long)]
@@ -149,6 +158,19 @@ async fn run(cli: Cli) -> Result<(), ()> {
         .build()
         .map_err(|_| ())?;
     let root = base.join("management/v1/").map_err(|_| ())?;
+    let mut delivery_file = if let Command::DeliverCredential { output, .. } = &cli.command {
+        let absolute = if output.is_absolute() {
+            output.clone()
+        } else {
+            std::env::current_dir().map_err(|_| ())?.join(output)
+        };
+        let parent = absolute.parent().ok_or(())?;
+        gateway_management::filesystem::directory(parent).map_err(|_| ())?;
+        let name = output.file_name().ok_or(())?;
+        Some(gateway_management::filesystem::private_new(&parent.join(name)).map_err(|_| ())?)
+    } else {
+        None
+    };
     let request = match cli.command {
         Command::Capabilities { target } => client
             .get(root.join("capabilities").map_err(|_| ())?)
@@ -177,6 +199,7 @@ async fn run(cli: Cli) -> Result<(), ()> {
             )
             .query(&[("target", id(target)?)]),
         Command::Usage {
+            after,
             target,
             from_ms,
             to_ms,
@@ -186,12 +209,16 @@ async fn run(cli: Cli) -> Result<(), ()> {
             ("from_ms", from_ms.to_string()),
             ("to_ms", to_ms.to_string()),
             ("timezone", timezone),
+            ("after", after.to_string()),
         ]),
         Command::Preflight { file } => client
             .post(root.join("preflight").map_err(|_| ())?)
             .json(&read::<Preflight>(file)?),
         Command::Submit { file } => client
             .post(root.join("operations").map_err(|_| ())?)
+            .json(&read::<Submission>(file)?),
+        Command::DeliverCredential { file, .. } => client
+            .post(root.join("credential-delivery").map_err(|_| ())?)
             .json(&read::<Submission>(file)?),
         Command::Reconcile {
             target,
@@ -216,9 +243,31 @@ async fn run(cli: Cli) -> Result<(), ()> {
         }
         bytes.extend_from_slice(&chunk);
     }
-    let value: serde_json::Value = serde_json::from_slice(&bytes).map_err(|_| ())?;
+    let mut value: serde_json::Value = serde_json::from_slice(&bytes).map_err(|_| ())?;
     if value["schema"] != gateway_management_api::SCHEMA {
         return Err(());
+    }
+    if let Some(output) = &mut delivery_file {
+        let secret = value["data"]
+            .as_object_mut()
+            .and_then(|data| data.remove("credential"));
+        if success && value["data"]["delivery"] == "one_time" {
+            let secret = zeroize::Zeroizing::new(
+                secret
+                    .and_then(|v| v.as_str().map(str::to_owned))
+                    .ok_or(())?,
+            );
+            if secret.len() > 4096
+                || !secret.starts_with("gwt1_")
+                || !secret.bytes().all(|b| b.is_ascii_graphic())
+            {
+                return Err(());
+            }
+            output
+                .write_all(secret.as_bytes())
+                .and_then(|_| output.sync_all())
+                .map_err(|_| ())?;
+        }
     }
     // A response is metadata only. Never print the request, environment value or HTTP headers.
     serde_json::to_writer(std::io::stdout().lock(), &value).map_err(|_| ())?;

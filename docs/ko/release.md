@@ -104,3 +104,5 @@ python3 -B scripts/check_public_boundary.py --archive .local/release/license-not
 사용량 계측과 선택형 Recorder는 [토큰 사용량 계측 안내](usage-accounting.md)를
 참조한다. Recorder 설치·로컬 커밋 보장·외부 전달은 HTTP 메타데이터 관찰과
 별개의 계약이다.
+
+선택형 관리·조회 Web·Team 접근과 별도 archive는 [Standalone 운영](standalone-management.md)을 참고합니다. 기본 Gateway 인터페이스와 archive는 독립적으로 유지합니다.

@@ -15,6 +15,8 @@
 
 <a id="management-ownership"></a>
 
+제공 [Standalone 관리 애플리케이션](standalone-management.md)은 명시적 저장소, 조회 Web, 선택형 Team 접근으로 이 adapter를 조립합니다.
+
 ## 소유권과 접근
 
 신뢰된 호스트는 현재 인증과 권한 판정으로 불변 `Actor`를 구성합니다.

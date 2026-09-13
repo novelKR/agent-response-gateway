@@ -135,6 +135,15 @@ impl Authenticator {
             .ok()
             .filter(|p| p.purpose == Purpose::Model && p.authorization_version == *version)
     }
+    /// Trusted host lookup after management authentication. Resolves current usage scope
+    /// from this authority rather than a client role or an unverified subject prefix.
+    pub fn management_identity(&self, identity: &Identity) -> Result<Principal> {
+        let principal = self.principal(Select::Identity(identity))?;
+        if principal.purpose == Purpose::Model {
+            return Err(Error::Forbidden);
+        }
+        Ok(principal)
+    }
     /// Safe metadata for a caller already authorized by its host; no verifier or secret.
     pub fn credential(&self, id: &Id) -> Result<Credential> {
         let authority = self.state.lock().map_err(|_| Error::Storage)?;

@@ -15,6 +15,8 @@
 listener·provider·Gateway 프로세스·반복 작업을 시작하지 않습니다. Standalone 프로세스
 소유권과 배포물 조립에는 별도 호스트 구성이 필요합니다.
 
+제공 [Standalone 관리 애플리케이션](standalone-management.md)은 명시적 저장소, 조회 Web, 선택형 Team 접근으로 이 adapter를 조립합니다.
+
 ## 인증·대상·전송
 
 Credential 저장소, 요청 ledger와 매번 선택한 peer는 같은 등록 대상을 지정해야 합니다.
