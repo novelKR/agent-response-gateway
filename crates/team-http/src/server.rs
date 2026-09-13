@@ -1,3 +1,4 @@
+use crate::ModelAuthority;
 use crate::{contract::*, ledger::Ledger, usage::UsageReader};
 use axum::{
     Json, Router,
@@ -10,7 +11,7 @@ use axum::{
 };
 use futures_util::{Stream, StreamExt};
 use gateway_management::{Error, Id, Result};
-use gateway_team_access::{Authenticator, Principal};
+use gateway_team_access::{Principal, Purpose};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::{
@@ -127,7 +128,7 @@ fn json_response(value: Value) -> Result<Response> {
 pub struct Service {
     target: Id,
     authority: String,
-    auth: Arc<Authenticator>,
+    auth: Arc<dyn ModelAuthority>,
     peers: Arc<dyn PeerSource>,
     ledger: Arc<Mutex<Ledger>>,
     usage: Mutex<Option<Box<dyn UsageReader>>>,
@@ -140,7 +141,7 @@ pub struct Service {
 impl Service {
     pub fn new(
         bound: SocketAddr,
-        auth: Arc<Authenticator>,
+        auth: Arc<dyn ModelAuthority>,
         peers: Arc<dyn PeerSource>,
         ledger: Ledger,
         usage: Option<Box<dyn UsageReader>>,
@@ -204,7 +205,14 @@ impl Service {
         Ok(peer)
     }
     fn principal(&self, token: &str) -> Result<Principal> {
-        self.auth.authenticate_model(token).ok_or(Error::Forbidden)
+        self.auth
+            .authenticate_model(token)
+            .filter(|p| {
+                p.purpose == Purpose::Model
+                    && p.permissions.enabled
+                    && p.permissions.validate().is_ok()
+            })
+            .ok_or(Error::Forbidden)
     }
     async fn authenticate(
         self: &Arc<Self>,
@@ -220,6 +228,13 @@ impl Service {
     fn refresh(&self, principal: &Principal) -> Result<Principal> {
         self.auth
             .refresh_model(&principal.identity, &principal.authorization_version)
+            .filter(|p| {
+                p.purpose == Purpose::Model
+                    && p.permissions.enabled
+                    && p.identity == principal.identity
+                    && p.authorization_version == principal.authorization_version
+                    && p.permissions.validate().is_ok()
+            })
             .ok_or(Error::Forbidden)
     }
     async fn blocking<T: Send + 'static>(

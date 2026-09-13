@@ -7,3 +7,6 @@ pub use contract::*;
 pub use ledger::{Ledger, Record};
 pub use server::Service;
 pub use usage::{SqliteUsage, UsageReader};
+
+mod authority;
+pub use authority::ModelAuthority;

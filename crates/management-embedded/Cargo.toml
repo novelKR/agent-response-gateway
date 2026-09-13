@@ -1,0 +1,28 @@
+[package]
+name = "gateway-management-embedded"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.98"
+license = "AGPL-3.0-only"
+description = "Explicit host delegation and external runtime contracts"
+publish = false
+
+[features]
+default = []
+team = ["dep:gateway-team-http", "dep:gateway-team-access"]
+
+[dependencies]
+gateway-management = { path = "../management" }
+gateway-management-api = { path = "../management-api" }
+gateway-team-http = { path = "../team-http", optional = true }
+gateway-team-access = { path = "../team-access", optional = true }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+url = "2"
+
+[dev-dependencies]
+agent-response-gateway = { path = "../.." }
+axum = "0.8"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net"] }
+tower = { version = "0.5", features = ["util"] }
+tempfile = "3"
