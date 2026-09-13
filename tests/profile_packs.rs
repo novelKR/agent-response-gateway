@@ -498,3 +498,103 @@ fn editing_exports_require_v2_and_bind_route_identity() {
         false,
     );
 }
+
+#[test]
+fn management_inventory_and_guarded_operations_preserve_exact_bindings() {
+    use agent_response_gateway::profile_packs::manager::{
+        self, Command as PackCommand, GuardedError, Precondition,
+    };
+    let f = Fixture::new();
+    let inventory = manager::inventory(&f.store).unwrap();
+    assert!(
+        inventory.inventory["installed"][0]["verified"]
+            .as_bool()
+            .unwrap()
+    );
+    assert_eq!(inventory.inventory["activation"]["packs"], json!([]));
+    assert_eq!(inventory.inventory["removal_supported"], false);
+    assert!(
+        inventory.inventory["installed"][0]["package"]
+            .get("notices")
+            .is_none()
+    );
+    let expected = Precondition {
+        generation: inventory.generation,
+        inventory_sha256: inventory.inventory_sha256,
+    };
+    let enable = || PackCommand::Enable {
+        store: f.store.clone(),
+        id: "synthetic".into(),
+        version: "1.0.0".into(),
+        sha256: f.sha.clone(),
+    };
+    manager::run_guarded(enable(), &expected, None).unwrap();
+    assert!(matches!(
+        manager::run_guarded(enable(), &expected, None),
+        Err(GuardedError::Conflict)
+    ));
+    let active = std::fs::read(f.store.join("active.json")).unwrap();
+    let installed = f
+        .store
+        .join("packages/synthetic/1.0.0")
+        .join(format!("{}.json", f.sha));
+    std::fs::write(&installed, b"damaged").unwrap();
+    let inventory = manager::inventory(&f.store).unwrap();
+    assert_eq!(inventory.inventory["installed"][0]["verified"], false);
+    let expected = Precondition {
+        generation: inventory.generation,
+        inventory_sha256: inventory.inventory_sha256,
+    };
+    manager::run_guarded(
+        PackCommand::Disable {
+            store: f.store.clone(),
+            id: "synthetic".into(),
+        },
+        &expected,
+        None,
+    )
+    .unwrap();
+    assert_eq!(std::fs::read(&installed).unwrap(), b"damaged");
+    assert_ne!(std::fs::read(f.store.join("active.json")).unwrap(), active);
+}
+
+#[test]
+fn guarded_install_rechecks_source_and_inventory_inside_the_writer_boundary() {
+    use agent_response_gateway::profile_packs::manager::{
+        self, Command as PackCommand, GuardedError, Precondition,
+    };
+    let f = Fixture::new();
+    let empty = f.root.path().join("empty");
+    std::fs::create_dir(&empty).unwrap();
+    let inventory = manager::inventory(&empty).unwrap();
+    let expected = Precondition {
+        generation: inventory.generation,
+        inventory_sha256: inventory.inventory_sha256,
+    };
+    let install = || PackCommand::Install {
+        store: empty.clone(),
+        package: f.package.clone(),
+    };
+    assert!(matches!(
+        manager::run_guarded(install(), &expected, Some(&"0".repeat(64))),
+        Err(GuardedError::Conflict)
+    ));
+    assert!(!empty.join("packages").exists());
+    std::fs::write(
+        empty.join("activation.writer"),
+        b"synthetic live or interrupted owner",
+    )
+    .unwrap();
+    assert!(manager::run_guarded(install(), &expected, Some(&f.sha)).is_err());
+    assert!(!empty.join("packages").exists());
+    std::fs::remove_file(empty.join("activation.writer")).unwrap();
+    manager::run_guarded(install(), &expected, Some(&f.sha)).unwrap();
+    assert!(matches!(
+        manager::run_guarded(install(), &expected, Some(&f.sha)),
+        Err(GuardedError::Conflict)
+    ));
+    assert!(!empty.join("active.json").exists());
+    let current = manager::inventory(&empty).unwrap();
+    assert_eq!(current.generation, expected.generation);
+    assert_ne!(current.inventory_sha256, expected.inventory_sha256);
+}
