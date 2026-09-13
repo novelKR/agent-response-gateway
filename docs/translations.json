@@ -1077,9 +1077,11 @@
         "appearance-and-shared-presentation",
         "browser-session-boundary",
         "build-and-source-provenance",
+        "development-scenario-canvas",
         "read-only-management-web",
         "synthetic-browser-verification",
         "views-and-observation-semantics",
+        "개발용-시나리오-canvas",
         "브라우저-세션-경계",
         "빌드와-소스-근거",
         "조회-전용-관리-web",
@@ -1087,8 +1089,8 @@
         "화면-표현과-공통-테마",
         "화면과-관측-의미"
       ],
-      "source_sha256": "29bdcdc0570287d91337e335be07661c3ab14cef053bf9daaded62856ab22859",
-      "translation_sha256": "069a3b48b6082d6a9261d887e0a333ec1732fe10cfd8ba8db131de5a167461e8"
+      "source_sha256": "afb931683d3a65b2153f4b7e38ddbe6c3cbdc214f401045ac1501c7d75abe031",
+      "translation_sha256": "250403ee359567250fc73cf7939fc997694a5c138c70312e77282a1b3ccec697"
     },
     {
       "id": "team-access",

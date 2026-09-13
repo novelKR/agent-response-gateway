@@ -34,7 +34,11 @@ configuration, tests, and documentation before editing. Preserve unrelated work.
   `docs-site/`. Run `npm ci --prefix docs-site --ignore-scripts`,
   `npm test --prefix docs-site`, `npm run build --prefix docs-site` and
   `python3 -B docs-site/scripts/check-output.py`. The static preview serves only
-  verified build files on loopback. Do not start the Vite development server.
+  verified build files on loopback. Do not start the Vite development server for documentation or product previews.
+  The explicitly selected management-web DevDemo is the sole exception: its
+  development-only launcher may serve HMR on numeric loopback with Host/Origin
+  and filesystem restrictions. Never include it in product archives or use it
+  to connect an operational backend.
   Review web notice changes explicitly; recording digests is not legal approval.
 - Run `python3.14 -B scripts/check_docs.py` for maintained documentation. Review
   both language editions before recording their hashes; preserve existing anchors,

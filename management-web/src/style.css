@@ -559,11 +559,13 @@ td small {
 }
 .login-region {
   display:grid;
+  grid-template-columns:minmax(0,1fr);
   place-items:center;
   min-height:calc(100vh - 74px);
   padding:35px
 }
 .login-card {
+  min-width:0;
   width:440px;
   max-width:100%;
   background:var(--surface);
