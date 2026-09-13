@@ -554,6 +554,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "gateway-management-extensions"
+version = "0.1.0"
+dependencies = [
+ "agent-response-gateway",
+ "gateway-management",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "uuid",
+]
+
+[[package]]
 name = "gateway-management-runtime"
 version = "0.1.0"
 dependencies = [

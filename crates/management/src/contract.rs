@@ -306,6 +306,8 @@ pub enum Error {
     InvalidStore,
     #[error("Unsupported management store schema")]
     UnsupportedSchema,
+    #[error("Unsupported management operation")]
+    Unsupported,
     #[error("Management storage failed")]
     Storage,
     #[error("Invalid management state transition")]

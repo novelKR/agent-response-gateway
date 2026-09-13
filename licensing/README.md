@@ -121,7 +121,6 @@ Include the notice bundle in distribution after the [publication check](../docs/
 Inspect system libraries, container packages and bundled executables separately
 for the actual artifact, beyond the Cargo list. See the [release guide](../docs/release.md).
 
-The local gateway, usage contract, recorder, management and management runtime packages share the root project
-license. Their exact local paths are validated; this is not a third-party AGPL
+The local workspace packages share the root project license. Their exact local paths are validated; this is not a third-party AGPL
 exception. The dependency selection includes Zlib for foldhash; its original
 notice is retained with the locked sources.

@@ -627,8 +627,8 @@
       "order": 3,
       "source": "licensing/README.md",
       "translation": "licensing/README.ko.md",
-      "source_sha256": "db6303572eba5119a63564f14d5428e8d1dc540982bc85a73a8c87a01b9786a5",
-      "translation_sha256": "d8425fc7d935e852a3340f4fb78c66017c134b2501f83d866ba4cd20e5f673bf",
+      "source_sha256": "3a26f9fa44ca79938c89147bef5d321d452e0a76f057f42aa14c10f6ec5d4aa5",
+      "translation_sha256": "b2e02269c0bf8fd5d308e6c82b5603d48b5182989a3a920d1d048af5d03fdac2",
       "anchors": [
         "check-refresh-and-bundle",
         "evaluation-and-special-originals",
@@ -1019,6 +1019,28 @@
       ],
       "source_sha256": "f28bad8949aaac99942e7e0bbfb197d146efc529cb3013f3631d92991d88a043",
       "translation_sha256": "b47a49be89b22c7c1be1ebafe5d8a91bb7b5d29bbd48a0ac7887b3ada7de495a"
+    },
+    {
+      "id": "managed-extensions",
+      "section": "integration",
+      "order": 36,
+      "source": "docs/managed-extensions.md",
+      "translation": "docs/ko/managed-extensions.md",
+      "route": "/guide/managed-extensions",
+      "anchors": [
+        "audited-local-extension-management",
+        "concurrency-and-evidence",
+        "installed-selected-and-effective-state",
+        "store-and-source-ownership",
+        "verification-and-recovery",
+        "검증과-복구",
+        "동시-변경과-증거",
+        "로컬-확장-관리의-영속-감사",
+        "설치선택실제-적용-상태",
+        "저장소와-원본의-소유권"
+      ],
+      "source_sha256": "ba189eec0c89ceaf88bf9283112867a313eb58f294ff3187c3811acba4598230",
+      "translation_sha256": "c5d15920a2e78aa8bb03a0070056a53a97f04be81d1eb6a320325ff334abc897"
     }
   ]
 }
