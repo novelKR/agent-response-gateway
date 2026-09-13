@@ -69,8 +69,8 @@ jobs:
             .local/cargo-home/registry
             target
           key: rust-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock') }}
-      - run: cargo +1.98.0 clippy --all-targets --locked -- -D warnings
-      - run: cargo +1.98.0 test --locked
+      - run: cargo +1.98.0 clippy -p agent-response-gateway -p gateway-management --all-targets --locked -- -D warnings
+      - run: cargo +1.98.0 test -p agent-response-gateway -p gateway-management --locked
       - run: cargo +1.98.0 build --locked
       - name: Build the optional native observer example
         run: cargo +1.98.0 build --locked --example metadata_observer

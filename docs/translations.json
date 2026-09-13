@@ -627,8 +627,8 @@
       "order": 3,
       "source": "licensing/README.md",
       "translation": "licensing/README.ko.md",
-      "source_sha256": "15178cb0726357611c9304d96707c2a365b03c8ca11a27ac82d44ed228b389e0",
-      "translation_sha256": "96189e50f4c2179a2f7cd2f0cf4e1870270b6dcf5b015c7653aafb0e6959ec2b",
+      "source_sha256": "8b95558bc3187ec3fd2304995749fb87242c67dcfc7add4aea906848c4837eae",
+      "translation_sha256": "90c4816ede286853f7a86acb36fca142a04116edbb0096522846e7852586a6a5",
       "anchors": [
         "check-refresh-and-bundle",
         "evaluation-and-special-originals",
@@ -972,6 +972,31 @@
       ],
       "source_sha256": "f000c8d5c808085f7b120f0ed5330b6ef37ccf559afc133ccc3b511d75104244",
       "translation_sha256": "667445d494d088b0dd074a9cb1a6dc8e6461cca4ae054b82bcb44430900bad98"
+    },
+    {
+      "id": "management",
+      "section": "integration",
+      "order": 34,
+      "source": "docs/management.md",
+      "translation": "docs/ko/management.md",
+      "route": "/guide/management",
+      "anchors": [
+        "audited-management",
+        "audited-management-operations",
+        "management-ownership",
+        "management-validation",
+        "operation-evidence",
+        "ownership-and-access",
+        "recovery-and-storage",
+        "validation",
+        "검증",
+        "관리-작업의-영속-감사",
+        "복구와-저장",
+        "소유권과-접근",
+        "작업-증거"
+      ],
+      "source_sha256": "84650ea70210490c78a4138ada9e3f21138c2ea2202f86596a70358d273e5d1e",
+      "translation_sha256": "4fc47fe8bf6dff568ca4497aeb9dd157aefd1f272b133ae4fb48c833652d456e"
     }
   ]
 }

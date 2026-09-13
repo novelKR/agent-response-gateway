@@ -541,6 +541,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "gateway-management"
+version = "0.1.0"
+dependencies = [
+ "ring",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror",
+ "uuid",
+]
+
+[[package]]
 name = "gateway-usage-contract"
 version = "0.1.0"
 dependencies = [
