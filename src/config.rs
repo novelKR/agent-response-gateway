@@ -353,7 +353,9 @@ impl Config {
                         .get(id)
                         .is_none_or(|b| b.protocol != crate::codecs::contract::EDITING_PROTOCOL)
                 })
-                || !model
+                || (self.editing_policies.get(id).is_some_and(|p| {
+                    p.representation != crate::editing::Representation::PatchText
+                }) && !model
                     .capability_profile
                     .as_ref()
                     .and_then(|id| self.capability_profiles.get(id))
@@ -362,7 +364,7 @@ impl Config {
                             p.support.get(&Feature::FunctionTools),
                             Some(DeclaredSupport::Native)
                         )
-                    })
+                    }))
                 || (model.api == ApiProtocol::Responses && model.compatibility_policy.is_none()))
         {
             return Err(ConfigError("Editing requires a known policy, native functions, explicit profile/auth, checked Responses and codec v2 when selected".into()));

@@ -102,7 +102,7 @@ def respond(state,body):
                 if state.requests<3 else [{'type':'model_output','content':[{'type':'text','text':'Synthetic complete.'}]}])
         return frames([{'type':'thought','signature':f'synthetic-signature-{state.requests}'}]+blocks,state.requests)
 
-    if getattr(state,'editing',False) and state.requests==2 and state.name in {'custom_patch','approval_denial'}:
+    if getattr(state,'editing',False) and not getattr(state,'normalization',False) and state.requests==2 and state.name in {'custom_patch','approval_denial'}:
         calls=[s for s in input_steps if s.get('type')=='function_call' and s.get('id')=='call_fixture']
         base.require(len(calls)==1 and calls[0]['name'].startswith('arg_edit_') and calls[0]['arguments']=={'path':'fixture.txt','before_context':[],'old_lines':['synthetic-old'],'new_lines':['synthetic-content'],'after_context':[]},'structured native history changed')
     if state.requests==2:
@@ -130,9 +130,10 @@ def respond(state,body):
         base.require(len(candidates)==1,'custom wrapper missing')
         patch='*** Begin Patch\n*** Add File: fixture.txt\n+synthetic-content\n*** End Patch'
         if state.name=='grammar_failure':patch='*** Begin Patch\n*** End Patch'
+        if getattr(state,'normalization',False) and state.name in {'custom_patch','approval_denial'}:patch=patch.replace('*** Begin Patch\n','*** Begin Patch ***\n')+' ***'
         blocks=[{'type':'function_call','id':'call_fixture','name':candidates[0]['name'],'arguments':{'input':patch}}]
     else:blocks=[{'type':'model_output','content':[{'type':'text','text':base.CONTROL_TEXT if state.name=='output_controls' else 'Synthetic complete.'}]}]
-    if getattr(state,'editing',False) and state.name in {'custom_patch','approval_denial','grammar_failure'} and state.requests==1:
+    if getattr(state,'editing',False) and not getattr(state,'normalization',False) and state.name in {'custom_patch','approval_denial','grammar_failure'} and state.requests==1:
         from editing_fixture import block
         edit=block([{'name':t['name'],'input_schema':t['parameters']} for t in body['tools']], invalid=state.name=='grammar_failure')
         blocks=[{'type':'function_call','id':edit['id'],'name':edit['name'],'arguments':edit['input']}]

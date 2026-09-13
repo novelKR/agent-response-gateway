@@ -77,6 +77,59 @@ fn edit() -> ContextEdit {
 }
 
 #[test]
+fn envelope_normalization_only_changes_complete_outer_markers() {
+    use agent_response_gateway::editing::normalize_patch_envelope;
+    let patch = ContextEdit {
+        new_lines: vec!["*** Begin Patch ***".into(), "*** End Patch ***".into()],
+        ..edit()
+    }
+    .compile()
+    .unwrap();
+    let normal = normalize_patch_envelope(&patch).unwrap();
+    assert_eq!(normal.text, patch);
+    assert_eq!(normal.applied_rule, None);
+    for dirty in [
+        patch.replacen("*** Begin Patch\n", "*** Begin Patch ***\n", 1),
+        format!("{} ***", patch),
+        format!(
+            "{} ***\n",
+            patch.replacen("*** Begin Patch\n", "*** Begin Patch ***\n", 1)
+        ),
+    ] {
+        let normalized = normalize_patch_envelope(&dirty).unwrap();
+        assert_eq!(
+            normalized.text,
+            format!("{patch}{}", if dirty.ends_with('\n') { "\n" } else { "" })
+        );
+        assert_eq!(normalized.applied_rule, Some("patch-envelope/v1"));
+    }
+    for untouched in [
+        format!("prose\n{patch} ***"),
+        format!("```\n{patch} ***\n```"),
+        "*** Begin Patch ***\n*** Update File: file.txt\n@@\n-old\n+new".into(),
+        patch.replace('\n', "\r\n"),
+    ] {
+        let result = normalize_patch_envelope(&untouched).unwrap();
+        assert_eq!(result.text, untouched);
+        assert_eq!(result.applied_rule, None);
+    }
+    assert!(
+        normalize_patch_envelope("*** Begin Patch ***\n*** End Patch ***")
+            .unwrap()
+            .applied_rule
+            .is_none()
+    );
+    assert!(normalize_patch_envelope("*** Begin Patch ***\ninvalid\n*** End Patch ***").is_err());
+}
+
+#[test]
+fn patch_normalization_cannot_rewrite_code_mode_programs() {
+    use agent_response_gateway::editing::Policy;
+    let policy: Policy = serde_json::from_value(json!({"version":1,"client_contract":"codex-code-mode/v1","representation":"context-lines/v1","patch_dialect":"codex-patch/1","normalization":"patch-envelope/v1","client_descriptor_sha256":"a".repeat(64)})).unwrap();
+    assert!(policy.validate().is_err());
+}
+
+#[test]
 fn helper_wrapper_serializes_data_and_only_inverts_the_exact_program() {
     use agent_response_gateway::editing::{helper_patch, helper_program};
     let value = ContextEdit {

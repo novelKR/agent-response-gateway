@@ -952,6 +952,7 @@
         "helper-and-normalization-contracts",
         "helper와-정규화-계약",
         "independent-operation-bundles",
+        "optional-envelope-normalization",
         "ownership-and-activation",
         "streaming-replay-and-versions",
         "using-direct-context-editing",
@@ -959,6 +960,7 @@
         "검증",
         "독립-작업-묶음",
         "명시적-code-mode-편집",
+        "선택형-envelope-정규화",
         "스트리밍재생버전",
         "직접-문맥-편집",
         "직접-문맥-편집-사용",
@@ -966,8 +968,8 @@
         "편집-팩과-codec-통합",
         "편집-호환-계약"
       ],
-      "source_sha256": "20571f17dc7dd9b3a65182bc9de2cf11855aba1ca8821bc6362eacdf1a99c226",
-      "translation_sha256": "06d46c6a7de64222851c5c860ef0f9592ba8d784d838b0cd39917e1fc66d2dad"
+      "source_sha256": "cb054bc7006d06ec9cb0838f0aac5faa48f73e2c5be2d1f926fd8da355361560",
+      "translation_sha256": "7ae25f40912ae1bf03c25e533468b833574316952dac05839891d025c0ca95fa"
     }
   ]
 }

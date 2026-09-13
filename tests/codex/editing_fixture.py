@@ -36,16 +36,18 @@ def main():
     parser.add_argument('--codec-bin',type=Path)
     parser.add_argument('--profile-packs',action='store_true')
     parser.add_argument('--code-mode',action='store_true')
+    parser.add_argument('--normalize-envelope',action='store_true')
     args=parser.parse_args()
+    if args.code_mode and args.normalize_envelope: parser.error('Envelope normalization is direct-patch only')
     binary=c.runtime.verify_bundle(args.runtime_dir.resolve(),json.loads(c.runtime.LOCK.read_text()))
     for api in ['messages','chat_completions','responses_checked','gemini_interactions']:
         for scenario in (['custom_patch','approval_denial','grammar_failure','contract_failure','cancellation','cancellation_heartbeat','transport_failure'] if args.code_mode else ['custom_patch','approval_denial','grammar_failure']):
-            print(json.dumps(c.run_scenario(scenario,binary,args.gateway_bin.resolve(),api,editing=True,codec_binary=args.codec_bin,profile_packs=args.profile_packs,code_mode=args.code_mode)),flush=True)
+            print(json.dumps(c.run_scenario(scenario,binary,args.gateway_bin.resolve(),api,editing=True,codec_binary=args.codec_bin,profile_packs=args.profile_packs,code_mode=args.code_mode,normalization=args.normalize_envelope)),flush=True)
 
     for contract in ['claude_adaptive','claude_manual','deep_seek','open_router']:
         api='messages' if contract.startswith('claude_') else 'chat_completions'
         for scenario in (['custom_patch','approval_denial','grammar_failure','contract_failure','cancellation','cancellation_heartbeat','transport_failure'] if args.code_mode else ['custom_patch','approval_denial','grammar_failure']):
-            print(json.dumps(c.run_scenario(scenario,binary,args.gateway_bin.resolve(),api,managed_contract=contract,editing=True,codec_binary=args.codec_bin,profile_packs=args.profile_packs,code_mode=args.code_mode)),flush=True)
+            print(json.dumps(c.run_scenario(scenario,binary,args.gateway_bin.resolve(),api,managed_contract=contract,editing=True,codec_binary=args.codec_bin,profile_packs=args.profile_packs,code_mode=args.code_mode,normalization=args.normalize_envelope)),flush=True)
 
 
 if __name__=='__main__': main()

@@ -69,6 +69,11 @@ def validate_manifest(value):
                 descriptor=policy.pop("client_descriptor_sha256", None)
                 require(isinstance(descriptor,str) and len(descriptor)==64 and all(c in '0123456789abcdef' for c in descriptor), "Missing host Code Mode descriptor")
                 policy["client_contract"]="codex-direct-custom/v1"
+            normalization=policy.get('normalization')
+            require(normalization in {'none','patch-envelope/v1'} and not (b['policy']['client_contract']=='codex-code-mode/v1' and normalization!='none'), 'Unsupported editing normalization')
+            policy['normalization']='none'
+            require(policy.get('representation') in {'context-lines/v1','patch-text/v1'}, 'Unsupported editing representation')
+            policy['representation']='context-lines/v1'
             require(policy=={"version":1,"client_contract":"codex-direct-custom/v1","representation":"context-lines/v1","patch_dialect":"codex-patch/1","normalization":"none"}, "Unsupported editing policy")
     if version == "v6" or (version == "v7" and any("api_codec" in r for r in configuration["routes"])):
         selected=[route['api_codec'] for route in configuration['routes'] if 'api_codec' in route]

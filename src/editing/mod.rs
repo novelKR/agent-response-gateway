@@ -25,6 +25,8 @@ pub enum ClientContract {
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Representation {
+    #[serde(rename = "patch-text/v1")]
+    PatchText,
     #[serde(rename = "context-lines/v1")]
     ContextLines,
 }
@@ -37,6 +39,8 @@ pub enum PatchDialect {
 pub enum Normalization {
     #[serde(rename = "none")]
     None,
+    #[serde(rename = "patch-envelope/v1")]
+    PatchEnvelope,
 }
 
 impl Policy {
@@ -49,7 +53,11 @@ impl Policy {
                         .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
             }),
         };
-        if self.version != 1 || !descriptor_valid {
+        if self.version != 1
+            || !descriptor_valid
+            || (self.client_contract == ClientContract::CodeMode
+                && self.normalization != Normalization::None)
+        {
             return Err(IrError::UnsupportedVersion);
         }
         Ok(())
@@ -261,4 +269,49 @@ pub(crate) fn validate_code_mode_results(
         }
     }
     Ok(())
+}
+
+/// Rule metadata is separate from text and is not proof of execution success.
+pub struct NormalizedPatch<'a> {
+    pub text: std::borrow::Cow<'a, str>,
+    pub applied_rule: Option<&'static str>,
+}
+#[derive(Debug, PartialEq, Eq)]
+pub struct NormalizationEvidence {
+    pub rule: Option<&'static str>,
+    pub distinct_calls: usize,
+}
+
+pub fn normalize_patch_envelope(text: &str) -> Result<NormalizedPatch<'_>, IrError> {
+    use std::borrow::Cow;
+    if text.len() > 8 * 1024 * 1024 {
+        return Err(IrError::SizeLimit);
+    }
+    let unchanged = || NormalizedPatch {
+        text: Cow::Borrowed(text),
+        applied_rule: None,
+    };
+    let terminal_lf = text.ends_with('\n');
+    let body = text.strip_suffix('\n').unwrap_or(text);
+    let Some((first, rest)) = body.split_once('\n') else {
+        return Ok(unchanged());
+    };
+    let Some((middle, last)) = rest.rsplit_once('\n') else {
+        return Ok(unchanged());
+    };
+    if !matches!(first, "*** Begin Patch" | "*** Begin Patch ***")
+        || !matches!(last, "*** End Patch" | "*** End Patch ***")
+        || (first == "*** Begin Patch" && last == "*** End Patch")
+    {
+        return Ok(unchanged());
+    }
+    let corrected = format!(
+        "*** Begin Patch\n{middle}\n*** End Patch{}",
+        if terminal_lf { "\n" } else { "" }
+    );
+    Grammar::CodexPatchV1.validate(&corrected)?;
+    Ok(NormalizedPatch {
+        text: Cow::Owned(corrected),
+        applied_rule: Some("patch-envelope/v1"),
+    })
 }

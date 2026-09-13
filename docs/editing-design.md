@@ -11,8 +11,8 @@
 
 [English](editing-design.md) | [한국어](ko/editing-design.md)
 
-This contract includes implemented direct context editing and separately planned
-normalization and bundle representations. Explicit helper execution is supported. Existing custom string bridging
+This contract includes direct context editing, explicit helper execution and
+opt-in envelope normalization. Independent bundles remain planned. Existing custom string bridging
 remains the default. The synthetic fixture verifies direct patch execution and Code Mode helper
 execution with pinned Codex 0.154.0; it does not qualify any real provider.
 
@@ -56,7 +56,7 @@ are inverted; arbitrary programs, comments and embedded patch literals remain
 unchanged. Exec output is the whole program result, not invented helper success.
 Undeclared top-level calls are not repaired.
 
-`normalization=none` is the default. A later explicit envelope rule may remove only
+`normalization=none` is the default. The explicit envelope rule removes only
 the extra trailing delimiter on the outer begin/end lines of one complete patch.
 It must not change body lines, paths or environment selection. Revalidate grammar
 after normalization. Do not recover fences, prose, partial patches or other tools.
@@ -126,7 +126,7 @@ normalization="none"
 `old_lines` must contain at least one line. This version replaces or removes an
 existing line block; insertion-only edits use the original patch tool. Limits are
 16384 total lines and 8 MiB of compiled patch. No trimming or line-ending repair
-occurs. Normalization and operation bundles remain planned representations.
+occurs. Operation bundles remain a planned representation.
 
 Synthetic names are deterministic over original tool identity and policy; a name
 collision rejects instead of reassigning a historical provider name. Canonical
@@ -222,3 +222,27 @@ stores provider-original calls and public wrapper output without new fields.
 Synthetic tests cover execution, denial, invalid edits, wrong descriptors, whole
 program results, same-session restart and recorder failure barriers. This is not
 arbitrary Code Mode recovery or real-provider qualification.
+
+<a id="optional-envelope-normalization"></a>
+<a id="선택형-envelope-정규화"></a>
+
+## Optional envelope normalization
+
+Select `normalization="patch-envelope/v1"` with a direct patch policy.
+`representation="patch-text/v1"` keeps only the original patch tool; it adds no
+structured alternative. The same rule can accompany context editing and applies
+only to registered original patch outputs. Code Mode rejects this normalization.
+
+Only exact complete outer `*** Begin Patch ***` and `*** End Patch ***` lines
+lose their trailing delimiter. One optional final LF is preserved. Body text,
+paths, Unicode, whitespace, client history and other tools remain unchanged.
+Valid input remains byte-identical. Incomplete input, prose, fences and different
+markers are not repaired; the normal grammar check still rejects invalid output.
+Normalized output must pass the same registered patch grammar before disclosure.
+
+The pure function returns the applied rule alongside the text. A request registry
+reports that rule and the number of distinct normalized call IDs through
+`normalization_evidence`; repeated output validation does not double-count. This
+metadata contains no patch text and does not attest file execution or success.
+It introduces no global logger or new HTTP/replay fields. Native and wrapped
+custom arguments remain buffered until their final normalized value is validated.
