@@ -134,3 +134,47 @@ spacing and typography. The read-only views and authorization rules are the same
 in either theme. Client and clock injection are internal presentation seams;
 the production entry point always defaults to the real same-origin API client.
 Disposing a view cancels its pending client requests and presentation listeners.
+
+
+<a id="개발용-시나리오-canvas"></a>
+
+## Development scenario canvas
+
+The development-only DevDemo shares the production dashboard components, API
+client parser and theme tokens. It is not a Gateway runtime or a public deployment.
+
+```sh
+npm ci --prefix management-web --ignore-scripts
+npm run devdemo --prefix management-web
+```
+
+Use Node 24.21.0 and npm 11.19.0. Open the printed numeric loopback URL
+(default port 43142); use `-- --port 43144` to select another available port.
+Rust, Gateway configuration and credentials are not required for synthetic mode.
+Stop the launcher with Ctrl+C. Only this entry point permits development HMR;
+product and documentation previews continue to serve verified static files.
+
+The separate control panel selects scenario, page, theme, language, viewport and
+reset. The iframe has an actual 360, 768 or 1280 CSS-pixel viewport, or the available
+width. Tables scroll within the view. The panel identifies synthetic data at all
+times and disables pages outside the selected host's permissions.
+
+Scenarios cover ready/stopped runtime, pending configuration, external changes,
+different installed/selected/effective versions, unobserved/unsupported modules,
+own Team usage, restricted Embedded views, empty/long/paginated lists, loading,
+denied/expired sessions, connection errors, exact large/zero/unknown usage and
+succeeded/failed/uncertain audit rows. Responses use a fixed clock and seed.
+Loading retains the real client's 15-second timeout; reset starts it again.
+Reset and scenario changes dispose the previous view and cancel its requests.
+Presentation/scenario state is not persisted and no real model call is made.
+
+Edit shared semantic CSS tokens or components to see HMR updates. The development
+server restricts Host, Origin, WebSocket upgrades and files to the required Web
+source/dependency directories. It does not serve private state or arbitrary
+workspace files and provides no management API in synthetic mode.
+
+Production builds reject development modules and fixture/HMR content. DevDemo is
+excluded from product Web archives; the corresponding source archive retains its
+development sources. Existing direct real-API fixture verification remains a
+separate test. A successful synthetic view is not authentication or runtime
+acceptance.

@@ -1,4 +1,5 @@
 import { build } from 'vite';
+import { productionBoundary } from './production-boundary.mjs';
 import { exportedSource } from './source-receipt.mjs';
 import vue from '@vitejs/plugin-vue';
 import { fileURLToPath } from 'node:url';
@@ -12,7 +13,7 @@ if(process.versions.node!=='24.21.0')throw new Error('Use Node 24.21.0');
 const receiptIndex=process.argv.indexOf('--source-receipt');
 const provenance=receiptIndex>=0 ? exportedSource(root,process.argv[receiptIndex+1]) : {source_commit:execFileSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'}).trim(),source_dirty:execFileSync('git',['status','--porcelain','--untracked-files=all'],{cwd:root,encoding:'utf8'}).trim().length>0};
 const state=root+'.local/management-web/', output=state+'dist/';mkdirSync(state,{recursive:true});
-await build({root:site,configFile:false,base:'./',plugins:[vue(),webNoticesPlugin(root,'management-web','Web dependencies shipped by the optional management dashboard.\nOriginal license and notice bytes follow each package heading.\n')],build:{outDir:output,emptyOutDir:true,sourcemap:false,target:'es2022'}});
+await build({root:site,configFile:false,base:'./',plugins:[vue(),productionBoundary(root,state),webNoticesPlugin(root,'management-web','Web dependencies shipped by the optional management dashboard.\nOriginal license and notice bytes follow each package heading.\n')],build:{outDir:output,emptyOutDir:true,sourcemap:false,target:'es2022'}});
 copyFileSync(root+'LICENSE',output+'LICENSE.txt');
 const generated=readFileSync(state+'shipped-packages.json'),review=site+'licensing/dependencies.json';
 if(process.argv.includes('--record-notices'))writeFileSync(review,generated);

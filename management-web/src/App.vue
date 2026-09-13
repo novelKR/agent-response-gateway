@@ -136,7 +136,7 @@ defineExpose({
 <p>{{ authenticated ? t('capabilityNote') : t('loginBoundary') }}</p>
 <label class="language">
 <span>Language</span>
-<select v-model="language" @change="changeLanguage">
+<select v-model="language" aria-label="Language" @change="changeLanguage">
 <option value="en">English</option>
 <option value="ko">한국어</option>
 </select>
