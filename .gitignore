@@ -14,3 +14,5 @@ __pycache__/
 /docs-site/.vitepress/.cache/
 /docs-site/.vitepress/.temp/
 /docs-site/.temp/
+/management-web/node_modules/
+/management-web/.vite/

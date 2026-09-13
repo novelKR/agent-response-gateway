@@ -1065,6 +1065,28 @@
       ],
       "source_sha256": "64a1b3ace656083826ff3675d7214c0e33bd55162788bcfaaf02429ff7d2eac9",
       "translation_sha256": "1f9e8ae6e30e349cc107bd8dacbd5e9e96a39523a4f89fe8b7450f12de24d942"
+    },
+    {
+      "id": "management-web",
+      "section": "integration",
+      "order": 38,
+      "source": "docs/management-web.md",
+      "translation": "docs/ko/management-web.md",
+      "route": "/guide/management-web",
+      "anchors": [
+        "browser-session-boundary",
+        "build-and-source-provenance",
+        "read-only-management-web",
+        "synthetic-browser-verification",
+        "views-and-observation-semantics",
+        "브라우저-세션-경계",
+        "빌드와-소스-근거",
+        "조회-전용-관리-web",
+        "합성-브라우저-검증",
+        "화면과-관측-의미"
+      ],
+      "source_sha256": "7b12497c9da347445a47197e0946134cb3ea46d7147f79476e4e5dfe16106129",
+      "translation_sha256": "e89f4b2f90bc14f8435bceb78fa9499d3ca912dc3a2a09040649a4eb5f7ec4de"
     }
   ]
 }

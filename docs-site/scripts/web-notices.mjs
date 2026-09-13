@@ -3,7 +3,9 @@ import { dirname, join, relative } from 'node:path';
 import { createHash } from 'node:crypto';
 
 // Rollup's client module inventory excludes server-only tools.
-export function webNoticesPlugin(root) {
+export function webNoticesPlugin(root, project = 'docs-site', introduction = 'Web dependencies shipped by this documentation build.\nOriginal license and notice bytes follow each package heading.\n') {
+  const projectRoot = root + project + '/';
+  const stateRoot = root + '.local/' + project + '/';
   return {
     name: 'gateway-web-notices',
     apply(config, env) { return env.command === 'build' && !config.build?.ssr; },
@@ -27,12 +29,12 @@ export function webNoticesPlugin(root) {
         }
       }
       const records = [];
-      const supplements = JSON.parse(readFileSync(root + 'docs-site/licensing/supplements.json', 'utf8'));
-      const lock = JSON.parse(readFileSync(root + 'docs-site/package-lock.json', 'utf8'));
-      writeFileSync(root + '.local/docs-site/client-package-candidates.json', JSON.stringify([...packages].map(([id, p]) => ({ id, path: relative(root + 'docs-site/', p.directory) })), null, 2) + '\n');
-      const parts = ['Web dependencies shipped by this documentation build.\nOriginal license and notice bytes follow each package heading.\n'];
+      const supplements = JSON.parse(readFileSync(projectRoot + 'licensing/supplements.json', 'utf8'));
+      const lock = JSON.parse(readFileSync(projectRoot + 'package-lock.json', 'utf8'));
+      writeFileSync(stateRoot + 'client-package-candidates.json', JSON.stringify([...packages].map(([id, p]) => ({ id, path: relative(projectRoot, p.directory) })), null, 2) + '\n');
+      const parts = [introduction];
       for (const [identity, { directory, metadata }] of [...packages].sort(([a], [b]) => a.localeCompare(b))) {
-        const locked = lock.packages[relative(root + 'docs-site/', directory)];
+        const locked = lock.packages[relative(projectRoot, directory)];
         if (!locked || locked.version !== metadata.version || locked.license !== metadata.license
             || !locked.integrity || !locked.resolved.startsWith('https://registry.npmjs.org/')) {
           throw new Error('Shipped package differs from the npm lock: ' + identity);
@@ -40,7 +42,7 @@ export function webNoticesPlugin(root) {
         let notices = readdirSync(directory).filter(name => /^(licen[cs]e|copying|notice)([.-]|$)/i.test(name));
         let noticeDirectory = directory;
         if (!notices.length && supplements[identity]) {
-          noticeDirectory = root + 'docs-site/licensing/originals/';
+          noticeDirectory = projectRoot + 'licensing/originals/';
           notices = [supplements[identity].file];
           const hash = createHash('sha256').update(readFileSync(join(noticeDirectory, notices[0]))).digest('hex');
           if (hash !== supplements[identity].sha256) throw new Error('Supplement notice digest differs');
@@ -57,14 +59,14 @@ export function webNoticesPlugin(root) {
         }
         records.push(record);
       }
-      const embedded = JSON.parse(readFileSync(root + 'docs-site/licensing/embedded-assets.json', 'utf8'));
+      const embedded = JSON.parse(readFileSync(projectRoot + 'licensing/embedded-assets.json', 'utf8'));
       for (const asset of embedded) {
-        if (createHash('sha256').update(readFileSync(root + 'docs-site/' + asset.asset)).digest('hex') !== asset.asset_sha256) {
+        if (createHash('sha256').update(readFileSync(projectRoot + asset.asset)).digest('hex') !== asset.asset_sha256) {
           throw new Error('Embedded theme asset changed');
         }
         parts.push('\n===== ' + asset.name + ' (' + asset.embedded_version + ') =====\n');
         for (const notice of asset.notices) {
-          const bytes = readFileSync(root + 'docs-site/licensing/originals/' + notice.file);
+          const bytes = readFileSync(projectRoot + 'licensing/originals/' + notice.file);
           if (createHash('sha256').update(bytes).digest('hex') !== notice.sha256) throw new Error('Embedded original notice changed');
           parts.push('\n--- ' + notice.file + ' ---\n', bytes, '\n');
         }
@@ -73,7 +75,7 @@ export function webNoticesPlugin(root) {
       const noticeBytes = Buffer.concat(parts.map(part => Buffer.isBuffer(part) ? part : Buffer.from(part)));
       this.emitFile({ type: 'asset', fileName: 'web-notices.txt', source: noticeBytes });
       this.emitFile({ type: 'asset', fileName: 'web-dependencies.json', source: JSON.stringify(records, null, 2) + '\n' });
-      writeFileSync(root + '.local/docs-site/shipped-packages.json', JSON.stringify(records, null, 2) + '\n');
+      writeFileSync(stateRoot + 'shipped-packages.json', JSON.stringify(records, null, 2) + '\n');
     },
   };
 }

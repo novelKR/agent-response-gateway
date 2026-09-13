@@ -4,7 +4,7 @@
 import json
 import os
 
-REQUIRED_JOBS = {"format", "targets", "rust", "publication", "licenses", "codex-conformance", "package-smoke", "docs", "usage-recorder", "api-codecs"}
+REQUIRED_JOBS = {"format", "targets", "rust", "publication", "licenses", "codex-conformance", "package-smoke", "docs", "usage-recorder", "api-codecs", "management-web"}
 
 
 def succeeded(raw: str) -> bool:
