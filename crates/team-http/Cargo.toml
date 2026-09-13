@@ -1,0 +1,29 @@
+[package]
+name = "gateway-team-http"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.98"
+license = "AGPL-3.0-only"
+description = "Opt-in scoped team model transport and exact usage correlation"
+publish = false
+
+[dependencies]
+gateway-team-access = { path = "../team-access" }
+gateway-management = { path = "../management" }
+gateway-usage-contract = { path = "../usage-contract" }
+gateway-usage-recorder = { path = "../../extensions/usage-recorder" }
+axum = "0.8"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["arbitrary_precision"] }
+rusqlite = { version = "=0.40.2", features = ["bundled", "backup"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "time", "sync"] }
+futures-util = "0.3"
+uuid = { version = "1", features = ["v4"] }
+zeroize = "1"
+url = "2"
+
+[dev-dependencies]
+agent-response-gateway = { path = "../.." }
+tempfile = "3"
+tower = { version = "0.5", features = ["util"] }
