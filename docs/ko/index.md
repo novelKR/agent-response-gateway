@@ -101,3 +101,5 @@ cargo run --locked -- check-config --config config.local.toml
 ## 다음 단계
 
 <CardGrid :ids="['getting-started', 'packaging', 'contributing']" />
+
+선택형 관리·조회 Web·Team 접근과 별도 archive는 [Standalone 운영](standalone-management.md)을 참고합니다. 기본 Gateway 인터페이스와 archive는 독립적으로 유지합니다.

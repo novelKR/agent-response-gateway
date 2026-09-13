@@ -45,7 +45,8 @@ pub fn prepare_launch(launch: &Launch) -> Result<PreparedLaunch> {
 }
 
 /// Only trusted host setup supplies paths. HTTP commands refer to registered IDs.
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Source {
     pub configuration: PathBuf,
     pub extensions_lock: Option<PathBuf>,
@@ -660,30 +661,46 @@ struct Prepared<'a> {
     before: Snapshot,
     operation: Option<Id>,
 }
-impl Backend for Bound<'_> {
-    fn prepare<'a>(&'a mut self, request: &'a Request) -> Result<Box<dyn PreparedOperation + 'a>> {
-        if request.target != self.runtime.registration.target
-            || request.action != self.command.action()
-            || request.parameters_sha256 != self.command.digest()?
+impl Runtime {
+    /// Prepare the existing domain command with its canonical digest.
+    pub fn prepare_command<'a>(
+        &'a mut self,
+        request: &'a Request,
+        command: &Command,
+    ) -> Result<Box<dyn PreparedOperation + 'a>> {
+        self.prepare_mapped(request, command, &command.digest()?)
+    }
+    /// Trusted transport composition only: the caller validates the closed wire command,
+    /// computes its complete digest and maps it to this domain command. Keep the original
+    /// request unchanged so journal idempotency and adapter receipts prove the same intent.
+    pub fn prepare_mapped<'a>(
+        &'a mut self,
+        request: &'a Request,
+        command: &Command,
+        transport_sha256: &Digest,
+    ) -> Result<Box<dyn PreparedOperation + 'a>> {
+        let _ = command.digest()?;
+        if request.target != self.registration.target
+            || request.action != command.action()
+            || request.parameters_sha256 != *transport_sha256
         {
             return Err(Error::InvalidInput);
         }
-        if self.runtime.external_change() && !matches!(self.command, Command::Stop) {
+        if self.external_change() && !matches!(command, Command::Stop) {
             return Err(Error::Conflict);
         }
-        match &self.command {
+        match command {
             Command::Stage {
                 source,
                 candidate,
                 source_sha256,
             } => {
-                if self.runtime.state.candidates.contains_key(candidate)
-                    || self.runtime.state.candidates.len() >= 128
+                if self.state.candidates.contains_key(candidate)
+                    || self.state.candidates.len() >= 128
                 {
                     return Err(Error::Conflict);
                 }
                 let registered = self
-                    .runtime
                     .registration
                     .sources
                     .get(source)
@@ -698,41 +715,44 @@ impl Backend for Bound<'_> {
                 )?;
             }
             Command::Select { candidate } => {
-                let _ = self.runtime.candidate(candidate)?;
+                let _ = self.candidate(candidate)?;
             }
             Command::Start | Command::Restart => {
-                self.runtime.refresh_child()?;
-                if (matches!(self.command, Command::Start) && self.runtime.owned.is_some())
-                    || (self.runtime.owned.is_none() && !self.runtime.lease_free()?)
+                self.refresh_child()?;
+                if (matches!(command, Command::Start) && self.owned.is_some())
+                    || (self.owned.is_none() && !self.lease_free()?)
                 {
                     return Err(Error::Conflict);
                 }
-                let inspected = self.runtime.desired()?;
-                let _ = self.runtime.environment(&inspected.config)?;
-                if files::hash_file(&self.runtime.registration.executable)?
-                    != self.runtime.registration.executable_sha256
+                let inspected = self.desired()?;
+                let _ = self.environment(&inspected.config)?;
+                if files::hash_file(&self.registration.executable)?
+                    != self.registration.executable_sha256
                 {
                     return Err(Error::Conflict);
                 }
             }
             Command::Stop => {
-                self.runtime.refresh_child()?;
-                if self.runtime.owned.is_none() && !self.runtime.lease_free()? {
+                self.refresh_child()?;
+                if self.owned.is_none() && !self.lease_free()? {
                     return Err(Error::Conflict);
                 }
             }
         }
-        let before = self.runtime.snapshot()?;
+        let before = self.snapshot()?;
         Ok(Box::new(Prepared {
-            runtime: self.runtime,
-            command: self.command.clone(),
+            runtime: self,
+            command: command.clone(),
             request: request.clone(),
             before,
             operation: None,
         }))
     }
-    fn reconcile(&mut self, operation: &Operation) -> Result<Effect> {
-        let path = self.runtime.receipt_path(&operation.id);
+    pub fn reconcile(&mut self, operation: &Operation) -> Result<Effect> {
+        if operation.request.target != self.registration.target {
+            return Err(Error::InvalidInput);
+        }
+        let path = self.receipt_path(&operation.id);
         let bytes = match files::read(&path, 65536, true) {
             Ok(bytes) => bytes,
             Err(_) => {
@@ -756,6 +776,14 @@ impl Backend for Bound<'_> {
             after: receipt.after,
             evidence_sha256: Digest::of(&bytes),
         })
+    }
+}
+impl Backend for Bound<'_> {
+    fn prepare<'a>(&'a mut self, request: &'a Request) -> Result<Box<dyn PreparedOperation + 'a>> {
+        self.runtime.prepare_command(request, &self.command)
+    }
+    fn reconcile(&mut self, operation: &Operation) -> Result<Effect> {
+        self.runtime.reconcile(operation)
     }
 }
 impl PreparedOperation for Prepared<'_> {

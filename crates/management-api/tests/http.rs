@@ -44,6 +44,7 @@ fn actions() -> Vec<Action> {
 struct Auth {
     generation: AtomicU64,
     can_write: AtomicBool,
+    usage_only: AtomicBool,
 }
 impl Auth {
     fn principal(&self, read: bool) -> Principal {
@@ -51,6 +52,9 @@ impl Auth {
             .into_iter()
             .chain([Action::RuntimeRestart])
             .filter(|a| {
+                if read && self.usage_only.load(Ordering::SeqCst) {
+                    return *a == Action::ReadUsage;
+                }
                 !read && self.can_write.load(Ordering::SeqCst)
                     || matches!(
                         a,
@@ -197,6 +201,7 @@ impl Fixture {
         let auth = Arc::new(Auth {
             generation: AtomicU64::new(0),
             can_write: AtomicBool::new(true),
+            usage_only: AtomicBool::new(false),
         });
         let control = Arc::new(Control {
             revision: AtomicU64::new(0),
@@ -751,4 +756,48 @@ async fn audit_failure_prevents_effect_and_missing_results_are_not_reported_as_l
         "uncertain",
         "unverified synthetic evidence is never promoted to success"
     );
+}
+
+#[tokio::test]
+async fn usage_only_read_session_discovers_its_allowed_view_without_configuration_access() {
+    let f = Fixture::new("127.0.0.1:46512", true);
+    f.auth.usage_only.store(true, Ordering::SeqCst);
+    let mut request = f.request("POST", "/management/v1/session", Some(READ), None);
+    request
+        .headers_mut()
+        .insert("origin", "http://127.0.0.1:46512".parse().unwrap());
+    let response = f.service.router().oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let cookie = response.headers()["set-cookie"]
+        .to_str()
+        .unwrap()
+        .split(';')
+        .next()
+        .unwrap()
+        .to_owned();
+    for (path, status) in [
+        ("/management/v1/capabilities?target=gateway", StatusCode::OK),
+        (
+            "/management/v1/usage?target=gateway&from_ms=1&to_ms=2&timezone=UTC",
+            StatusCode::OK,
+        ),
+        ("/management/v1/state?target=gateway", StatusCode::FORBIDDEN),
+        (
+            "/management/v1/operations?target=gateway",
+            StatusCode::FORBIDDEN,
+        ),
+    ] {
+        let mut request = f.request("GET", path, None, None);
+        request
+            .headers_mut()
+            .insert("cookie", cookie.parse().unwrap());
+        let response = f.service.router().oneshot(request).await.unwrap();
+        assert_eq!(response.status(), status);
+        if path.contains("capabilities") {
+            let value: Value =
+                serde_json::from_slice(&to_bytes(response.into_body(), 65536).await.unwrap())
+                    .unwrap();
+            assert_eq!(value["data"]["allowed_operations"], json!(["read_usage"]));
+        }
+    }
 }

@@ -13,6 +13,8 @@ extension and profile-pack managers to the durable management journal. It starts
 no gateway, listener or resident worker. HTTP and dashboard composition are
 separate. The default gateway does not depend on this package.
 
+The supplied [standalone management application](standalone-management.md) composes these adapters with explicit stores, read-only Web and optional Team access.
+
 ## Store and source ownership
 
 A trusted host registers one target, an existing package store, a private evidence

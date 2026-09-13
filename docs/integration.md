@@ -215,3 +215,5 @@ Selecting an external API codec uses `gateway-embedded-manifest/v6` and
 binds each affected route origin. Core transport, credential selection, numeric
 accounting and protected replay storage remain authoritative. See
 [external API codecs](api-codecs.md) for grants, IPC, limits and recovery.
+
+For opt-in management, read-only Web, Team access and their separate archives, see [standalone operations](standalone-management.md). The base Gateway interface and archive remain independent.

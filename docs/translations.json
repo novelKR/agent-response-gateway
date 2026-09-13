@@ -306,8 +306,8 @@
       "order": 0,
       "source": "docs/integration.md",
       "translation": "docs/ko/integration.md",
-      "source_sha256": "1dd81784512b19ce95496f5d830d8a85d34cb2550669b2ec5e194f93acb9656b",
-      "translation_sha256": "3569c09516b3fd1e0d372cf7acbc83db3975af5e99ac526e233b79a2b31b3389",
+      "source_sha256": "12298a8652fda58ffee98bbfd3bc847b281581dd1d44354cadb6f7a8e922569b",
+      "translation_sha256": "2523205115b88a58226928e591100b54f4fa0bb4c7469e785d519c4d32c0fa75",
       "anchors": [
         "application-integration",
         "calling-from-a-backend-service",
@@ -497,8 +497,8 @@
       "order": 0,
       "source": "docs/release.md",
       "translation": "docs/ko/release.md",
-      "source_sha256": "3abbf134c70ca5f0b3bbf9b89d18443638c8f0937595818998f131600e4de702",
-      "translation_sha256": "01b2cc05697d583b0de544e8cbb431901d7971256970c70886a8042130b0824e",
+      "source_sha256": "1f692fb8bb72974a931e383cd536280018eb948eac994dd334280b61fbd5fa40",
+      "translation_sha256": "3e6eda868e8b3e3c6abeb03f3f6983cbdfb4c24e04fb6dafc67d515c214b28e7",
       "anchors": [
         "consumer-adoption-and-recovery",
         "distribution-preparation-and-version-pinning",
@@ -694,8 +694,8 @@
         "하나의-진입점-명시적인-경로",
         "현재-지원-범위"
       ],
-      "source_sha256": "45a63aefedfadee06da61ff41e9050c2969dedac94d75dd30eb031e98ede9b23",
-      "translation_sha256": "4f0aad1ce6e7ebcca8d6259ca9877172d41bdf4071c46258fbb9e7541dadb163"
+      "source_sha256": "c9fdf1c9a07f4282e0f2f7c188af9881eeeb499a384a0eb5f895ab420810777b",
+      "translation_sha256": "56644921f9304c65f244b6bfb7f0b65a671b901012ddee2e1364f612b6c2c551"
     },
     {
       "id": "usage",
@@ -995,8 +995,8 @@
         "소유권과-접근",
         "작업-증거"
       ],
-      "source_sha256": "aaa4b7d4c92561f6c3a88aa29735cb646429c2fcef51472ae2d4368255bcba04",
-      "translation_sha256": "cde23444cd6408af3b4675a417b4972a40947c0e2bcbba944df545dbe08cca15"
+      "source_sha256": "0bbdb0acb37ec2009d4c60550377a744479a7a63d8c8a43200be06c951f56336",
+      "translation_sha256": "66ddbd83449aa648280daedcaead4e503acff4803d57896f9c682670ea671876"
     },
     {
       "id": "managed-runtime",
@@ -1017,8 +1017,8 @@
         "소유-실행-및-구성-adapter",
         "호스트-등록과-구성"
       ],
-      "source_sha256": "f28bad8949aaac99942e7e0bbfb197d146efc529cb3013f3631d92991d88a043",
-      "translation_sha256": "b47a49be89b22c7c1be1ebafe5d8a91bb7b5d29bbd48a0ac7887b3ada7de495a"
+      "source_sha256": "955e2c0b377fb13b5eff321e7e53806c003052febbabc44439055bf005e56a6a",
+      "translation_sha256": "c54a5bce7f441f1a752ae7152fe13c21f1114c7c8efaed475b56f0f3809df942"
     },
     {
       "id": "managed-extensions",
@@ -1039,8 +1039,8 @@
         "설치선택실제-적용-상태",
         "저장소와-원본의-소유권"
       ],
-      "source_sha256": "ba189eec0c89ceaf88bf9283112867a313eb58f294ff3187c3811acba4598230",
-      "translation_sha256": "c5d15920a2e78aa8bb03a0070056a53a97f04be81d1eb6a320325ff334abc897"
+      "source_sha256": "b6f0b384523c2d8112f1d8197ac9a2bc3abe1c76414b96176f9f42218ec212dd",
+      "translation_sha256": "d0a5b563b80251ed538eb0864da29f3dc8246a167036a64196efed16f1e0e7aa"
     },
     {
       "id": "management-api",
@@ -1063,8 +1063,8 @@
         "사전-검증시작-기록작업-증거",
         "인증과-호스트-경계"
       ],
-      "source_sha256": "64a1b3ace656083826ff3675d7214c0e33bd55162788bcfaaf02429ff7d2eac9",
-      "translation_sha256": "1f9e8ae6e30e349cc107bd8dacbd5e9e96a39523a4f89fe8b7450f12de24d942"
+      "source_sha256": "ac4602ed67a7068e11ea9de76f0c8a3b154b86f6361d450886fec9f71eed4192",
+      "translation_sha256": "d17321f640a559293e7c28f30c69975c92a4d79abd13160d3cfa78880a3b1b36"
     },
     {
       "id": "management-web",
@@ -1085,8 +1085,8 @@
         "합성-브라우저-검증",
         "화면과-관측-의미"
       ],
-      "source_sha256": "7b12497c9da347445a47197e0946134cb3ea46d7147f79476e4e5dfe16106129",
-      "translation_sha256": "e89f4b2f90bc14f8435bceb78fa9499d3ca912dc3a2a09040649a4eb5f7ec4de"
+      "source_sha256": "3563ae023a0e6555b4d298d5e5166907d427f5b559f8cbe94f5bc79fb98ae40f",
+      "translation_sha256": "de5baf712c0e025ff457d6df73e51ce19b59ce4d65a9d5e4707a006dd81cb02b"
     },
     {
       "id": "team-access",
@@ -1107,8 +1107,8 @@
         "저장소-소유권과-복구",
         "정체성과-용도"
       ],
-      "source_sha256": "a5c918e4de98f8e3505a586140a7cefa68ac03865bf232095d5a98cc18029172",
-      "translation_sha256": "c641c89028dae800e1870343c92d98fd4424ce66d41be1c3a8ac5e396ecfebe5"
+      "source_sha256": "82d61bf81aa7807c2a77f0cb56fee76de0e0ebb490248ed6c8ccb7216fa165c6",
+      "translation_sha256": "ffb97fd3d7bd1ca614b0e1c563a105264237bd386f6fb0866a69dc41cb068a9c"
     },
     {
       "id": "team-model-access",
@@ -1129,8 +1129,8 @@
         "초기화백업검증",
         "팀-주체별-모델-진입점"
       ],
-      "source_sha256": "c5fe97aba41b3687e808ec12924b9fb09a509514cf72f8d6b333dd9f1516c085",
-      "translation_sha256": "1ccf68f25eeb647675d12f5ab0f258b304a84118f459822737340d00a4c9799b"
+      "source_sha256": "3ed89273241cb5265d3c45f5a8ee9bd63c4e81127eb6d2fd38225877479354b1",
+      "translation_sha256": "95625144abeeb622a60cee48441f7e6cb691271327553654ce52661695ddf1e3"
     },
     {
       "id": "embedded-management",
@@ -1151,8 +1151,34 @@
         "합성-호스트-예제검증",
         "호스트-소유-관리접근-계약"
       ],
-      "source_sha256": "cacdbd34736841b47b00da27271570af578575355f72595489dba755260785ce",
-      "translation_sha256": "38618ca24abe11a1876c0b0b52bb688603d9a4c7da094569628d6f0e0cb3d185"
+      "source_sha256": "c7bcfed173bc30635d005eecafaa6b51cfdaf1240c9fac5f82cc5e9338086919",
+      "translation_sha256": "61bf7d0bafdd00c916c9fd9932d3be93dc8df8e0cdb2804243907534031f80fd"
+    },
+    {
+      "id": "standalone-management",
+      "section": "integration",
+      "order": 42,
+      "source": "docs/standalone-management.md",
+      "translation": "docs/ko/standalone-management.md",
+      "route": "/guide/standalone-management",
+      "anchors": [
+        "initialize-and-operate-explicitly",
+        "optional-standalone-operations",
+        "register-one-owned-target",
+        "select-components",
+        "team-credentials-and-model-access",
+        "team-credential과-모델-접근",
+        "verification-artifacts-and-recovery",
+        "web-and-usage-views",
+        "web과-사용량-조회",
+        "검증배포물복구",
+        "구성-요소-선택",
+        "명시적-초기화와-운영",
+        "선택형-standalone-운영",
+        "소유할-대상-하나-등록"
+      ],
+      "source_sha256": "58c87b20a5c0f55879008e3b1cc9b5799c53af7fbc46783cec2dc5ae856d1948",
+      "translation_sha256": "95f3fe2dcbd659ffe3242446260e769340b4dc40ce8369f6aee04562bd9cfcfe"
     }
   ]
 }

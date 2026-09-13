@@ -17,6 +17,8 @@ separate integrations; this library does not make them available automatically.
 
 <a id="management-ownership"></a>
 
+The supplied [standalone management application](standalone-management.md) composes these adapters with explicit stores, read-only Web and optional Team access.
+
 ## Ownership and access
 
 A trusted host constructs an immutable `Actor` from its current authentication

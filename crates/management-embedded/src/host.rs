@@ -189,6 +189,12 @@ impl Dispatcher for HostDispatcher {
         self.contract.require(command.action())?;
         self.backend.prepare(request, command)
     }
+    fn completed(
+        &mut self,
+        result: &Result<Operation>,
+    ) -> Option<gateway_management_api::SecretDelivery> {
+        self.backend.completed(result)
+    }
     fn reconcile(&mut self, operation: &Operation) -> Result<Effect> {
         if operation.request.target != self.contract.target {
             return Err(Error::InvalidInput);

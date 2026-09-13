@@ -14,6 +14,8 @@
 listener·로컬 사용자 저장소·백그라운드 작업을 시작하지 않습니다. 기본 Gateway는 이
 패키지에 의존하지 않습니다.
 
+제공 [Standalone 관리 애플리케이션](standalone-management.md)은 명시적 저장소, 조회 Web, 선택형 Team 접근으로 이 adapter를 조립합니다.
+
 ## 명시적 호스트 책임
 
 `HostContract`는 `gateway-embedded-management/v1`, 등록 대상 하나, 명시적 작업

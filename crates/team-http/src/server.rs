@@ -656,6 +656,98 @@ async fn responses(State(service): State<Arc<Service>>, request: Request) -> Res
     }
     response
 }
+impl Service {
+    /// Trusted host read adapter. The host authenticates/refreshed identity first; the ledger
+    /// enforces own-subject filtering and the explicit all-usage permission again here.
+    /// The same exact correlation and null/unobserved semantics back the HTTP model view.
+    pub fn usage_view(&self, principal: &Principal, query: &UsageQuery) -> Result<Value> {
+        if !principal.permissions.enabled {
+            return Err(Error::Forbidden);
+        }
+        let records = self
+            .ledger
+            .lock()
+            .map_err(|_| Error::Storage)?
+            .records(principal, query)?;
+        let next_after = (records.len() == 100)
+            .then(|| records.last().map(|r| r.cursor))
+            .flatten();
+        let mut reader = self.usage.lock().map_err(|_| Error::Storage)?;
+        let mut rows = Vec::new();
+        let mut response_bytes = 0usize;
+        let mut recorder_failed = false;
+        for record in records {
+            let active = self
+                .live
+                .lock()
+                .map_err(|_| Error::Storage)?
+                .contains(&record.admission.id);
+            let usage = match (
+                &record.admission.producer,
+                record
+                    .headers
+                    .as_ref()
+                    .and_then(|h| h.gateway_request.as_ref()),
+                if recorder_failed {
+                    None
+                } else {
+                    reader.as_mut()
+                },
+            ) {
+                (Some(producer), Some(request), Some(reader)) => {
+                    match reader.lookup(producer, request) {
+                        Ok(events)
+                            if !events.is_empty()
+                                && events.len() <= 16
+                                && events.iter().all(|e| {
+                                    e.validate()
+                                        && e.producer_id == producer.as_str()
+                                        && e.request_id == request.as_str()
+                                        && e.model_alias == record.admission.route
+                                        && e.configuration_sha256
+                                            == record.admission.configuration_sha256.as_str()
+                                }) =>
+                        {
+                            let identities: BTreeSet<_> = events
+                                .iter()
+                                .map(|e| (&e.producer_id, &e.attempt_id))
+                                .collect();
+                            if identities.len() != events.len() {
+                                json!({"state":"unobserved","reason":"correlation_mismatch"})
+                            } else {
+                                json!({"state":"observed","attempts":events})
+                            }
+                        }
+                        Ok(events) if events.is_empty() => {
+                            json!({"state":"unobserved","reason":"recorder_has_no_observation"})
+                        }
+                        Ok(_) => json!({"state":"unobserved","reason":"correlation_mismatch"}),
+                        Err(_) => {
+                            recorder_failed = true;
+                            json!({"state":"unobserved","reason":"recorder_unavailable"})
+                        }
+                    }
+                }
+                (None, _, _) => json!({"state":"unattributed","reason":"producer_not_observed"}),
+                (_, None, _) => {
+                    json!({"state":"unattributed","reason":"gateway_request_not_observed"})
+                }
+                (_, _, None) => {
+                    json!({"state":"unobserved","reason":if recorder_failed {"recorder_unavailable"}else{"recorder_not_connected"}})
+                }
+            };
+            let row = json!({"record":record,"transport_observation":if record.finished.is_some(){"recorded"}else if active{"active"}else{"unconfirmed"},"usage":usage});
+            response_bytes += serde_json::to_vec(&row).map_err(|_| Error::Storage)?.len();
+            if response_bytes > 2 * 1024 * 1024 - 4096 {
+                return Err(Error::Conflict);
+            }
+            rows.push(row);
+        }
+        Ok(
+            json!({"schema":SCHEMA,"observed_at_ms":now()?,"window":"team_admitted_at","scope":if query.all{"all_team_subjects"}else{"own_subject"},"from_ms":query.from_ms,"to_ms":query.to_ms,"requests":rows,"next_after":next_after}),
+        )
+    }
+}
 async fn usage(
     State(service): State<Arc<Service>>,
     headers: HeaderMap,
@@ -669,28 +761,12 @@ async fn usage(
         Ok(value) => value,
         Err(response) => return response.into_response(),
     };
-    let result=service.blocking(move|s|{
-  let principal=s.refresh(&principal)?;let records=s.ledger.lock().map_err(|_|Error::Storage)?.records(&principal,&query)?;let mut reader=s.usage.lock().map_err(|_|Error::Storage)?;let mut rows=Vec::new();let mut response_bytes=0usize;let mut recorder_failed=false;
-  for record in records{
-   let active=s.live.lock().map_err(|_|Error::Storage)?.contains(&record.admission.id);
-   let usage=match(&record.admission.producer,record.headers.as_ref().and_then(|h|h.gateway_request.as_ref()),if recorder_failed {None} else {reader.as_mut()}){
-    (Some(producer),Some(request),Some(reader))=>match reader.lookup(producer,request){
-     Ok(events) if !events.is_empty()&&events.len()<=16&&events.iter().all(|e|e.validate()&&e.producer_id==producer.as_str()&&e.request_id==request.as_str()&&e.model_alias==record.admission.route&&e.configuration_sha256==record.admission.configuration_sha256.as_str())=>{
-      let identities:BTreeSet<_>=events.iter().map(|e|(&e.producer_id,&e.attempt_id)).collect();if identities.len()!=events.len(){json!({"state":"unobserved","reason":"correlation_mismatch"})}else{json!({"state":"observed","attempts":events})}
-     },
-     Ok(events) if events.is_empty()=>json!({"state":"unobserved","reason":"recorder_has_no_observation"}),
-     Ok(_)=>json!({"state":"unobserved","reason":"correlation_mismatch"}),
-     Err(_)=>{recorder_failed=true;json!({"state":"unobserved","reason":"recorder_unavailable"})},
-    },
-    (None,_,_)=>json!({"state":"unattributed","reason":"producer_not_observed"}),
-    (_,None,_)=>json!({"state":"unattributed","reason":"gateway_request_not_observed"}),
-    (_,_,None)=>json!({"state":"unobserved","reason":if recorder_failed {"recorder_unavailable"}else{"recorder_not_connected"}}),
-   };
-   let row=json!({"record":record,"transport_observation":if record.finished.is_some(){"recorded"}else if active{"active"}else{"unconfirmed"},"usage":usage});
-   response_bytes += serde_json::to_vec(&row).map_err(|_|Error::Storage)?.len();if response_bytes>2*1024*1024-4096{return Err(Error::Conflict);}rows.push(row);
-  }
-  json_response(json!({"schema":SCHEMA,"observed_at_ms":now()?,"window":"team_admitted_at","scope":if query.all{"all_team_subjects"}else{"own_subject"},"from_ms":query.from_ms,"to_ms":query.to_ms,"requests":rows}))
- }).await;
+    let result = service
+        .blocking(move |s| {
+            let principal = s.refresh(&principal)?;
+            s.usage_view(&principal, &query).and_then(json_response)
+        })
+        .await;
     result.unwrap_or_else(management)
 }
 #[derive(Deserialize)]

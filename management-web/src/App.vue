@@ -35,7 +35,7 @@ async function load() {
   busy.value=true; const current=generation;
   const until=Date.now(), from=until-Number(days.value)*86400000;
   try { const result=await client.capabilities(); if(current!==generation)return;capabilities.value=result.data; }
-  catch(failure){if(current===generation){clearViews();busy.value=false;readFailure(failure,'state');}return;}
+  catch(failure){if(current===generation){clearViews();busy.value=false;readFailure(failure,'capabilities');}return;}
   if(!visiblePages.value.includes(page.value))page.value=visiblePages.value[0]||'overview';
   if(!allowed('read_usage'))usage.value=null;
   if(!allowed('read_operations')){operations.value=[];selectedOperation.value=null;}
@@ -70,6 +70,12 @@ async function more() {
   if(!hasMore.value||busy.value)return;busy.value=true;const current=generation;
   try {const result=await client.operations(cursor.value);if(current!==generation)return;const rows=result.data?.items||[];operations.value.push(...rows);cursor.value=rows.at(-1)?.cursor||cursor.value;hasMore.value=rows.length===20;}
   catch(failure){if(current===generation)readFailure(failure,'operations');}
+  finally{if(current===generation)busy.value=false;}
+}
+async function moreUsage() {
+  if(!usage.value?.next_after || busy.value)return;busy.value=true;const current=generation;
+  try {const old=usage.value;const result=await client.usage(old.from_ms,old.to_ms,timezone,old.next_after);if(current!==generation)return;usage.value={...result.data,requests:[...old.requests,...result.data.requests]};viewTimes.value.usage=result.observed_at_ms;}
+  catch(failure){if(current===generation)readFailure(failure,'usage');}
   finally{if(current===generation)busy.value=false;}
 }
 async function inspectOperation(id) {
@@ -120,7 +126,7 @@ onUnmounted(()=>{clearInterval(timer);window.removeEventListener('keydown',keybo
 <span>{{ t('title') }} <span class="slash">/</span> <strong>{{ authenticated ? t(page) : t('waiting') }}</strong>
 </span>
 <div class="top-actions">
-<span class="connection" :class="{ online: authenticated }">● {{ authenticated ? t('connected') : t('waiting') }}</span>
+<span class="connection" :class="{ online: authenticated && !viewErrors.capabilities }">● {{ authenticated && !viewErrors.capabilities ? t('connected') : t('waiting') }}</span>
 <button v-if="authenticated" class="text-button" @click="signOut">{{ t('signOut') }}</button>
 </div>
 </header>
@@ -145,7 +151,8 @@ onUnmounted(()=>{clearInterval(timer);window.removeEventListener('keydown',keybo
 </div>
       </section>
       <div v-else class="content">
-<p v-if="!visiblePages.length" class="notice warn">{{ t('forbidden') }}</p>
+<p v-if="viewErrors.capabilities" class="notice warn" role="status">{{ t(viewErrors.capabilities) }} {{ t('staleView') }}</p>
+<p v-else-if="capabilities && !visiblePages.length" class="notice warn">{{ t('forbidden') }}</p>
         <div class="page-heading">
 <div>
 <div class="eyebrow">{{ target }} <span>·</span> {{ t('readOnly') }}</div>
@@ -321,7 +328,7 @@ onUnmounted(()=>{clearInterval(timer);window.removeEventListener('keydown',keybo
 <span>{{ timezone }}</span>
 </div>
 <p v-if="viewErrors.usage" class="notice warn">{{ t(viewErrors.usage) }} {{ t('staleView') }}</p>
-<article class="panel">
+<article v-if="!Array.isArray(usage?.requests)" class="panel">
 <div class="table-wrap">
 <table>
 <thead>
@@ -353,7 +360,18 @@ onUnmounted(()=>{clearInterval(timer);window.removeEventListener('keydown',keybo
 </tbody>
 </table>
 </div>
-<p v-if="!usageGroups?.length" class="empty">{{ usageGroups ? t('noUsage') : t('noData') }}</p>
+<p v-if="!usageGroups?.length && !usage?.requests" class="empty">{{ usageGroups ? t('noUsage') : t('noData') }}</p>
+</article>
+<article v-if="Array.isArray(usage?.requests)" class="panel">
+<p>{{ t('teamUsage') }} · {{ t(usage.scope) }}</p>
+<p class="small-muted">{{ t('admissionWindow') }}</p>
+<div v-for="item in usage.requests" :key="item.record.admission.id" class="panel">
+<h3>{{ item.record.admission.route }} · {{ short(item.record.admission.id) }}</h3>
+<p>{{ item.record.admission.subject }} · {{ t(item.usage.state) }}</p>
+<details><summary>{{ t('details') }}</summary><pre class="json-view">{{ pretty(item) }}</pre></details>
+</div>
+<p v-if="!usage.requests.length" class="empty">{{ t('noTeamUsage') }}</p>
+<button v-if="usage.next_after" :disabled="busy" @click="moreUsage">{{ t('more') }}</button>
 </article>
 </template>
         <template v-if="page==='activity'">

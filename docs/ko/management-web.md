@@ -14,6 +14,8 @@ Gateway 프로세스를 만들지 않으며 기본 Gateway의 의존성을 늘�
 호스트가 검증된 정적 파일과 관리 API를 같은 numeric loopback Origin에서 제공해야 합니다.
 실제 실행·확장 adapter 조립은 별도로 검증합니다. 합성 브라우저 fixture는 제품 구성이 아닙니다.
 
+제공 [Standalone 관리 애플리케이션](standalone-management.md)은 명시적 저장소, 조회 Web, 선택형 Team 접근으로 이 adapter를 조립합니다.
+
 ## 화면과 관측 의미
 
 애플리케이션은 `gateway-management-http/v1`과 `gateway-management-state/v1`을

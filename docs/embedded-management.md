@@ -15,6 +15,8 @@ lifetime and business state. This package requires no consumer domain types and
 starts no process, listener, local user store or background activity by itself.
 The default Gateway does not depend on it.
 
+The supplied [standalone management application](standalone-management.md) composes these adapters with explicit stores, read-only Web and optional Team access.
+
 ## Declared host responsibilities
 
 `HostContract` uses `gateway-embedded-management/v1`, one registered target, an
