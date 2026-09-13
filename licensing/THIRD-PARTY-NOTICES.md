@@ -7,7 +7,7 @@ This list does not claim every entry is linked into the final executable.
 A separate project agreement does not replace third-party permissions or notices.
 Original texts may include alternative licenses; unselected alternatives are not all applied together.
 
-Cargo.lock SHA-256: `029f272f13dfc3c5bd96653bcd1996a50fb3a1835588b30ee743588aa0d79e28`
+Cargo.lock SHA-256: `8dea225971ffd7b66f07447545e134b942297eec09002fc09bb6c60ca4285208`
 
 Policy SHA-256: `e1ba21edef578a2dee4f9846c88ff4a3e1a9a7f7cd3507f16f2b228591a51f5d`
 

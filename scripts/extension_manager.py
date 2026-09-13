@@ -40,6 +40,10 @@ class ExtensionError(ValueError):
     pass
 
 
+class ExtensionConflict(ExtensionError):
+    pass
+
+
 def require(condition, message):
     if not condition:
         raise ExtensionError(message)
@@ -66,6 +70,7 @@ def version(value):
 
 
 def target():
+    require(sys.version_info >= (3, 11), 'Native extension management requires Python 3.11+')
     require(sys.platform in ('linux', 'darwin'), 'Native extensions require Linux or macOS')
     arch = {'x86_64': 'x64', 'amd64': 'x64', 'aarch64': 'arm64', 'arm64': 'arm64'}.get(platform.machine().lower())
     require(arch is not None, 'Unsupported extension architecture')
@@ -252,16 +257,91 @@ def installed_dir(root, package_id, package_version, sha):
     return root / 'packages' / package_id / package_version / sha
 
 
-def install(root, directory, expected):
-    root = open_store(root)
+def existing_store(path):
+    target()
+    root = private_dir(path)
+    for name in ('packages', 'state'):
+        private_dir(root / name)
+    return root
+
+
+def inventory_unlocked(root):
+    """Bounded installed/selected inventory; never infer a running process."""
+    installed = []
+    budget = 1024
+
+    def entries(directory):
+        nonlocal budget
+        found = []
+        for item in directory.iterdir():
+            budget -= 1
+            require(budget >= 0, 'Extension inventory exceeds its bound')
+            found.append(item)
+        return sorted(found, key=lambda p: p.name)
+
+    activation = read_lock(root)
+    for identity in entries(root / 'packages'):
+        require(identifier(identity.name), 'Unrecognized package artifact; inspect the store')
+        private_dir(identity)
+        for release in entries(identity):
+            require(version(release.name), 'Unrecognized package artifact; inspect the store')
+            private_dir(release)
+            for location in entries(release):
+                require(hex_digest(location.name), 'Unrecognized package artifact; inspect the store')
+                require(len(installed) < 128, 'Extension inventory exceeds its bound')
+                package = None
+                try:
+                    package, _ = inspect_package(location, location.name, private=True)
+                    require((package['id'], package['version']) == (identity.name, release.name), 'Installed identity mismatch')
+                except (OSError, ValueError, TypeError, KeyError):
+                    package = None
+                installed.append({'id': identity.name, 'version': release.name,
+                                  'package_sha256': location.name, 'verified': package is not None,
+                                  'package': package})
+    return {'schema': 'gateway-native-inventory/v1', 'activation': activation,
+            'installed': installed, 'runtime_checked': False, 'removal_supported': False}
+
+
+def inventory(root):
+    root = existing_store(root)
+    with mutation_lock(root):
+        value = inventory_unlocked(root)
+        return {'inventory': value, 'generation': value['activation']['generation'],
+                'inventory_sha256': digest(canonical(value))}
+
+
+def check_expected(root, expected):
+    """Only call while holding the same mutation lock as legacy CLI writers."""
+    if expected is None:
+        return
+    require(isinstance(expected, dict) and set(expected) == {'generation', 'inventory_sha256'}
+            and type(expected['generation']) is int and 0 <= expected['generation'] < 2**64
+            and hex_digest(expected['inventory_sha256']), 'Invalid inventory precondition')
+    value = inventory_unlocked(root)
+    if (value['activation']['generation'] != expected['generation']
+            or digest(canonical(value)) != expected['inventory_sha256']):
+        raise ExtensionConflict('Extension inventory changed')
+
+
+def guarded_result(root, result, condition):
+    if condition is None:
+        return result
+    value = inventory_unlocked(root)
+    return {'result': result, 'after': {'inventory': value, 'generation': value['activation']['generation'],
+                                      'inventory_sha256': digest(canonical(value))}}
+
+
+def install(root, directory, expected, *, condition=None):
+    root = existing_store(root) if condition is not None else open_store(root)
     package, contents = inspect_package(directory, expected)
     with mutation_lock(root):
+        check_expected(root, condition)
         identity = private_dir(root / 'packages' / package['id'], create=True)
         versions = private_dir(identity / package['version'], create=True)
         destination = versions / expected
         if destination.exists() or destination.is_symlink():
             inspect_package(destination, expected, private=True)
-            return package
+            return guarded_result(root, package, condition)
         temporary = private_dir(versions / ('.install-' + uuid.uuid4().hex), create=True)
         try:
             for name, content in contents.items():
@@ -273,13 +353,14 @@ def install(root, directory, expected):
             if temporary.exists():
                 shutil.rmtree(temporary)
         # Installation never activates and never reads or rotates account credentials.
-        return package
+        return guarded_result(root, package, condition)
 
 
-def enable(root, package_id, package_version, sha, grants, recorder=None):
-    root = open_store(root)
+def enable(root, package_id, package_version, sha, grants, recorder=None, *, condition=None):
+    root = existing_store(root) if condition is not None else open_store(root)
     require(sorted(grants) in (PERMISSIONS, RECORDER_PERMISSIONS, CODEC_PERMISSIONS), 'Explicit permission approval is required')
     with mutation_lock(root):
+        check_expected(root, condition)
         directory = installed_dir(root, package_id, package_version, sha)
         package, _ = inspect_package(directory, sha, private=True)
         require((package['id'], package['version']) == (package_id, package_version), 'Installed identity mismatch')
@@ -301,21 +382,25 @@ def enable(root, package_id, package_version, sha, grants, recorder=None):
             lock['schema'] = 'gateway-extension-lock/v2'
         else:
             require(recorder is None, 'Observer cannot use recorder binding')
+        if not any(entry['grants'] == RECORDER_PERMISSIONS for entry in entries):
+            lock.pop('recorder', None)
+            lock['schema'] = LOCK_SCHEMA
         lock['extensions'] = entries
-        return commit_lock(root, lock)
+        return guarded_result(root, commit_lock(root, lock), condition)
 
 
-def disable(root, package_id):
-    root = open_store(root)
+def disable(root, package_id, *, condition=None):
+    root = existing_store(root) if condition is not None else open_store(root)
     require(identifier(package_id), 'Invalid package identity')
     with mutation_lock(root):
+        check_expected(root, condition)
         lock = read_lock(root)
         require(any(e['id'] == package_id for e in lock['extensions']), 'Extension is not enabled')
         lock['extensions'] = [e for e in lock['extensions'] if e['id'] != package_id]
         if not any(e['grants'] == RECORDER_PERMISSIONS for e in lock['extensions']):
             lock.pop('recorder', None)
             lock['schema'] = LOCK_SCHEMA
-        return commit_lock(root, lock)
+        return guarded_result(root, commit_lock(root, lock), condition)
 
 
 def package_binary(binary, license_file, output, package_id, package_version, role="http_metadata_observer", codec_protocol=CODEC_PROTOCOL):
@@ -358,9 +443,12 @@ def main(argv=None):
     inspect = commands.add_parser('inspect')
     inspect.add_argument('--package', type=Path, required=True)
     inspect.add_argument('--expected-sha256', required=True)
-    for command in ('install', 'enable', 'disable', 'status'):
+    for command in ('install', 'enable', 'disable', 'status', 'inventory'):
         sub = commands.add_parser(command)
         sub.add_argument('--store', type=Path, required=True)
+        if command in ('install', 'enable', 'disable'):
+            sub.add_argument('--expected-generation', type=int)
+            sub.add_argument('--expected-inventory-sha256')
         if command == 'install':
             sub.add_argument('--package', type=Path, required=True)
             sub.add_argument('--expected-sha256', required=True)
@@ -370,27 +458,44 @@ def main(argv=None):
             sub.add_argument('--version', required=True)
             sub.add_argument('--package-sha256', required=True)
             sub.add_argument('--grant', action='append', default=[])
-            sub.add_argument('--recorder-binding', type=Path)
+            binding = sub.add_mutually_exclusive_group()
+            binding.add_argument('--recorder-binding', type=Path)
+            binding.add_argument('--recorder-binding-json')
     args = parser.parse_args(argv)
     try:
         target()
+        condition = None
+        if args.command in ('install', 'enable', 'disable'):
+            if args.expected_generation is not None or args.expected_inventory_sha256 is not None:
+                require(args.expected_generation is not None and args.expected_inventory_sha256 is not None,
+                        'Both inventory preconditions are required')
+                condition = {'generation': args.expected_generation, 'inventory_sha256': args.expected_inventory_sha256}
         if args.command == 'package':
             result = {'package_sha256': package_binary(args.binary, args.license_file, args.output, args.id, args.version, args.role, args.codec_protocol)}
         elif args.command == 'inspect':
             package, _ = inspect_package(args.package, args.expected_sha256)
             result = {'package': package, 'executed': False}
         elif args.command == 'install':
-            package = install(args.store, args.package, args.expected_sha256)
-            result = {'id': package['id'], 'version': package['version'], 'installed': True, 'activated': False}
+            package = install(args.store, args.package, args.expected_sha256, condition=condition)
+            result = package if condition is not None else {'id': package['id'], 'version': package['version'], 'installed': True, 'activated': False}
         elif args.command == 'enable':
-            result = enable(args.store, args.id, args.version, args.package_sha256, args.grant, decode_json(read_file(args.recorder_binding, MAX_JSON, private=True)) if args.recorder_binding else None)
+            binding = decode_json(read_file(args.recorder_binding, MAX_JSON, private=True)) if args.recorder_binding else None
+            if args.recorder_binding_json is not None:
+                require(len(args.recorder_binding_json) <= MAX_JSON, 'Recorder binding exceeds its bound')
+                binding = decode_json(args.recorder_binding_json)
+            result = enable(args.store, args.id, args.version, args.package_sha256, args.grant, binding, condition=condition)
         elif args.command == 'disable':
-            result = disable(args.store, args.id)
+            result = disable(args.store, args.id, condition=condition)
+        elif args.command == 'inventory':
+            result = inventory(args.store)
         else:
             root = private_dir(args.store)
             result = {'activation': read_lock(root), 'runtime_checked': False}
         print(canonical(result).decode(), end='')
         return 0
+    except ExtensionConflict:
+        print('Extension inventory changed; inspect before submitting a new operation', file=sys.stderr)
+        return 3
     except (OSError, ValueError, TypeError, KeyError):
         # Even a parser/filesystem error must not echo a path or supplied document.
         print('Extension operation failed; verify package, permissions, target and store', file=sys.stderr)

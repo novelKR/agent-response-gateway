@@ -1,4 +1,4 @@
-from contextlib import redirect_stderr, redirect_stdout
+from contextlib import contextmanager, redirect_stderr, redirect_stdout
 import importlib.util
 import io
 import json
@@ -48,6 +48,95 @@ class ExtensionManagerTests(unittest.TestCase):
         self.assertFalse((self.store / 'active.json').exists())
         self.assertEqual(m.read_lock(self.store)['extensions'], [])
         self.assertEqual(list((self.store / 'state').iterdir()), [])
+
+    def condition(self):
+        report = m.inventory(self.store)
+        return {key: report[key] for key in ('generation', 'inventory_sha256')}
+
+    def test_inventory_distinguishes_installation_selection_and_damaged_bytes(self):
+        self.install()
+        installed = m.inventory(self.store)['inventory']
+        self.assertEqual(installed['activation']['extensions'], [])
+        self.assertTrue(installed['installed'][0]['verified'])
+        self.assertFalse(installed['runtime_checked'])
+        self.assertFalse(installed['removal_supported'])
+        self.enable()
+        self.assertEqual(len(m.inventory(self.store)['inventory']['activation']['extensions']), 1)
+        binary = m.installed_dir(self.store, 'observer', '0.1.0', self.sha) / 'extension'
+        binary.chmod(0o700)
+        binary.write_bytes(b'damaged')
+        damaged = m.inventory(self.store)['inventory']
+        self.assertFalse(damaged['installed'][0]['verified'])
+        self.assertIsNone(damaged['installed'][0]['package'])
+        m.disable(self.store, 'observer', condition=self.condition())
+        self.assertEqual(binary.read_bytes(), b'damaged')
+
+    def test_precondition_is_checked_inside_the_legacy_mutation_lock(self):
+        self.install()
+        expected = self.condition()
+        original = m.mutation_lock
+
+        @contextmanager
+        def intervening_writer(root):
+            with original(root):
+                m.commit_lock(root, m.read_lock(root))
+            with original(root):
+                yield
+
+        with patch.object(m, 'mutation_lock', intervening_writer), self.assertRaises(m.ExtensionConflict):
+            m.enable(self.store, 'observer', '0.1.0', self.sha, m.PERMISSIONS, condition=expected)
+        self.assertEqual(m.read_lock(self.store)['extensions'], [])
+        self.assertFalse((self.store / 'state' / 'observer').exists())
+
+    def test_installation_inventory_changes_even_without_activation_generation(self):
+        m.open_store(self.store)
+        before = self.condition()
+        self.install()
+        self.assertEqual(m.read_lock(self.store)['generation'], before['generation'])
+        with self.assertRaises(m.ExtensionConflict):
+            m.enable(self.store, 'observer', '0.1.0', self.sha, m.PERMISSIONS, condition=before)
+        self.assertEqual(list((self.store / 'state').iterdir()), [])
+
+    def test_guarded_install_does_not_implicitly_initialize_a_store(self):
+        with self.assertRaises(OSError):
+            m.install(self.store, self.package, self.sha, condition={'generation': 0, 'inventory_sha256': '0' * 64})
+        self.assertFalse(self.store.exists())
+
+    def test_inventory_does_not_hide_interrupted_install_artifacts(self):
+        self.install()
+        (self.store / 'packages' / 'observer' / '0.1.0' / '.install-interrupted').mkdir(mode=0o700)
+        with self.assertRaises(m.ExtensionError):
+            m.inventory(self.store)
+
+    def test_guarded_result_binds_the_completion_inventory(self):
+        self.install()
+        result = m.enable(self.store, 'observer', '0.1.0', self.sha, m.PERMISSIONS, condition=self.condition())
+        self.assertEqual(result['result'], result['after']['inventory']['activation'])
+        self.assertEqual(result['after'], m.inventory(self.store))
+
+    def test_replacing_a_recorder_with_an_observer_preserves_data_and_clears_binding(self):
+        recorder = self.root / 'recorder'
+        sha = m.package_binary(self.binary, self.license, recorder, 'observer', '0.0.1', 'usage_recorder')
+        m.install(self.store, recorder, sha)
+        usage = self.store / 'usage'
+        usage.mkdir(mode=0o700)
+        data = usage / 'synthetic-store'
+        data.mkdir(mode=0o700)
+        m.write_new(data / 'recorder.json', b'{}\n')
+        m.write_new(data / 'preserved', b'synthetic retained usage')
+        binding = {'store_id': 'synthetic-store', 'mode': 'best_effort', 'queue_capacity': 2,
+                   'ack_timeout_ms': 100, 'config_sha256': m.digest(b'{}\n')}
+        m.enable(self.store, 'observer', '0.0.1', sha, m.RECORDER_PERMISSIONS, binding)
+        self.install()
+        result = m.enable(self.store, 'observer', '0.1.0', self.sha, m.PERMISSIONS, condition=self.condition())
+        self.assertNotIn('recorder', m.read_lock(self.store))
+        self.assertEqual(result['after']['inventory']['activation']['schema'], m.LOCK_SCHEMA)
+        self.assertEqual((data / 'preserved').read_bytes(), b'synthetic retained usage')
+
+    def test_old_python_rejects_before_store_creation(self):
+        with patch.object(m.sys, 'version_info', (3, 10)), self.assertRaises(m.ExtensionError):
+            self.install()
+        self.assertFalse(self.store.exists())
 
     def test_enable_disable_and_reinstall_preserve_immutable_bytes(self):
         self.install()
