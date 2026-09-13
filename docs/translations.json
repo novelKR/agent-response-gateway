@@ -1087,6 +1087,28 @@
       ],
       "source_sha256": "7b12497c9da347445a47197e0946134cb3ea46d7147f79476e4e5dfe16106129",
       "translation_sha256": "e89f4b2f90bc14f8435bceb78fa9499d3ca912dc3a2a09040649a4eb5f7ec4de"
+    },
+    {
+      "id": "team-access",
+      "section": "integration",
+      "order": 39,
+      "source": "docs/team-access.md",
+      "translation": "docs/ko/team-access.md",
+      "route": "/guide/team-access",
+      "anchors": [
+        "audited-changes-and-one-time-delivery",
+        "identity-and-purpose",
+        "optional-named-credentials-and-team-authority",
+        "store-ownership-and-recovery",
+        "validation-and-integration-limits",
+        "감사-변경과-일회성-전달",
+        "검증과-연동-제한",
+        "선택형-주체-credential과-팀-권한",
+        "저장소-소유권과-복구",
+        "정체성과-용도"
+      ],
+      "source_sha256": "a5c918e4de98f8e3505a586140a7cefa68ac03865bf232095d5a98cc18029172",
+      "translation_sha256": "c641c89028dae800e1870343c92d98fd4424ce66d41be1c3a8ac5e396ecfebe5"
     }
   ]
 }
