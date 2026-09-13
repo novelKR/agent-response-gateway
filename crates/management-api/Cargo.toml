@@ -1,0 +1,29 @@
+[package]
+name = "gateway-management-api"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.98"
+license = "AGPL-3.0-only"
+publish = false
+
+[[bin]]
+name = "gateway-management-cli"
+path = "src/main.rs"
+
+[dependencies]
+gateway-management = { path = "../management" }
+axum = "0.8"
+clap = { version = "4", features = ["derive"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream"] }
+futures-util = "0.3"
+ring = { version = "0.17", default-features = false }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["arbitrary_precision"] }
+subtle = "2"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "time", "sync"] }
+url = "2"
+
+[dev-dependencies]
+tempfile = "3"
+tower = { version = "0.5", features = ["util"] }
+rusqlite = { version = "=0.40.2", features = ["bundled"] }

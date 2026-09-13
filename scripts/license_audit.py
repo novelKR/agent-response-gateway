@@ -35,7 +35,7 @@ MAX_MEMBER = 32 * 1024 * 1024
 MAX_EXPANDED = 256 * 1024 * 1024
 MAX_RECORD = 8 * 1024 * 1024
 MAX_PACKAGES = 4096
-LOCAL_PACKAGES = {"agent-response-gateway": "Cargo.toml", "gateway-usage-contract": "crates/usage-contract/Cargo.toml", "gateway-usage-recorder": "extensions/usage-recorder/Cargo.toml", "gateway-management": "crates/management/Cargo.toml", "gateway-management-runtime": "crates/management-runtime/Cargo.toml", "gateway-management-extensions": "crates/management-extensions/Cargo.toml"}
+LOCAL_PACKAGES = {"agent-response-gateway": "Cargo.toml", "gateway-usage-contract": "crates/usage-contract/Cargo.toml", "gateway-usage-recorder": "extensions/usage-recorder/Cargo.toml", "gateway-management": "crates/management/Cargo.toml", "gateway-management-runtime": "crates/management-runtime/Cargo.toml", "gateway-management-extensions": "crates/management-extensions/Cargo.toml", "gateway-management-api": "crates/management-api/Cargo.toml"}
 SCOPE = "cargo-lock-all-platforms-including-build-and-dev; not a linked-binary inventory"
 
 
