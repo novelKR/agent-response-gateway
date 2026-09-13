@@ -193,7 +193,7 @@ jobs:
 
   codex-conformance:
     runs-on: macos-15
-    timeout-minutes: 25
+    timeout-minutes: 30
     env:
       CARGO_HOME: ${{ github.workspace }}/.local/cargo-home
       CARGO_TARGET_DIR: ${{ github.workspace }}/target
