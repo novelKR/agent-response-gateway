@@ -72,8 +72,9 @@ JavaScript를 실행하거나 일반적으로 해석하지 않는다. 생성한 
 정책 의미에는 `gateway-editing-policy/v1`, 선택형 실행에는
 `gateway-embedded-manifest/v7`, `gateway-ready/v7`,
 `gateway-extended-manifest/v7`, `gateway-extended-ready/v7`을 예약한다.
-새 codec·팩·인증된 매핑에는 `gateway-api-codec/v2`, `gateway-profile-pack/v2`,
-`gateway-continuation/v3`을 예약한다. 이는 계획 버전이며 현재 지원 스키마가 아니다.
+편집을 지원하는 codec·팩에는 `gateway-api-codec/v2`와 `gateway-profile-pack/v2`를
+사용한다. `gateway-continuation/v3`은 향후 매핑 메타데이터를 위해 예약하며 현재
+가역 편집은 기존 replay v2를 사용한다.
 기존 설정과 v1/v2 replay는 원래 바이트 계약을 유지한다. DB 테이블 이행이나 암호문
 재작성은 자동 수행하지 않는다. 새 경로 origin에는 선택한 정책·구현 버전을 모두
 연결한다. rollback에는 호환되는 바이너리·정책·패키지 선택·DB·키·호스트 이력이 필요하다.
@@ -115,8 +116,7 @@ normalization="none"
 
 `old_lines`는 한 줄 이상이어야 한다. 이 버전은 기존 줄 블록을 교체하거나 제거하며
 삽입만 하는 편집은 원래 패치 도구를 사용한다. 전체 16384줄과 컴파일된 패치
-8 MiB로 제한한다. 공백 제거나 개행 보정은 하지 않는다. 이 구현은 Code Mode,
-정규화·작업 묶음·외부 codec·가져온 팩을 활성화하지 않는다.
+8 MiB로 제한한다. 공백 제거나 개행 보정은 하지 않는다. Code Mode·정규화·작업 묶음은 아직 계획된 표현이다.
 
 합성 이름은 원래 도구 정체성과 정책으로 결정한다. 이름 충돌 시 과거 공급자
 이름을 재배정하지 않고 거부한다. 정규 패치는 정확히 역변환하며 기존 비정규
@@ -127,3 +127,41 @@ normalization="none"
 CLI와 라이브러리 호출자는 같은 Config·라우터 경로를 구성한다. 정책 선택 시
 예약된 manifest/readiness v7 계약을 사용한다. 순수 컴파일러 출력은 라우터의
 허용 판정·출력 검증·호스트 승인을 우회할 권한이 아니다.
+
+<a id="editing-pack-and-codec-integration"></a>
+<a id="편집-팩과-codec-통합"></a>
+
+## 편집 팩과 codec 통합
+
+`gateway-profile-pack/v2`는 이름 있는 `editing_policies` export를 추가한다.
+호스트는 `editing_policy_imports`로 export를 가져온 뒤 모델에서 그 별칭을
+선택한다. 기존의 명시적 팩 설치·활성화 절차를 사용한다. v1 팩은 편집 필드를
+거부하고 원래 바이트를 유지한다. 구형·신형 팩은 공존할 수 있지만 가져온 별칭이
+인라인 정책을 덮어쓰지는 못한다.
+
+```toml
+[editing_policy_imports.line-edit]
+pack="synthetic-fixture"
+export="editing-0"
+```
+
+대응 설정 projection은 `gateway-profile-pack-configuration/v2`다. 팩 바이트·
+export 정체성·정책은 경로 origin에 결합한다. 변경이 기존 세션 재사용을 허가하지
+않는다. 근거는 여전히 게시자의 주장이며 제공하는 통합 fixture는 합성 전용이다.
+
+참조 편집 codec은 `cargo build --locked --example api_codec_editing`으로 빌드한다.
+기존 패키지 명령은 `--role api_codec --codec-protocol gateway-api-codec/v2`를
+받는다. 기존 본문 읽기·변환 권한 두 개는 유지한다. 모델과 확장 잠금으로 패키지를
+명시적으로 선택한다. 기존 참조 실행 파일의 codec v1도 유지하며 편집 정책은
+받을 수 없다. 준비 요청의 null 편집 필드도 거부한다. Codec v2는 준비 계약에
+선택한 정책을 담고 공통 순수 컴파일러를 사용한다. 코어 출력 검증·사용량 관찰·
+영속 완료의 권위는 유지한다.
+
+편집 결합 실행은 manifest/readiness v7을 유지한다. 미지 버전·불일치 패키지
+프로토콜은 추론 전에 거부한다. 시험은 정확한 호출 복원·승인 거부·잘못된 편집·
+원본 native 이력을 가진 재시작·낡은 팩 origin·기록기 시작 실패·최종 ACK 실패를
+다룬다. 이 통합은 helper 프로그램 실행이나 새 DB를 추가하지 않는다.
+
+컴파일되는 호스트 예제 [embedded_editing](../../examples/embedded_editing.rs)은
+호스트 소유 런타임·listener·종료 신호와 일반 라우터를 사용한다. 라이브러리의
+전역 로깅을 초기화하거나 프로세스 환경을 변경하지 않는다.

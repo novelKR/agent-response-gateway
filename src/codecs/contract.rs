@@ -9,6 +9,10 @@ use serde_json::Value;
 use std::collections::BTreeMap;
 
 pub const PROTOCOL: &str = "gateway-api-codec/v1";
+pub const EDITING_PROTOCOL: &str = "gateway-api-codec/v2";
+pub fn supported_protocol(value: &str) -> bool {
+    matches!(value, PROTOCOL | EDITING_PROTOCOL)
+}
 pub const MAX_FRAME: usize = 128 * 1024 * 1024;
 
 #[derive(Serialize, Deserialize)]
@@ -111,6 +115,8 @@ pub struct ReplaySpan {
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Prepare {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub editing: Option<crate::editing::Policy>,
     pub request: Value,
     pub route: Route,
     pub managed: bool,

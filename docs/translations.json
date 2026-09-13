@@ -947,6 +947,7 @@
       "anchors": [
         "direct-context-editing",
         "editing-compatibility-contract",
+        "editing-pack-and-codec-integration",
         "helper-and-normalization-contracts",
         "helper와-정규화-계약",
         "independent-operation-bundles",
@@ -960,10 +961,11 @@
         "직접-문맥-편집",
         "직접-문맥-편집-사용",
         "책임과-활성화",
+        "편집-팩과-codec-통합",
         "편집-호환-계약"
       ],
-      "source_sha256": "1bc3125e9457d61cfee036291ecfab64e78f206584104b092db8b5f114b10663",
-      "translation_sha256": "8421f942e76eca50aa1e9579542256f203252682b1eed3d979aec5ca4df3086f"
+      "source_sha256": "3190234e7f06a0f3943f06ceaa91f5fb5262a3739a71db8a5770ecb334e3c9cb",
+      "translation_sha256": "493ab1b477b81b43d24a27d257590d8d6118acc6ff7be6aa24b2a8a105999a27"
     }
   ]
 }

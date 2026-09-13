@@ -11,6 +11,7 @@ mod filesystem;
 pub mod manager;
 
 const PACKAGE_SCHEMA: &str = "gateway-profile-pack/v1";
+const EDITING_PACKAGE_SCHEMA: &str = "gateway-profile-pack/v2";
 const LOCK_SCHEMA: &str = "gateway-profile-pack-lock/v1";
 const MAX_PACKAGE: u64 = 262_144;
 const MAX_LOCK: u64 = 16_384;
@@ -125,6 +126,8 @@ struct Package {
     version: String,
     capabilities: BTreeMap<String, CapabilityTemplate>,
     policies: BTreeMap<String, CompatibilityPolicy>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    editing_policies: BTreeMap<String, crate::editing::Policy>,
     evidence: Vec<Evidence>,
     /// Original notice text, kept inside the single data file; never interpreted as paths.
     notices: BTreeMap<String, String>,
@@ -132,11 +135,14 @@ struct Package {
 
 impl Package {
     fn validate(&self) -> Result<(), ConfigError> {
-        if self.schema != PACKAGE_SCHEMA
+        if !matches!(
+            self.schema.as_str(),
+            PACKAGE_SCHEMA | EDITING_PACKAGE_SCHEMA
+        ) || (self.schema == PACKAGE_SCHEMA && !self.editing_policies.is_empty())
             || !identifier(&self.id)
             || !version(&self.version)
-            || self.capabilities.len() + self.policies.len() == 0
-            || self.capabilities.len() + self.policies.len() > 64
+            || self.capabilities.len() + self.policies.len() + self.editing_policies.len() == 0
+            || self.capabilities.len() + self.policies.len() + self.editing_policies.len() > 64
             || self.evidence.len() > 16
             || !self.notices.contains_key("LICENSE")
             || self.notices.len() > 16
@@ -166,6 +172,12 @@ impl Package {
             {
                 return Err(invalid());
             }
+        }
+        for (id, policy) in &self.editing_policies {
+            if !identifier(id) {
+                return Err(invalid());
+            }
+            policy.validate().map_err(|_| invalid())?;
         }
         for (id, policy) in &self.policies {
             if !identifier(id) {
@@ -271,8 +283,13 @@ impl ProfilePackPlan {
         })
     }
 
+    pub(crate) fn editing_contract(&self) -> bool {
+        self.packages
+            .values()
+            .any(|p| p.schema == EDITING_PACKAGE_SCHEMA)
+    }
     fn projection(&self) -> Value {
-        json!({"schema":"gateway-profile-pack-configuration/v1", "activation":self.activation,
+        json!({"schema":if self.editing_contract() { "gateway-profile-pack-configuration/v2" } else { "gateway-profile-pack-configuration/v1" }, "activation":self.activation,
             "packages":self.packages, "evidence_status":"publisher_claims_not_attestation"})
     }
 
@@ -368,21 +385,50 @@ impl Config {
                 return Err(invalid());
             }
         }
+        for (id, import) in &config.editing_policy_imports {
+            let policy = plan
+                .selected(&import.pack, &import.export)?
+                .editing_policies
+                .get(&import.export)
+                .ok_or_else(invalid)?;
+            if config
+                .editing_policies
+                .insert(id.clone(), policy.clone())
+                .is_some()
+            {
+                return Err(invalid());
+            }
+        }
         config.profile_packs = Some(plan);
         Ok(())
     }
 
     pub(crate) fn validate_profile_imports(&self) -> Result<(), ConfigError> {
-        if self.capability_profile_imports.len() + self.compatibility_policy_imports.len() > 128 {
+        if self.capability_profile_imports.len()
+            + self.compatibility_policy_imports.len()
+            + self.editing_policy_imports.len()
+            > 128
+        {
             return Err(invalid());
         }
         if self.profile_packs.is_none()
             && (!self.capability_profile_imports.is_empty()
-                || !self.compatibility_policy_imports.is_empty())
+                || !self.compatibility_policy_imports.is_empty()
+                || !self.editing_policy_imports.is_empty())
         {
             return Err(invalid());
         }
         if let Some(plan) = &self.profile_packs {
+            for (id, import) in &self.editing_policy_imports {
+                let policy = plan
+                    .selected(&import.pack, &import.export)?
+                    .editing_policies
+                    .get(&import.export)
+                    .ok_or_else(invalid)?;
+                if !label(id) || self.editing_policies.get(id) != Some(policy) {
+                    return Err(invalid());
+                }
+            }
             for (id, import) in &self.capability_profile_imports {
                 let package = plan.selected(&import.pack, &import.export)?;
                 let template = package
@@ -415,6 +461,9 @@ impl Config {
             let mut value = plan.projection();
             value["capability_imports"] = json!(self.capability_profile_imports);
             value["policy_imports"] = json!(self.compatibility_policy_imports);
+            if plan.editing_contract() {
+                value["editing_imports"] = json!(self.editing_policy_imports);
+            }
             value
         })
     }
@@ -429,11 +478,17 @@ impl Config {
             .compatibility_policy
             .as_ref()
             .and_then(|id| self.compatibility_policy_imports.get(id));
-        if capability.is_none() && policy.is_none() {
+        let editing = model
+            .editing_policy
+            .as_ref()
+            .and_then(|id| self.editing_policy_imports.get(id));
+        if capability.is_none() && policy.is_none() && editing.is_none() {
             return None;
         }
-        Some(
-            json!({"capability":capability.map(|i| plan.entry(&i.pack, &i.export)), "policy":policy.map(|i| plan.entry(&i.pack, &i.export))}),
-        )
+        let mut value = json!({"capability":capability.map(|i| plan.entry(&i.pack, &i.export)), "policy":policy.map(|i| plan.entry(&i.pack, &i.export))});
+        if let Some(import) = editing {
+            value["editing"] = plan.entry(&import.pack, &import.export);
+        }
+        Some(value)
     }
 }

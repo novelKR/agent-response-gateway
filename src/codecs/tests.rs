@@ -10,6 +10,28 @@ fn frame(sequence: u64, operation: Value) -> Vec<u8> {
 fn prepare() -> Value {
     json!({"operation":"prepare","value":{"request":{"model":"synthetic","input":"test","stream":false},"route":{"api":"responses","model":"synthetic","profile_id":"fixture","profile_version":"1","reasoning_contract":null,"support":{},"context_window":8192,"max_output_tokens":2048},"managed":false,"pending_tools":false,"history":[],"max_output_bytes":65536}})
 }
+
+#[test]
+fn legacy_codec_rejects_new_editing_fields_including_null() {
+    for editing in [Value::Null, json!({"version":1})] {
+        let mut operation = prepare();
+        operation["value"]["editing"] = editing;
+        assert!(engine::serve(&mut Cursor::new(frame(1, operation)), &mut vec![]).is_err());
+    }
+}
+
+#[test]
+fn editing_codec_requires_its_version_and_valid_policy() {
+    assert!(engine::serve_editing(&mut Cursor::new(frame(1, prepare())), &mut vec![]).is_err());
+    let mut operation = prepare();
+    operation["value"]["editing"] = json!({"version":2,"client_contract":"codex-direct-custom/v1","representation":"context-lines/v1","patch_dialect":"codex-patch/1","normalization":"none"});
+    let raw = serde_json::to_vec(
+        &json!({"protocol":EDITING_PROTOCOL,"sequence":1,"operation":operation}),
+    )
+    .unwrap();
+    let framed = [&(raw.len() as u32).to_be_bytes()[..], &raw].concat();
+    assert!(engine::serve_editing(&mut Cursor::new(framed), &mut vec![]).is_err());
+}
 fn replies(raw: Vec<u8>) -> Vec<Value> {
     let mut cursor = Cursor::new(raw);
     let mut values = vec![];

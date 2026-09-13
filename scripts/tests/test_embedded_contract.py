@@ -32,7 +32,8 @@ class EmbeddedContractTests(unittest.TestCase):
         def stamp(v):v['configuration_sha256']=hashlib.sha256(json.dumps(v['configuration'],ensure_ascii=False,sort_keys=True,separators=(',',':')).encode()).hexdigest()
         stamp(value);contract.validate_manifest(value)
         r=ready(value);r['schema']='gateway-ready/v6';contract.parse_ready_line(json.dumps(r)+'\n',value)
-        for field,wrong in [('protocol','gateway-api-codec/v2'),('replay_versions',[2]),('permissions',['read_credentials']),('package_sha256','wrong')]:
+        editing_codec=copy.deepcopy(value);editing_codec['configuration']['routes'][0]['api_codec']['protocol']='gateway-api-codec/v2';stamp(editing_codec);contract.validate_manifest(editing_codec)
+        for field,wrong in [('protocol','gateway-api-codec/v3'),('replay_versions',[2]),('permissions',['read_credentials']),('package_sha256','wrong')]:
             changed=copy.deepcopy(value);changed['configuration']['routes'][0]['api_codec'][field]=wrong;stamp(changed)
             with self.subTest(field=field),self.assertRaises(ValueError):contract.validate_manifest(changed)
         changed=copy.deepcopy(value);changed['configuration']['routes'][0]['api_codec']['package_sha256']='c'*64

@@ -76,12 +76,12 @@ finish. Preserve preceding text progress and item order. Do not expose executabl
 completion before continuation finalization and any durable recorder final ACK.
 EOF, cancellation and failures never synthesize completion or repeat inference.
 
-Reserve `gateway-editing-policy/v1` for policy meaning and
+Use `gateway-editing-policy/v1` for policy meaning and
 `gateway-embedded-manifest/v7`, `gateway-ready/v7`,
 `gateway-extended-manifest/v7`, `gateway-extended-ready/v7` for opted-in execution.
-Reserve `gateway-api-codec/v2`, `gateway-profile-pack/v2` and
-`gateway-continuation/v3` for new codec, pack and authenticated mapping contracts.
-These are planned versions, not currently supported schemas. Old configurations
+Use `gateway-api-codec/v2` and `gateway-profile-pack/v2` for editing-aware codecs
+and packs. `gateway-continuation/v3` remains reserved for future mapping metadata;
+current reversible edits use existing replay v2. Old configurations
 and v1/v2 replay retain their original byte contracts. Do not migrate database
 tables or rewrite ciphertext automatically. New route origins bind every selected
 policy and implementation version. Rollback requires a compatible binary, policy,
@@ -126,8 +126,7 @@ normalization="none"
 `old_lines` must contain at least one line. This version replaces or removes an
 existing line block; insertion-only edits use the original patch tool. Limits are
 16384 total lines and 8 MiB of compiled patch. No trimming or line-ending repair
-occurs. Code Mode, normalization, operation bundles, external codecs and imported
-packs are not enabled by this implementation.
+occurs. Code Mode, normalization and operation bundles remain planned representations.
 
 Synthetic names are deterministic over original tool identity and policy; a name
 collision rejects instead of reassigning a historical provider name. Canonical
@@ -139,3 +138,44 @@ The editing policy is bound into the route origin. Changes require a new session
 CLI and library callers configure the same Config and router path. Selecting this
 policy yields the reserved manifest/readiness v7 contract. Pure compiler output is
 not permission to bypass router admission, output validation or host approval.
+
+<a id="editing-pack-and-codec-integration"></a>
+<a id="편집-팩과-codec-통합"></a>
+
+## Editing pack and codec integration
+
+`gateway-profile-pack/v2` adds named `editing_policies` exports. The host selects
+an export through `editing_policy_imports`, then selects that alias on its model.
+Use the existing explicit pack installation and activation flow. Version v1 packs
+reject editing fields and retain their original bytes. Mixed old and new packs
+are allowed; aliases never override inline policies.
+
+```toml
+[editing_policy_imports.line-edit]
+pack="synthetic-fixture"
+export="editing-0"
+```
+
+The corresponding configuration projection is `gateway-profile-pack-configuration/v2`.
+Pack bytes, export identity and policy bind the route origin. Changing them does
+not authorize reuse of an existing session. Evidence remains publisher claims;
+the supplied integration fixtures are synthetic only.
+
+Build the reference editing codec with `cargo build --locked --example api_codec_editing`.
+The existing package command accepts `--role api_codec --codec-protocol gateway-api-codec/v2`.
+Its two existing payload/transform permissions are unchanged. Select the package
+explicitly with the model and extension lock. Codec v1 remains available through
+the existing reference executable and cannot accept editing policies, even null
+editing fields in its prepare request. Codec v2 carries the selected policy in
+its prepare contract and uses the shared pure compiler; core output validation,
+usage observation and durable completion remain authoritative.
+
+Combined editing executions retain manifest/readiness v7. Unknown versions and
+mismatched package protocols reject before inference. Tests cover exact restored
+calls, approval denial, invalid edits, restart with original native history, stale
+package origins, recorder admission failure and final ACK failure. Neither helper
+program execution nor a new database is introduced by this integration.
+
+The compiled host example [embedded_editing](../examples/embedded_editing.rs) uses
+the ordinary router with a host-owned runtime, listener and shutdown signal. It
+does not initialize library-global logging or modify process environment.

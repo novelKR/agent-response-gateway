@@ -38,6 +38,7 @@ class Scenario(c.Scenario):
             self.result_seen = True
             return c.wire_response(c.text_item(), 2)
         tools = body.get("tools", [])
+        self.observed_tools = tools
         self.contracts = [{"type": t.get("type"), "name": t.get("name"),
                            "sha256": hashlib.sha256(json.dumps(t, sort_keys=True, separators=(",", ":")).encode()).hexdigest(),
                            "format": {k: v for k, v in t.get("format", {}).items() if k != "definition"},
@@ -54,7 +55,7 @@ class Scenario(c.Scenario):
         return c.wire_response(item, 1)
 
 
-def run(binary, gateway, mode, deny=False):
+def run(binary, gateway, mode, deny=False, capture=None):
     local = c.ROOT / ".local"
     local.mkdir(exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="editing-contract-", dir=local) as tmp, contextlib.ExitStack() as cleanup:
@@ -112,6 +113,8 @@ def run(binary, gateway, mode, deny=False):
             print(json.dumps({"failed_contract": result}), flush=True)
         c.require(not state.errors and final == "completed" and state.result_seen, "contract round trip failed")
         c.require((deny and approvals == 1 and not applied) or (not deny and applied), "execution contract failed")
+        if capture is not None:
+            capture.extend(t["format"] for t in state.observed_tools if t.get("type")=="custom" and t.get("name")=="apply_patch")
         return result
 
 

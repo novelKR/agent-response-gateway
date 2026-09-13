@@ -36,6 +36,8 @@ pub struct Config {
     pub(crate) capability_profile_imports: BTreeMap<String, crate::profile_packs::CapabilityImport>,
     #[serde(default)]
     pub(crate) compatibility_policy_imports: BTreeMap<String, crate::profile_packs::PolicyImport>,
+    #[serde(default)]
+    pub(crate) editing_policy_imports: BTreeMap<String, crate::profile_packs::PolicyImport>,
     #[serde(skip)]
     pub(crate) profile_packs: Option<crate::profile_packs::ProfilePackPlan>,
 }
@@ -232,7 +234,10 @@ impl Config {
     }
     pub fn validate(&self) -> Result<(), ConfigError> {
         self.validate_profile_imports()?;
-        for policy in self.editing_policies.values() {
+        for (id, policy) in &self.editing_policies {
+            if !safe_label(id) {
+                return Err(ConfigError("Invalid editing policy identifier".into()));
+            }
             policy
                 .validate()
                 .map_err(|_| ConfigError("Invalid editing policy".into()))?;
@@ -343,8 +348,11 @@ impl Config {
             && (!self.editing_policies.contains_key(id)
                 || model.capability_profile.is_none()
                 || model.auth.is_none()
-                || model.api_codec.is_some()
-                || self.profile_packs.is_some()
+                || model.api_codec.as_ref().is_some_and(|id| {
+                    self.codecs
+                        .get(id)
+                        .is_none_or(|b| b.protocol != crate::codecs::contract::EDITING_PROTOCOL)
+                })
                 || !model
                     .capability_profile
                     .as_ref()
@@ -357,7 +365,7 @@ impl Config {
                     })
                 || (model.api == ApiProtocol::Responses && model.compatibility_policy.is_none()))
         {
-            return Err(ConfigError("Editing requires a known policy, explicit profile/auth and checked Responses; codec and packs are not yet supported".into()));
+            return Err(ConfigError("Editing requires a known policy, native functions, explicit profile/auth, checked Responses and codec v2 when selected".into()));
         }
         self.validate_profile_imports()?;
         if let Some(id) = &model.api_codec

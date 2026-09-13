@@ -29,16 +29,18 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--gateway-bin',type=Path,required=True)
     parser.add_argument('--runtime-dir',type=Path,default=c.runtime.BUNDLE)
+    parser.add_argument('--codec-bin',type=Path)
+    parser.add_argument('--profile-packs',action='store_true')
     args=parser.parse_args()
     binary=c.runtime.verify_bundle(args.runtime_dir.resolve(),json.loads(c.runtime.LOCK.read_text()))
     for api in ['messages','chat_completions','responses_checked','gemini_interactions']:
         for scenario in ['custom_patch','approval_denial','grammar_failure']:
-            print(json.dumps(c.run_scenario(scenario,binary,args.gateway_bin.resolve(),api,editing=True)),flush=True)
+            print(json.dumps(c.run_scenario(scenario,binary,args.gateway_bin.resolve(),api,editing=True,codec_binary=args.codec_bin,profile_packs=args.profile_packs)),flush=True)
 
     for contract in ['claude_adaptive','claude_manual','deep_seek','open_router']:
         api='messages' if contract.startswith('claude_') else 'chat_completions'
         for scenario in ['custom_patch','approval_denial','grammar_failure']:
-            print(json.dumps(c.run_scenario(scenario,binary,args.gateway_bin.resolve(),api,managed_contract=contract,editing=True)),flush=True)
+            print(json.dumps(c.run_scenario(scenario,binary,args.gateway_bin.resolve(),api,managed_contract=contract,editing=True,codec_binary=args.codec_bin,profile_packs=args.profile_packs)),flush=True)
 
 
 if __name__=='__main__': main()

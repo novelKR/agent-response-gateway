@@ -518,7 +518,7 @@ def run_scenario(name, binary, gateway_binary, api="responses", managed_contract
             gateway_args += ["--profile-packs-lock", str(pack_lock)]
         if codec_binary:
             from codec_fixture import activate as activate_codec
-            encoded,codec_lock=activate_codec(codec_binary,root/'codec',config.read_text())
+            encoded,codec_lock=activate_codec(codec_binary,root/'codec',config.read_text(), editing=editing)
             config.write_text(encoded)
             gateway_args += ['--extensions-lock',str(codec_lock)]
         manifest = embedded_contract.inspect_manifest(gateway_binary, config, env, gateway_args[2:])

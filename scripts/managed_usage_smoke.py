@@ -62,6 +62,44 @@ class Provider(BaseHTTPRequestHandler):
             frames = chat.frames(assistant, 1)
             last = json.loads(frames[-2].decode().split('data: ', 1)[1]); last['usage'] = usage
             frames[-2] = b'data: ' + encode(last) + b'\n\n'
+        if getattr(self.server,'editing',False):
+            definitions=[t.get('function',t) for t in body['tools']]
+            selected=[t for t in definitions if 'before_context' in t.get('parameters',t.get('input_schema',{})).get('properties',{})]
+            assert len(selected)==1
+            args={'path':'synthetic.txt','before_context':[],'old_lines':['old'],'new_lines':['new'],'after_context':[]}
+            def replace(v):
+                if isinstance(v,dict):
+                    if v.get('name')=='echo':
+                        v['name']=selected[0]['name']
+                        if 'input' in v:v['input']=args
+                        if 'arguments' in v:v['arguments']=json.dumps(args) if isinstance(v['arguments'],str) else args
+                    for child in v.values():replace(child)
+                elif isinstance(v,list):
+                    for child in v:replace(child)
+            replace(value)
+            if name=='gemini':frames=gemini.frames(value['steps'],1)
+            elif name.startswith('claude'):
+                frames=claude.frames(value['content'],1)
+                first=json.loads(frames[0].decode().split('data: ',1)[1]);first['message']['usage']={k:v for k,v in usage.items() if k!='output_tokens'}
+                frames[0]=claude.frame('message_start',message=first['message'])
+            else:
+                frames=chat.frames(value['choices'][0]['message'],1)
+                last=json.loads(frames[-2].decode().split('data: ',1)[1]);last['usage']=usage
+                frames[-2]=b'data: '+encode(last)+b'\n\n'
+        if getattr(self.server,'resume_editing',False):
+            if name=='gemini':
+                calls=[v for v in body['input'] if v.get('type')=='function_call']
+                assert any(v['name'].startswith('arg_edit_') and v['arguments']['old_lines']==['old'] for v in calls)
+                value['status']='completed';value['steps']=[{'type':'thought','signature':'synthetic-private-signature'},{'type':'model_output','content':[{'type':'text','text':'resumed'}]}]
+            elif name.startswith('claude'):
+                calls=[v for m in body['messages'] for v in m.get('content',[]) if isinstance(v,dict) and v.get('type')=='tool_use']
+                assert any(v['name'].startswith('arg_edit_') and v['input']['old_lines']==['old'] for v in calls)
+                value['content']=value['content'][:2]+[{'type':'text','text':'resumed'}];value['stop_reason']='end_turn'
+            else:
+                calls=[v for m in body['messages'] for v in m.get('tool_calls',[])]
+                assert any(v['function']['name'].startswith('arg_edit_') and json.loads(v['function']['arguments'])['old_lines']==['old'] for v in calls)
+                value['choices'][0]['message'].pop('tool_calls',None);value['choices'][0]['message']['content']='resumed';value['choices'][0]['finish_reason']='stop'
+            assert not streaming
         if streaming and getattr(self.server, 'decreasing_usage', False):
             first = json.loads(frames[0].decode().split('data: ', 1)[1])
             if name == 'gemini': first['interaction']['usage'] = {'total_output_tokens': 20}
@@ -76,8 +114,15 @@ class Provider(BaseHTTPRequestHandler):
         self.wfile.write(raw)
 
 
-def run(binary, recorder, compatibility_policy=False, profile_packs=False, codec_binary=None):
-    parent = ROOT / '.local/managed-usage-smoke'; parent.mkdir(parents=True, exist_ok=True)
+def run(binary, recorder, compatibility_policy=False, profile_packs=False, codec_binary=None, editing=False, runtime_dir=None):
+    patch_formats=[]
+    if editing:
+        import editing_contract as ec
+        lock=json.loads(ec.c.runtime.LOCK.read_text())
+        codex=ec.c.runtime.verify_bundle(runtime_dir or ec.c.runtime.BUNDLE,lock)
+        ec.run(codex,binary,'direct',capture=patch_formats)
+        assert len(patch_formats)==1
+    parent = ROOT / '.local/managed-usage-smoke' ; parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=parent) as temporary, contextlib.ExitStack() as cleanup:
         root = Path(temporary).resolve(); root.chmod(0o700)
         store = manager.open_store(root / 'extensions')
@@ -100,6 +145,10 @@ def run(binary, recorder, compatibility_policy=False, profile_packs=False, codec
                 route = 'compatibility_policy="checked"\n' + route + '\n[compatibility_policies.checked]\nversion=1\n'
             config = folder / 'gateway.toml'
             config.write_text(f'listen="127.0.0.1:0"\n[providers.mock]\nbase_url="http://127.0.0.1:{upstream.server_port}/v1"\napi_key_env="SYNTHETIC_KEY"\n[models.writer]\nprovider="mock"\nupstream_model="synthetic-model"\n'+route)
+            if editing:
+                from editing_fixture import configure
+                config.write_text(configure(config.read_text()))
+            upstream.editing=editing
             env = {**os.environ, 'ARG_LOCAL_TOKEN': 'L'*40, 'SYNTHETIC_KEY': 'synthetic-key'}
             control_token = gemini.setup(folder, binary, config, env)
             args = ['--config', str(config), '--extensions-lock', str(store / 'active.json')]
@@ -111,12 +160,12 @@ def run(binary, recorder, compatibility_policy=False, profile_packs=False, codec
             if codec_binary:
                 from codec_fixture import activate as activate_codec
                 if name=='gemini':
-                    encoded,unused=activate_codec(codec_binary,folder/'codec',config.read_text(),store)
+                    encoded,unused=activate_codec(codec_binary,folder/'codec',config.read_text(),store,editing=editing)
                 else:
                     encoded=config.read_text().replace('[models.writer]','[models.writer]\napi_codec="reference-codec"')
                 config.write_text(encoded)
             manifest = contract.validate_extended_manifest(json.loads(subprocess.run([str(binary), 'manifest', *args], env=env, capture_output=True, check=True).stdout))
-            assert manifest['schema'] == ('gateway-extended-manifest/v6' if codec_binary else 'gateway-extended-manifest/v5' if profile_packs else 'gateway-extended-manifest/v4' if compatibility_policy else 'gateway-extended-manifest/v3')
+            assert manifest['schema'] == ('gateway-extended-manifest/v7' if editing else 'gateway-extended-manifest/v6' if codec_binary else 'gateway-extended-manifest/v5' if profile_packs else 'gateway-extended-manifest/v4' if compatibility_policy else 'gateway-extended-manifest/v3')
             def start():
                 child = subprocess.Popen([str(binary), 'serve', *args], env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 try:
@@ -128,20 +177,36 @@ def run(binary, recorder, compatibility_policy=False, profile_packs=False, codec
             process, ready = start()
             try:
                 base_manifest = manifest['configuration']['gateway']
+                saved_resume=[]
                 def post(streaming):
                     session = gemini.create_session(ready['base_url'], control_token, base_manifest)
                     body = {'model': 'writer', 'input': 'synthetic', 'stream': streaming,
                             'tools': [{'type': 'function', 'name': 'echo', 'parameters': {'type': 'object', 'properties': {'text': {'type': 'string'}}, 'required': ['text']}}]}
-                    request = Request(ready['base_url']+'/responses', encode(body), {'Authorization': 'Bearer '+'L'*40, 'Content-Type': 'application/json', 'x-gateway-session': session['id']})
+                    if editing: body['tools'].append({'type':'custom','name':'apply_patch','format':patch_formats[0]})
+                    request = Request(ready['base_url']+'/responses' , encode(body), {'Authorization': 'Bearer '+'L'*40, 'Content-Type': 'application/json', 'x-gateway-session': session['id']})
                     try:
                         with client.open(request, timeout=15) as response:
                             try: data = response.read()
                             except Exception as error: data = getattr(error, 'partial', b'')
+                            if editing and not streaming and response.status==200:
+                                saved_resume[:] = [(session, json.loads(data))]
                             return response.status, data
                     except urllib.error.HTTPError as error: return error.code, error.read()
                 for streaming in (False, True):
                     status, data = post(streaming)
                     assert status == 200 and b'arg-continuation-v2.' in data
+                    if editing: assert b'custom_tool_call' in data and b'*** Begin Patch' in data
+                if editing:
+                    old_session, completed=saved_resume[0]
+                    original={'type':'message','role':'user','content':[{'type':'input_text','text':'synthetic'}]}
+                    body={'model':'writer','stream':False,'input':[original,*completed['output'],{'type':'custom_tool_call_output','call_id':'call_1','output':'synthetic applied'}],
+                          'tools':[{'type':'function','name':'echo','parameters':{'type':'object','properties':{'text':{'type':'string'}},'required':['text']}},{'type':'custom','name':'apply_patch','format':patch_formats[0]}]}
+                    terminate(process);process,ready=start();upstream.resume_editing=True
+                    try:
+                        request=Request(ready['base_url']+'/responses',encode(body),{'Authorization':'Bearer '+'L'*40,'Content-Type':'application/json','x-gateway-session':old_session['id']})
+                        with client.open(request,timeout=15) as response:
+                            data=response.read();assert response.status==200 and b'arg-continuation-v2.' in data and b'resumed' in data
+                    finally:upstream.resume_editing=False
                 if profile_packs and name == 'gemini':
                     # An old durable session cannot cross changed package bytes after restart.
                     stale_session = gemini.create_session(ready['base_url'], control_token, base_manifest)
@@ -163,7 +228,7 @@ def run(binary, recorder, compatibility_policy=False, profile_packs=False, codec
                     manifest = contract.validate_extended_manifest(json.loads(subprocess.run([str(binary),'manifest',*args],env=env,capture_output=True,check=True).stdout))
                     process, ready = start()
                     calls = upstream.calls
-                    request = Request(ready['base_url']+'/responses',encode({'model':'writer','input':'synthetic'}),{'Authorization':'Bearer '+'L'*40,'Content-Type':'application/json','x-gateway-session':stale_session['id']})
+                    request = Request(ready['base_url']+'/responses' ,encode({'model':'writer','input':'synthetic'}),{'Authorization':'Bearer '+'L'*40,'Content-Type':'application/json','x-gateway-session':stale_session['id']})
                     try:
                         client.open(request,timeout=15)
                         raise AssertionError('Changed pack accepted old session')
@@ -197,10 +262,10 @@ def run(binary, recorder, compatibility_policy=False, profile_packs=False, codec
                 terminate(process)
         with sqlite3.connect(db_path) as db:
             rows = [json.loads(r[0]) for r in db.execute("SELECT payload FROM usage_current WHERE kind='attempt_finished'")]
-            assert len(rows) == 15
+            assert len(rows) == (20 if editing else 15)
             assert sum(r['gateway'] == 'conversion_failed' for r in rows) == 5
             completed = [r for r in rows if r['gateway'] == 'completed']
-            assert len(completed) == 10
+            assert len(completed) == (15 if editing else 10)
             for row in completed:
                 assert row['upstream'] == 'completed' and row['gateway'] == 'completed' and row['finality'] == 'final'
                 assert row['provider_response_id'] in {'synthetic_1', 'provider_1'}
@@ -211,8 +276,8 @@ def run(binary, recorder, compatibility_policy=False, profile_packs=False, codec
                 if profile == 'deep_seek_v1': assert counters['cache_read_input_tokens']['value'] == 4
                 serialized = json.dumps(row)
                 assert not any(text in serialized for text in ('synthetic-private', 'SYNTHETIC_PUBLIC', 'arg-continuation-', 'synthetic_signature', 'synthetic_encrypted'))
-        assert upstream.calls == 25
-        return {'schema': 'gateway-managed-usage-smoke/v1', 'contracts': 5, 'successful_requests': 10, 'invalid_usage_failures': 5, 'admission_failures': 5, 'finalization_failures': 10, 'provider_requests': upstream.calls, 'status': 'passed'}
+        assert upstream.calls == (30 if editing else 25)
+        return {'schema': 'gateway-managed-usage-smoke/v1', 'contracts': 5, 'successful_requests': 15 if editing else 10, 'invalid_usage_failures': 5, 'admission_failures': 5, 'finalization_failures': 10, 'provider_requests': upstream.calls, 'status': 'passed'}
 
 
 def main():
@@ -221,7 +286,9 @@ def main():
     parser.add_argument('--compatibility-policy', action='store_true', help='Bind the existing managed rules through a selected policy and v4 manifest')
     parser.add_argument('--profile-packs', action='store_true', help='Import the synthetic profiles and policies from an explicitly pinned data pack')
     parser.add_argument("--codec-bin",type=Path)
-    args = parser.parse_args(); print(json.dumps(run(args.gateway_bin.resolve(), args.recorder_bin.resolve(), args.compatibility_policy, args.profile_packs, args.codec_bin), sort_keys=True))
+    parser.add_argument('--editing',action='store_true')
+    parser.add_argument('--runtime-dir',type=Path)
+    args = parser.parse_args(); print(json.dumps(run(args.gateway_bin.resolve(), args.recorder_bin.resolve(), args.compatibility_policy, args.profile_packs, args.codec_bin, args.editing, args.runtime_dir), sort_keys=True))
 
 
 if __name__ == '__main__':

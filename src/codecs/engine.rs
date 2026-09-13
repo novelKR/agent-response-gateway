@@ -9,7 +9,7 @@ use crate::{
 };
 use std::io::{Read, Write};
 
-fn read(input: &mut impl Read, sequence: u64) -> Result<Operation, IrError> {
+fn read(input: &mut impl Read, sequence: u64, protocol: &str) -> Result<Operation, IrError> {
     let mut prefix = [0; 4];
     input
         .read_exact(&mut prefix)
@@ -23,16 +23,30 @@ fn read(input: &mut impl Read, sequence: u64) -> Result<Operation, IrError> {
         .read_exact(&mut bytes)
         .map_err(|_| IrError::InvalidEventOrder)?;
     let value = crate::adapters::json::decode(&bytes)?;
+    if protocol == PROTOCOL
+        && value
+            .get("operation")
+            .and_then(|v| v.get("value"))
+            .and_then(|v| v.get("editing"))
+            .is_some()
+    {
+        return Err(IrError::UnsupportedVersion);
+    }
     let request: Request =
         serde_json::from_value(value).map_err(|_| IrError::UnsupportedVersion)?;
-    if request.protocol != PROTOCOL || request.sequence != sequence {
+    if request.protocol != protocol || request.sequence != sequence {
         return Err(IrError::UnsupportedVersion);
     }
     Ok(request.operation)
 }
-fn write(output: &mut impl Write, sequence: u64, value: ResultValue) -> Result<(), IrError> {
+fn write(
+    output: &mut impl Write,
+    sequence: u64,
+    value: ResultValue,
+    protocol: &str,
+) -> Result<(), IrError> {
     let bytes = serde_json::to_vec(&Reply {
-        protocol: PROTOCOL.into(),
+        protocol: protocol.into(),
         sequence,
         value,
     })
@@ -59,6 +73,18 @@ fn managed(value: crate::adapters::managed::ManagedOutput) -> ResultValue {
 
 /// Serve one request-scoped codec process. Diagnostics never include payloads.
 pub fn serve(input: &mut impl Read, output: &mut impl Write) -> Result<(), IrError> {
+    serve_protocol(input, output, PROTOCOL)
+}
+pub fn serve_editing(input: &mut impl Read, output: &mut impl Write) -> Result<(), IrError> {
+    serve_protocol(input, output, EDITING_PROTOCOL)
+}
+fn serve_protocol(
+    input: &mut impl Read,
+    output: &mut impl Write,
+    protocol: &str,
+) -> Result<(), IrError> {
+    let read = |input: &mut _, sequence| self::read(input, sequence, protocol);
+    let write = |output: &mut _, sequence, value| self::write(output, sequence, value, protocol);
     write(
         output,
         0,
@@ -81,7 +107,7 @@ pub fn serve(input: &mut impl Read, output: &mut impl Write) -> Result<(), IrErr
     let history = prepare.history()?;
     let request = responses::decode(prepare.request.clone(), None)?;
     let route = prepare.route.snapshot()?;
-    let plan = plan_translation_with_history(
+    let mut plan = plan_translation_with_history(
         &request,
         &ContinuityBinding {
             route,
@@ -89,6 +115,10 @@ pub fn serve(input: &mut impl Read, output: &mut impl Write) -> Result<(), IrErr
         },
         &history,
     )?;
+    if let Some(policy) = &prepare.editing {
+        policy.validate()?;
+    }
+    plan.editing = prepare.editing;
     if prepare.managed {
         let adapter = ManagedAdapter::encode(&request, &plan, &history)?;
         if prepare.pending_tools {

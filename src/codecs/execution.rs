@@ -36,7 +36,11 @@ impl PreparedCodec {
         let managed = managed_pending.is_some();
         let pending_tools = managed_pending.unwrap_or(false);
         let verifier = output_verifier(request, plan)?;
+        if plan.editing.is_some() && binding.protocol != EDITING_PROTOCOL {
+            return Err(IrError::UnsupportedVersion);
+        }
         let value = Prepare {
+            editing: plan.editing.clone(),
             request: crate::ir::responses::encode(request, None)?,
             route: Route::from_snapshot(&plan.route),
             managed,

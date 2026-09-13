@@ -172,6 +172,11 @@ jobs:
           python3 -B tests/codex/conformance.py --api responses_checked --api messages --api chat_completions --api gemini_interactions --codec-bin target/debug/examples/api_codec
           python3 -B tests/codex/conformance.py --api responses_checked --responses-native-custom --profile-packs --codec-bin target/debug/examples/api_codec
           python3 -B tests/codex/reasoning_conformance.py --profile-packs --codec-bin target/debug/examples/api_codec
+      - name: Build editing codec and verify structured editing integration
+        run: |
+          cargo +1.98.0 build --locked --example api_codec_editing
+          python3 -B tests/codex/editing_fixture.py --gateway-bin target/debug/agent-response-gateway --codec-bin target/debug/examples/api_codec_editing --profile-packs
+          python3 -B scripts/managed_usage_smoke.py --gateway-bin target/debug/agent-response-gateway --recorder-bin target/debug/gateway-usage-recorder --editing --codec-bin target/debug/examples/api_codec_editing --profile-packs
       - name: Verify external codec durable accounting and recovery
         run: python3 -B scripts/managed_usage_smoke.py --gateway-bin target/debug/agent-response-gateway --recorder-bin target/debug/gateway-usage-recorder --compatibility-policy --profile-packs --codec-bin target/debug/examples/api_codec
 
