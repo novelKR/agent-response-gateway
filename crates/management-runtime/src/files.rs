@@ -78,12 +78,14 @@ fn sync_parent(path: &Path) -> Result<()> {
     Ok(())
 }
 pub(crate) fn private_directory(path: &Path) -> Result<()> {
-    let mut options = std::fs::DirBuilder::new();
+    let options = std::fs::DirBuilder::new();
     #[cfg(unix)]
-    {
+    let options = {
         use std::os::unix::fs::DirBuilderExt;
+        let mut options = options;
         options.mode(0o700);
-    }
+        options
+    };
     options.create(path).map_err(|_| Error::Storage)?;
     filesystem::directory(path)
 }
