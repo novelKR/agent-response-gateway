@@ -1131,6 +1131,28 @@
       ],
       "source_sha256": "c5fe97aba41b3687e808ec12924b9fb09a509514cf72f8d6b333dd9f1516c085",
       "translation_sha256": "1ccf68f25eeb647675d12f5ab0f258b304a84118f459822737340d00a4c9799b"
+    },
+    {
+      "id": "embedded-management",
+      "section": "integration",
+      "order": 41,
+      "source": "docs/embedded-management.md",
+      "translation": "docs/ko/embedded-management.md",
+      "route": "/guide/embedded-management",
+      "anchors": [
+        "declared-host-responsibilities",
+        "external-endpoint-and-runtime-verification",
+        "host-owned-management-and-access-contracts",
+        "optional-host-model-identity",
+        "synthetic-host-example-and-validation",
+        "명시적-호스트-책임",
+        "선택형-호스트-모델-정체성",
+        "외부-endpoint런타임-검증",
+        "합성-호스트-예제검증",
+        "호스트-소유-관리접근-계약"
+      ],
+      "source_sha256": "cacdbd34736841b47b00da27271570af578575355f72595489dba755260785ce",
+      "translation_sha256": "38618ca24abe11a1876c0b0b52bb688603d9a4c7da094569628d6f0e0cb3d185"
     }
   ]
 }
