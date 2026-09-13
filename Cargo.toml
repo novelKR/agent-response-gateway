@@ -1,6 +1,6 @@
 [workspace]
 exclude = [".local/legacy-source"]
-members = ["crates/usage-contract", "extensions/usage-recorder", "crates/management"]
+members = ["crates/usage-contract", "extensions/usage-recorder", "crates/management", "crates/management-runtime"]
 default-members = ["."]
 resolver = "3"
 

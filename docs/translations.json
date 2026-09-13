@@ -627,8 +627,8 @@
       "order": 3,
       "source": "licensing/README.md",
       "translation": "licensing/README.ko.md",
-      "source_sha256": "8b95558bc3187ec3fd2304995749fb87242c67dcfc7add4aea906848c4837eae",
-      "translation_sha256": "90c4816ede286853f7a86acb36fca142a04116edbb0096522846e7852586a6a5",
+      "source_sha256": "db6303572eba5119a63564f14d5428e8d1dc540982bc85a73a8c87a01b9786a5",
+      "translation_sha256": "d8425fc7d935e852a3340f4fb78c66017c134b2501f83d866ba4cd20e5f673bf",
       "anchors": [
         "check-refresh-and-bundle",
         "evaluation-and-special-originals",
@@ -995,8 +995,30 @@
         "소유권과-접근",
         "작업-증거"
       ],
-      "source_sha256": "84650ea70210490c78a4138ada9e3f21138c2ea2202f86596a70358d273e5d1e",
-      "translation_sha256": "4fc47fe8bf6dff568ca4497aeb9dd157aefd1f272b133ae4fb48c833652d456e"
+      "source_sha256": "aaa4b7d4c92561f6c3a88aa29735cb646429c2fcef51472ae2d4368255bcba04",
+      "translation_sha256": "cde23444cd6408af3b4675a417b4972a40947c0e2bcbba944df545dbe08cca15"
+    },
+    {
+      "id": "managed-runtime",
+      "section": "integration",
+      "order": 35,
+      "source": "docs/managed-runtime.md",
+      "translation": "docs/ko/managed-runtime.md",
+      "route": "/guide/managed-runtime",
+      "anchors": [
+        "audit-evidence-and-external-changes",
+        "host-registration-and-configuration",
+        "owned-lifecycle-and-readiness",
+        "owned-runtime-and-configuration-adapter",
+        "validation-and-platform-limits",
+        "감사-증거와-외부-변경",
+        "검증과-플랫폼-제한",
+        "소유-수명과-readiness",
+        "소유-실행-및-구성-adapter",
+        "호스트-등록과-구성"
+      ],
+      "source_sha256": "e4a3390d59fefa7aeb268143f93276ff9c7df55ed7051ee977d9a11180144a4f",
+      "translation_sha256": "36f350d5bdaa67394bfb8f0ec47fd551bf5eb1e44c9df3fe5d68d1338446c121"
     }
   ]
 }

@@ -277,6 +277,9 @@ pub struct Operation {
 /// that cannot be kept stable by the held lease. Return NotApplied only with proof.
 pub trait PreparedOperation {
     fn before(&self) -> &Snapshot;
+    /// Observe a committed operation identity without performing target effects.
+    /// Useful for private evidence files or a response receipt before completion.
+    fn accepted(&mut self, _operation_id: &Id) {}
     fn apply(&mut self) -> Effect;
 }
 

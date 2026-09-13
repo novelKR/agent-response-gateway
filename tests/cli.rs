@@ -167,6 +167,24 @@ async fn executable_serves_generic_http_client_and_shuts_down_without_secret_log
     let root = scratch();
     let path = config_file(root.path(), &upstream);
     let (mut process, ready) = Process::launch(&path);
+    let inspected = agent_response_gateway::Config::parse(&std::fs::read_to_string(&path).unwrap())
+        .unwrap()
+        .manifest()
+        .unwrap();
+    assert_eq!(
+        ready,
+        inspected
+            .readiness(ready["address"].as_str().unwrap().parse().unwrap(), None)
+            .unwrap()
+    );
+    for invalid in [
+        "0.0.0.0:1234",
+        "127.0.0.1:0",
+        "127.0.0.2:1234",
+        "[::1]:1234",
+    ] {
+        assert!(inspected.readiness(invalid.parse().unwrap(), None).is_err());
+    }
     let base_url = ready["base_url"].as_str().unwrap();
     let client = reqwest::Client::builder()
         .no_proxy()
