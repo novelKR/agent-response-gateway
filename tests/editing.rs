@@ -77,6 +77,61 @@ fn edit() -> ContextEdit {
 }
 
 #[test]
+fn helper_wrapper_serializes_data_and_only_inverts_the_exact_program() {
+    use agent_response_gateway::editing::{helper_patch, helper_program};
+    let value = ContextEdit {
+        new_lines: vec!["\"; throw new Error('must remain data'); // ${x} `한글`".into()],
+        ..edit()
+    };
+    let patch = value.compile().unwrap();
+    let program = helper_program(&patch).unwrap();
+    assert_eq!(helper_patch(&program).unwrap(), patch);
+    for ordinary in [
+        format!("// comment\n{program}"),
+        format!("{program}\n"),
+        "const value = '*** Begin Patch'; text(value);".into(),
+        program.replace("tools.apply_patch", "tools.other"),
+    ] {
+        assert!(helper_patch(&ordinary).is_err());
+    }
+}
+
+#[test]
+fn code_mode_results_preserve_order_and_never_infer_helper_status() {
+    use agent_response_gateway::editing::{code_mode_result, code_mode_result_parts};
+    let parts = json!([{"type":"input_text","text":"program metadata"},{"type":"input_text","text":"{\"status\":\"failed\"}\n한글"}]);
+    let encoded = code_mode_result(&parts).unwrap();
+    assert_eq!(code_mode_result_parts(&encoded).unwrap(), parts);
+    for bad in [
+        json!("completed"),
+        json!([{"type":"input_image","image_url":"https://example.invalid"}]),
+        json!([{"type":"input_text","text":"ok","success":true}]),
+    ] {
+        assert!(code_mode_result(&bad).is_err());
+    }
+    assert!(code_mode_result_parts(&format!(" {encoded}")).is_err());
+}
+
+#[test]
+fn code_mode_requires_an_explicit_host_descriptor() {
+    use agent_response_gateway::editing::Policy;
+    let raw = json!({"version":1,"client_contract":"codex-code-mode/v1","representation":"context-lines/v1","patch_dialect":"codex-patch/1","normalization":"none"});
+    let policy: Policy = serde_json::from_value(raw.clone()).unwrap();
+    assert!(policy.validate().is_err());
+    let mut valid = raw;
+    valid["client_descriptor_sha256"] = json!("a".repeat(64));
+    let policy: Policy = serde_json::from_value(valid.clone()).unwrap();
+    policy.validate().unwrap();
+    valid["client_contract"] = json!("codex-direct-custom/v1");
+    assert!(
+        serde_json::from_value::<Policy>(valid)
+            .unwrap()
+            .validate()
+            .is_err()
+    );
+}
+
+#[test]
 fn canonical_context_preserves_unicode_whitespace_and_round_trips() {
     for before in [vec![], vec!["".into(), " 한글\t".into()]] {
         for new_lines in [

@@ -15,6 +15,7 @@ struct Binding {
 /// Custom tools use a JSON string envelope; namespace members use collision-free flat names.
 /// Grammar checks validate syntax only and never execute a tool.
 pub struct CustomToolBridge {
+    code_mode: bool,
     forward: BTreeMap<ToolIdentity, ToolIdentity>,
     reverse: BTreeMap<ToolIdentity, Binding>,
     definitions: Vec<ToolDefinition>,
@@ -22,7 +23,7 @@ pub struct CustomToolBridge {
 
 impl CustomToolBridge {
     pub fn new(tools: &[ToolDefinition]) -> Result<Self, IrError> {
-        Self::build(tools, true, true, false)
+        Self::build(tools, true, true, false, false)
     }
 
     /// Responses may independently retain custom input and namespace representations.
@@ -38,6 +39,7 @@ impl CustomToolBridge {
                 == Support::Bridged(BridgeRule::ToolNamespace),
             profile.support(Feature::CustomGrammar)
                 == Support::Bridged(BridgeRule::RegisteredGrammarValidation),
+            false,
         )
     }
 
@@ -46,6 +48,7 @@ impl CustomToolBridge {
         wrap_custom: bool,
         flatten_namespaces: bool,
         strip_grammar: bool,
+        code_mode: bool,
     ) -> Result<Self, IrError> {
         let mut leaves = Vec::new();
         let mut groups = BTreeSet::new();
@@ -93,9 +96,10 @@ impl CustomToolBridge {
                 return Err(IrError::UnsupportedExtension);
             }
             let grammar = match &tool.kind {
-                ToolDefinitionKind::Custom { format } => {
-                    Some(Grammar::from_format(format.as_ref())?)
-                }
+                ToolDefinitionKind::Custom { format } => Some(Grammar::from_format_for_contract(
+                    format.as_ref(),
+                    code_mode,
+                )?),
                 ToolDefinitionKind::Function { .. } => None,
                 ToolDefinitionKind::Namespace { .. } => return Err(IrError::InvalidToolMapping),
             };
@@ -141,7 +145,7 @@ impl CustomToolBridge {
                     ),
                     strict: None,
                 };
-            } else if strip_grammar && grammar == Some(Grammar::CodexPatchV1) {
+            } else if strip_grammar && grammar.is_some_and(|g| g != Grammar::Text) {
                 definition.description = Some(
                     json!({
                         "tool_description": tool.description,
@@ -187,16 +191,42 @@ impl CustomToolBridge {
                 .collect();
         }
         Ok(Self {
+            code_mode,
             forward,
             reverse,
             definitions,
         })
     }
 
+    pub(crate) fn for_plan(
+        request: &RequestIR,
+        profile: &super::capability::CapabilityProfile,
+        editing: Option<&crate::editing::Policy>,
+        add_alternatives: bool,
+    ) -> Result<Self, IrError> {
+        use super::capability::{BridgeRule, Feature, Support};
+        let responses = profile.protocol == super::ApiProtocol::Responses;
+        Self::build(
+            request.tools.as_deref().unwrap_or(&[]),
+            !responses
+                || profile.support(Feature::CustomTools)
+                    == Support::Bridged(BridgeRule::CustomToolJson),
+            !responses
+                || profile.support(Feature::NamespacedTools)
+                    == Support::Bridged(BridgeRule::ToolNamespace),
+            responses
+                && profile.support(Feature::CustomGrammar)
+                    == Support::Bridged(BridgeRule::RegisteredGrammarValidation),
+            editing.is_some_and(|p| p.client_contract == crate::editing::ClientContract::CodeMode),
+        )?
+        .with_editing(editing, request, add_alternatives)
+    }
+
     pub(crate) fn with_editing(
         mut self,
         policy: Option<&crate::editing::Policy>,
         request: &RequestIR,
+        add_alternatives: bool,
     ) -> Result<Self, IrError> {
         let Some(policy) = policy else {
             return Ok(self);
@@ -204,24 +234,63 @@ impl CustomToolBridge {
         policy.validate()?;
         let mut originals = Vec::new();
         for (original, alias) in &self.forward {
-            if original.name != "apply_patch"
-                || original
-                    .namespace
-                    .as_deref()
-                    .is_some_and(|n| n != "functions")
-            {
+            let code_mode = policy.client_contract == crate::editing::ClientContract::CodeMode;
+            let selected = if code_mode {
+                original.name == "exec" && original.namespace.is_none()
+            } else {
+                original.name == "apply_patch"
+                    && original
+                        .namespace
+                        .as_deref()
+                        .is_none_or(|n| n == "functions")
+            };
+            if !selected {
                 continue;
             }
             let binding = &self.reverse[alias];
-            if binding.grammar != Some(Grammar::CodexPatchV1) {
+            let expected = if code_mode {
+                Grammar::CodeModeSourceV1
+            } else {
+                Grammar::CodexPatchV1
+            };
+            if binding.grammar != Some(expected) {
                 return Err(IrError::InvalidToolMapping);
+            }
+            if code_mode {
+                let declaration = request
+                    .tool_definitions()
+                    .find(|t| t.identity == *original)
+                    .ok_or(IrError::InvalidToolMapping)?;
+                if crate::continuation::hex(&crate::digest::sha256(
+                    declaration.description.as_deref().unwrap_or("").as_bytes(),
+                )) != *policy
+                    .client_descriptor_sha256
+                    .as_ref()
+                    .ok_or(IrError::InvalidToolMapping)?
+                {
+                    return Err(IrError::InvalidToolMapping);
+                }
             }
             originals.push(original.clone());
         }
-        if matches!(
-            request.generation.tool_choice,
-            Some(ToolChoice::Named { .. } | ToolChoice::None)
-        ) {
+        if policy.client_contract == crate::editing::ClientContract::CodeMode
+            && originals.is_empty()
+            && request.tool_definitions().any(|t| {
+                t.identity.name == "apply_patch"
+                    && t.identity
+                        .namespace
+                        .as_deref()
+                        .is_none_or(|n| n == "functions")
+            })
+        {
+            return Err(IrError::InvalidToolMapping);
+        }
+        if !add_alternatives
+            || matches!(
+                request.generation.tool_choice,
+                Some(ToolChoice::Named { .. } | ToolChoice::None)
+            )
+        {
             return Ok(self);
         }
         for original in originals {
@@ -251,7 +320,13 @@ impl CustomToolBridge {
                 Binding {
                     structured: true,
                     original,
-                    grammar: Some(Grammar::CodexPatchV1),
+                    grammar: Some(
+                        if policy.client_contract == crate::editing::ClientContract::CodeMode {
+                            Grammar::CodeModeSourceV1
+                        } else {
+                            Grammar::CodexPatchV1
+                        },
+                    ),
                     wrapped: true,
                 },
             );
@@ -294,8 +369,17 @@ impl CustomToolBridge {
         ) {
             return Err(IrError::InvalidToolMapping);
         }
-        if let ToolInput::Freeform(text) = &original.input
-            && let Ok(edit) = crate::editing::ContextEdit::from_patch(text)
+        let original_patch = match &original.input {
+            ToolInput::Freeform(text)
+                if self.binding(&original.tool)?.grammar == Some(Grammar::CodeModeSourceV1) =>
+            {
+                crate::editing::helper_patch(text).ok()
+            }
+            ToolInput::Freeform(text) => Some(text.clone()),
+            _ => None,
+        };
+        if let Some(text) = original_patch
+            && let Ok(edit) = crate::editing::ContextEdit::from_patch(&text)
             && let Some((alias, _)) = self
                 .reverse
                 .iter()
@@ -347,7 +431,12 @@ impl CustomToolBridge {
             let ToolInput::Json(raw) = &lowered.input else {
                 return Err(IrError::InvalidToolMapping);
             };
-            ToolInput::Freeform(crate::editing::ContextEdit::from_json(raw)?.compile()?)
+            let patch = crate::editing::ContextEdit::from_json(raw)?.compile()?;
+            ToolInput::Freeform(if binding.grammar == Some(Grammar::CodeModeSourceV1) {
+                crate::editing::helper_program(&patch)?
+            } else {
+                patch
+            })
         } else if let Some(grammar) = binding.grammar {
             if !binding.wrapped {
                 let ToolInput::Freeform(text) = &lowered.input else {
@@ -424,6 +513,29 @@ impl CustomToolBridge {
             _ => Ok(choice.clone()),
         }
     }
+    pub(crate) fn result_text<'a>(
+        &self,
+        result: &'a ToolResult,
+        call: &ToolCall,
+    ) -> Result<std::borrow::Cow<'a, str>, IrError> {
+        // Pending native calls are authenticated independently of current declarations.
+        // Compaction can omit every tool definition while retaining their results.
+        if self.code_mode
+            && call.tool.namespace.is_none()
+            && call.tool.name == "exec"
+            && matches!(call.input, ToolInput::Freeform(_))
+        {
+            Ok(std::borrow::Cow::Owned(crate::editing::code_mode_result(
+                &result.output,
+            )?))
+        } else {
+            result
+                .output
+                .as_str()
+                .map(std::borrow::Cow::Borrowed)
+                .ok_or(IrError::UnsupportedFeature)
+        }
+    }
     pub fn lower_result(
         &self,
         result: &ToolResult,
@@ -464,7 +576,54 @@ impl CustomToolBridge {
             return Err(IrError::UnsupportedExtension);
         }
         let mut converted = result.clone();
+        if self.binding(&call.tool)?.grammar == Some(Grammar::CodeModeSourceV1) {
+            converted.output = if restore {
+                crate::editing::code_mode_result_parts(
+                    result.output.as_str().ok_or(IrError::InvalidToolMapping)?,
+                )?
+            } else {
+                serde_json::Value::String(crate::editing::code_mode_result(&result.output)?)
+            };
+        }
         converted.kind = if restore { kind } else { lowered_kind };
         Ok(converted)
+    }
+}
+
+#[cfg(test)]
+mod replay_result_tests {
+    use super::*;
+    #[test]
+    fn authenticated_results_do_not_require_current_tool_declarations() {
+        let registry = CustomToolBridge::new(&[]).unwrap();
+        let call = ToolCall {
+            call_id: super::super::CallId::new("synthetic").unwrap(),
+            tool: ToolIdentity::new(Some("fixture".into()), "echo").unwrap(),
+            input: ToolInput::Json("{}".into()),
+            item_id: None,
+            status: Some(ToolCallStatus::Completed),
+            extensions: Extensions::responses(),
+        };
+        let mut result = ToolResult {
+            call_id: call.call_id.clone(),
+            kind: ToolKind::Function,
+            output: json!("synthetic-result"),
+            item_id: None,
+            extensions: Extensions::responses(),
+        };
+        assert_eq!(
+            registry.result_text(&result, &call).unwrap(),
+            "synthetic-result"
+        );
+        result.output = json!([{"type":"input_text","text":"synthetic"}]);
+        assert!(registry.result_text(&result, &call).is_err());
+        let helper = CustomToolBridge::build(&[], true, true, false, true).unwrap();
+        let call = ToolCall {
+            tool: ToolIdentity::new(None, "exec").unwrap(),
+            input: ToolInput::Freeform("synthetic".into()),
+            ..call
+        };
+        assert!(helper.result_text(&result, &call).is_ok());
+        assert!(registry.result_text(&result, &call).is_err());
     }
 }

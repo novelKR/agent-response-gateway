@@ -55,7 +55,7 @@ class Scenario(c.Scenario):
         return c.wire_response(item, 1)
 
 
-def run(binary, gateway, mode, deny=False, capture=None):
+def run(binary, gateway, mode, deny=False, capture=None, declarations=None):
     local = c.ROOT / ".local"
     local.mkdir(exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="editing-contract-", dir=local) as tmp, contextlib.ExitStack() as cleanup:
@@ -113,6 +113,8 @@ def run(binary, gateway, mode, deny=False, capture=None):
             print(json.dumps({"failed_contract": result}), flush=True)
         c.require(not state.errors and final == "completed" and state.result_seen, "contract round trip failed")
         c.require((deny and approvals == 1 and not applied) or (not deny and applied), "execution contract failed")
+        if declarations is not None:
+            declarations.extend(t for t in state.observed_tools if t.get("type")=="custom" and t.get("name")==("apply_patch" if mode=="direct" else "exec"))
         if capture is not None:
             capture.extend(t["format"] for t in state.observed_tools if t.get("type")=="custom" and t.get("name")=="apply_patch")
         return result

@@ -284,3 +284,7 @@ custom 입력을 유지하며 등록된 grammar 출력을 로컬에서 검증한
 프로필 검증 후 이 규칙들을 적용하며 버전이 지정된 식별성을 경로 snapshot에 결합한다.
 기존 `CustomToolBridge::new()` 변환 규칙은 유지된다. checked HTTP 입력 검사와
 최종 검증의 한도는 [도구 정책](protocol.md#checked-responses-tools)을 참고한다.
+
+명시적 [편집 호환](editing-design.md)은 고정 Code Mode 텍스트 파트 결과 계약도
+허용한다. 선택한 브리지로 전체 프로그램 결과를 보존하며 관련 없는 구조화 도구
+결과는 계속 미지원이다.

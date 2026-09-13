@@ -114,14 +114,20 @@ class Provider(BaseHTTPRequestHandler):
         self.wfile.write(raw)
 
 
-def run(binary, recorder, compatibility_policy=False, profile_packs=False, codec_binary=None, editing=False, runtime_dir=None):
+def run(binary, recorder, compatibility_policy=False, profile_packs=False, codec_binary=None, editing=False, runtime_dir=None, code_mode=False):
     patch_formats=[]
+    declarations=[]
+    descriptor=None
     if editing:
         import editing_contract as ec
         lock=json.loads(ec.c.runtime.LOCK.read_text())
         codex=ec.c.runtime.verify_bundle(runtime_dir or ec.c.runtime.BUNDLE,lock)
-        ec.run(codex,binary,'direct',capture=patch_formats)
-        assert len(patch_formats)==1
+        ec.run(codex,binary,'code_mode' if code_mode else 'direct',capture=patch_formats,declarations=declarations)
+        assert len(declarations)==1
+        if code_mode:
+            descriptor=json.loads((ROOT/'tests/codex/editing-contract-lock.json').read_text())['code_mode_descriptors']['builtin']
+            assert hashlib.sha256(declarations[0]['description'].encode()).hexdigest()==descriptor
+        else:assert len(patch_formats)==1
     parent = ROOT / '.local/managed-usage-smoke' ; parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=parent) as temporary, contextlib.ExitStack() as cleanup:
         root = Path(temporary).resolve(); root.chmod(0o700)
@@ -147,7 +153,7 @@ def run(binary, recorder, compatibility_policy=False, profile_packs=False, codec
             config.write_text(f'listen="127.0.0.1:0"\n[providers.mock]\nbase_url="http://127.0.0.1:{upstream.server_port}/v1"\napi_key_env="SYNTHETIC_KEY"\n[models.writer]\nprovider="mock"\nupstream_model="synthetic-model"\n'+route)
             if editing:
                 from editing_fixture import configure
-                config.write_text(configure(config.read_text()))
+                config.write_text(configure(config.read_text(), code_mode=code_mode, descriptor=descriptor))
             upstream.editing=editing
             env = {**os.environ, 'ARG_LOCAL_TOKEN': 'L'*40, 'SYNTHETIC_KEY': 'synthetic-key'}
             control_token = gemini.setup(folder, binary, config, env)
@@ -182,7 +188,7 @@ def run(binary, recorder, compatibility_policy=False, profile_packs=False, codec
                     session = gemini.create_session(ready['base_url'], control_token, base_manifest)
                     body = {'model': 'writer', 'input': 'synthetic', 'stream': streaming,
                             'tools': [{'type': 'function', 'name': 'echo', 'parameters': {'type': 'object', 'properties': {'text': {'type': 'string'}}, 'required': ['text']}}]}
-                    if editing: body['tools'].append({'type':'custom','name':'apply_patch','format':patch_formats[0]})
+                    if editing: body['tools'].append(declarations[0])
                     request = Request(ready['base_url']+'/responses' , encode(body), {'Authorization': 'Bearer '+'L'*40, 'Content-Type': 'application/json', 'x-gateway-session': session['id']})
                     try:
                         with client.open(request, timeout=15) as response:
@@ -199,8 +205,8 @@ def run(binary, recorder, compatibility_policy=False, profile_packs=False, codec
                 if editing:
                     old_session, completed=saved_resume[0]
                     original={'type':'message','role':'user','content':[{'type':'input_text','text':'synthetic'}]}
-                    body={'model':'writer','stream':False,'input':[original,*completed['output'],{'type':'custom_tool_call_output','call_id':'call_1','output':'synthetic applied'}],
-                          'tools':[{'type':'function','name':'echo','parameters':{'type':'object','properties':{'text':{'type':'string'}},'required':['text']}},{'type':'custom','name':'apply_patch','format':patch_formats[0]}]}
+                    body={'model':'writer','stream':False,'input':[original,*completed['output'],{'type':'custom_tool_call_output','call_id':'call_1','output':[{'type':'input_text','text':'synthetic metadata'},{'type':'input_text','text':'synthetic applied'}] if code_mode else 'synthetic applied'}],
+                          'tools':[{'type':'function','name':'echo','parameters':{'type':'object','properties':{'text':{'type':'string'}},'required':['text']}},declarations[0]]}
                     terminate(process);process,ready=start();upstream.resume_editing=True
                     try:
                         request=Request(ready['base_url']+'/responses',encode(body),{'Authorization':'Bearer '+'L'*40,'Content-Type':'application/json','x-gateway-session':old_session['id']})
@@ -288,7 +294,8 @@ def main():
     parser.add_argument("--codec-bin",type=Path)
     parser.add_argument('--editing',action='store_true')
     parser.add_argument('--runtime-dir',type=Path)
-    args = parser.parse_args(); print(json.dumps(run(args.gateway_bin.resolve(), args.recorder_bin.resolve(), args.compatibility_policy, args.profile_packs, args.codec_bin, args.editing, args.runtime_dir), sort_keys=True))
+    parser.add_argument('--code-mode',action='store_true')
+    args = parser.parse_args(); print(json.dumps(run(args.gateway_bin.resolve(), args.recorder_bin.resolve(), args.compatibility_policy, args.profile_packs, args.codec_bin, args.editing or args.code_mode, args.runtime_dir, args.code_mode), sort_keys=True))
 
 
 if __name__ == '__main__':

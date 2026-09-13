@@ -32,6 +32,7 @@ fn support_name(s: Support) -> &'static str {
         Support::Native => "native",
         Support::Unsupported => "unsupported",
         Support::Bridged(b) => match b {
+            BridgeRule::CodeModeTextParts => "code_mode_text_parts",
             BridgeRule::CustomToolJson => "custom_tool_json",
             BridgeRule::ToolNamespace => "tool_namespace",
             BridgeRule::CodexPatchGrammar => "codex_patch_grammar",
@@ -48,6 +49,7 @@ fn support(value: &str) -> Result<Support, IrError> {
         "native" => Support::Native,
         "unsupported" => Support::Unsupported,
         value => Support::Bridged(match value {
+            "code_mode_text_parts" => BridgeRule::CodeModeTextParts,
             "custom_tool_json" => BridgeRule::CustomToolJson,
             "tool_namespace" => BridgeRule::ToolNamespace,
             "codex_patch_grammar" => BridgeRule::CodexPatchGrammar,

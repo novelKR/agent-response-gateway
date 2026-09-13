@@ -14,10 +14,17 @@ pub use crate::digest::sha256;
 pub enum Grammar {
     Text,
     CodexPatchV1,
+    CodeModeSourceV1,
 }
 
 impl Grammar {
     pub fn from_format(format: Option<&Value>) -> Result<Self, IrError> {
+        Self::from_format_for_contract(format, false)
+    }
+    pub(crate) fn from_format_for_contract(
+        format: Option<&Value>,
+        code_mode: bool,
+    ) -> Result<Self, IrError> {
         let Some(format) = format else {
             return Ok(Self::Text);
         };
@@ -32,6 +39,12 @@ impl Grammar {
                     .get("definition")
                     .and_then(Value::as_str)
                     .ok_or(IrError::UnsupportedFeature)?;
+                if code_mode
+                    && crate::continuation::hex(&sha256(definition.as_bytes()))
+                        == crate::editing::EXEC_GRAMMAR_SHA256
+                {
+                    return Ok(Self::CodeModeSourceV1);
+                }
                 if sha256(definition.as_bytes()) != PATCH_GRAMMAR_SHA256 {
                     return Err(IrError::UnsupportedFeature);
                 }
@@ -45,12 +58,22 @@ impl Grammar {
         match self {
             Self::Text => "text/1",
             Self::CodexPatchV1 => "codex-patch/1",
+            Self::CodeModeSourceV1 => "codex-code-mode-source/1",
         }
     }
 
     pub fn validate(self, text: &str) -> Result<(), IrError> {
         if text.len() > 8 * 1024 * 1024 {
             return Err(IrError::SizeLimit);
+        }
+        if self == Self::CodeModeSourceV1 {
+            // The pinned SOURCE rule accepts any nonempty Unicode source. The host,
+            // not this gateway, parses and executes that source as JavaScript.
+            return if text.is_empty() {
+                Err(IrError::InvalidField("code_mode_source"))
+            } else {
+                Ok(())
+            };
         }
         if self == Self::Text {
             return Ok(());

@@ -12,7 +12,7 @@
 [English](editing-design.md) | [한국어](ko/editing-design.md)
 
 This contract includes implemented direct context editing and separately planned
-helper, normalization and bundle representations. Existing custom string bridging
+normalization and bundle representations. Explicit helper execution is supported. Existing custom string bridging
 remains the default. The synthetic fixture verifies direct patch execution and Code Mode helper
 execution with pinned Codex 0.154.0; it does not qualify any real provider.
 
@@ -126,7 +126,7 @@ normalization="none"
 `old_lines` must contain at least one line. This version replaces or removes an
 existing line block; insertion-only edits use the original patch tool. Limits are
 16384 total lines and 8 MiB of compiled patch. No trimming or line-ending repair
-occurs. Code Mode, normalization and operation bundles remain planned representations.
+occurs. Normalization and operation bundles remain planned representations.
 
 Synthetic names are deterministic over original tool identity and policy; a name
 collision rejects instead of reassigning a historical provider name. Canonical
@@ -179,3 +179,46 @@ program execution nor a new database is introduced by this integration.
 The compiled host example [embedded_editing](../examples/embedded_editing.rs) uses
 the ordinary router with a host-owned runtime, listener and shutdown signal. It
 does not initialize library-global logging or modify process environment.
+
+<a id="explicit-code-mode-editing"></a>
+<a id="명시적-code-mode-편집"></a>
+
+## Explicit Code Mode editing
+
+The host selects `codex-code-mode/v1` and supplies `client_descriptor_sha256`, the
+SHA-256 of the exact UTF-8 exec tool description for its verified runtime/tool set.
+It must obtain this from its own qualified configuration, not trust a hash claimed
+by the incoming request. Dynamic helpers change the description, so one global
+hash cannot identify every supported tool set. The runtime fixture records separate
+builtin and synthetic dynamic-tool configurations without copying their prompts.
+
+```toml
+[editing_policies.helper-edit]
+version=1
+client_contract="codex-code-mode/v1"
+representation="context-lines/v1"
+patch_dialect="codex-patch/1"
+normalization="none"
+client_descriptor_sha256="<host-verified-64-lowercase-hex-digest>"
+```
+
+The request must contain the matching bare custom exec and pinned source grammar.
+Changed descriptions, wrong types and mismatched contracts reject before inference.
+The shared compiler emits one `tools.apply_patch` helper invocation with JSON data
+and one result display statement. Only that exact wrapper inverts to a patch.
+Other programs retain their original source. The source grammar accepts nonempty
+Unicode; JavaScript parsing and execution remain the host's responsibility.
+
+Observed exec results are ordered arrays of input-text parts. The selected policy
+adds the effective `CodeModeTextParts` bridge for `StructuredToolOutput` without
+claiming native provider support. Parts become a canonical JSON text record with
+`schema=codex-exec-text-parts/v1` and `parts`; text, order and boundaries are kept.
+No status inside text is interpreted as helper success. Images, unknown fields,
+nontext parts and unrelated structured function results reject. Direct patch
+contracts retain their existing string result rules.
+
+Descriptor and policy changes alter route origin. Existing authenticated replay v2
+stores provider-original calls and public wrapper output without new fields.
+Synthetic tests cover execution, denial, invalid edits, wrong descriptors, whole
+program results, same-session restart and recorder failure barriers. This is not
+arbitrary Code Mode recovery or real-provider qualification.

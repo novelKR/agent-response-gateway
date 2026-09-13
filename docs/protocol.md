@@ -295,3 +295,7 @@ and explicit custom-text conversion.
 through explicit native package selection. They retain checked admission and
 core-owned transport, tool validation, accounting and continuation. Unsupported
 features remain errors; a codec grant does not extend the support matrix.
+
+Explicit [editing compatibility](editing-design.md) additionally admits the pinned
+Code Mode text-part result contract. It preserves the whole program result through
+a selected bridge; unrelated structured tool results remain unsupported.

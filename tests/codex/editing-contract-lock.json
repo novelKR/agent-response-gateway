@@ -1,4 +1,8 @@
 {
+  "code_mode_descriptors": {
+    "builtin": "693bb96b2f0cf5da25bb6f1fcd301edba4e6dcd050ca49f0d19e0e5157c71841",
+    "dynamic_echo": "d39e5257bbe065af8576633d032726fb0a528dda6ffd43000076c32708eb00d0"
+  },
   "codex_version": "0.154.0",
   "contracts": {
     "code_mode": {

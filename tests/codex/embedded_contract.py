@@ -64,7 +64,12 @@ def validate_manifest(value):
         require(bool(bindings) or configuration.get("profile_packs",{}).get("schema")=="gateway-profile-pack-configuration/v2", "Editing selection missing")
         for b in bindings:
             require(set(b)=={"id","contract","policy"} and isinstance(b["id"], str) and b["contract"]=="gateway-editing-policy/v1", "Invalid editing projection")
-            require(b["policy"]=={"version":1,"client_contract":"codex-direct-custom/v1","representation":"context-lines/v1","patch_dialect":"codex-patch/1","normalization":"none"}, "Unsupported editing policy")
+            policy=b["policy"].copy()
+            if policy.get("client_contract")=="codex-code-mode/v1":
+                descriptor=policy.pop("client_descriptor_sha256", None)
+                require(isinstance(descriptor,str) and len(descriptor)==64 and all(c in '0123456789abcdef' for c in descriptor), "Missing host Code Mode descriptor")
+                policy["client_contract"]="codex-direct-custom/v1"
+            require(policy=={"version":1,"client_contract":"codex-direct-custom/v1","representation":"context-lines/v1","patch_dialect":"codex-patch/1","normalization":"none"}, "Unsupported editing policy")
     if version == "v6" or (version == "v7" and any("api_codec" in r for r in configuration["routes"])):
         selected=[route['api_codec'] for route in configuration['routes'] if 'api_codec' in route]
         require(bool(selected), 'Codec selection missing')

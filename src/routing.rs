@@ -7,7 +7,7 @@ use crate::{
     config::UpstreamAuth,
     ir::{
         ApiProtocol, IrError,
-        capability::{CapabilityProfile, TranslationPlan, plan_translation_with_history},
+        capability::{CapabilityProfile, TranslationPlan, plan_translation_with_editing},
         continuity::{ContinuityBinding, RouteSnapshot},
         request::RequestIR,
         responses,
@@ -103,6 +103,14 @@ impl Config {
             .as_ref()
             .map(|id| self.editing_policies[id].clone());
         if let Some(policy) = &editing {
+            if policy.client_contract == crate::editing::ClientContract::CodeMode {
+                snapshot.capabilities.support.insert(
+                    crate::ir::capability::Feature::StructuredToolOutput,
+                    crate::ir::capability::Support::Bridged(
+                        crate::ir::capability::BridgeRule::CodeModeTextParts,
+                    ),
+                );
+            }
             snapshot.adapter_version = format!(
                 "{}/editing/1/{}",
                 snapshot.adapter_version,
@@ -168,7 +176,8 @@ impl ResolvedRoute {
                 route: self.snapshot.clone(),
                 scope: "stateless-request".into(),
             };
-            let mut plan = plan_translation_with_history(&request, &target, history)?;
+            let mut plan =
+                plan_translation_with_editing(&request, &target, history, self.editing.as_ref())?;
             plan.editing = self.editing.clone();
             return Ok(AdmittedRequest::Translated {
                 request: Box::new(request),
@@ -203,7 +212,8 @@ impl ResolvedRoute {
             route: self.snapshot.clone(),
             scope: "stateless-request".into(),
         };
-        let mut plan = plan_translation_with_history(&request, &target, history)?;
+        let mut plan =
+            plan_translation_with_editing(&request, &target, history, self.editing.as_ref())?;
         plan.editing = self.editing.clone();
         Ok(AdmittedRequest::Translated {
             request: Box::new(request),

@@ -36,6 +36,7 @@ pub enum Feature {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BridgeRule {
+    CodeModeTextParts,
     CustomToolJson,
     ToolNamespace,
     CodexPatchGrammar,
@@ -86,6 +87,8 @@ impl CapabilityProfile {
                             self.reasoning_contract,
                             Some(super::reasoning::ReasoningContract::DeepSeek { .. })
                         ) => {}
+                Support::Bridged(BridgeRule::CodeModeTextParts)
+                    if *feature == Feature::StructuredToolOutput => {}
                 Support::Bridged(BridgeRule::CustomToolJson)
                     if *feature == Feature::CustomTools => {}
                 Support::Bridged(BridgeRule::ToolNamespace)
@@ -355,7 +358,18 @@ pub(crate) fn plan_translation_with_history(
     target: &super::continuity::ContinuityBinding,
     history: &super::continuity::VerifiedProviderHistory,
 ) -> Result<TranslationPlan, IrError> {
+    plan_translation_with_editing(request, target, history, None)
+}
+pub(crate) fn plan_translation_with_editing(
+    request: &super::request::RequestIR,
+    target: &super::continuity::ContinuityBinding,
+    history: &super::continuity::VerifiedProviderHistory,
+    editing: Option<&crate::editing::Policy>,
+) -> Result<TranslationPlan, IrError> {
     target.validate()?;
+    if editing.is_some_and(|p| p.client_contract == crate::editing::ClientContract::CodeMode) {
+        crate::editing::validate_code_mode_results(request)?;
+    }
     let required = requirements(request)?;
     let route = &target.route;
     if let (Some(requested), Some(limit)) = (
@@ -375,6 +389,14 @@ pub(crate) fn plan_translation_with_history(
         }
         match route.capabilities.support(feature) {
             Support::Native => {}
+            Support::Bridged(BridgeRule::CodeModeTextParts) => {
+                if !editing
+                    .is_some_and(|p| p.client_contract == crate::editing::ClientContract::CodeMode)
+                {
+                    return Err(IrError::UnsupportedFeature);
+                }
+                bridges.push(BridgeRule::CodeModeTextParts);
+            }
             Support::Bridged(BridgeRule::RegisteredGrammarValidation) => {
                 bridges.push(BridgeRule::RegisteredGrammarValidation);
             }
@@ -415,14 +437,8 @@ pub(crate) fn plan_translation_with_history(
                 | BridgeRule::RegisteredGrammarValidation
         )
     }) {
-        let registry = if route.api == ApiProtocol::Responses {
-            super::bridge::CustomToolBridge::for_responses(
-                request.tools.as_deref().unwrap_or(&[]),
-                &route.capabilities,
-            )?
-        } else {
-            super::bridge::CustomToolBridge::new(request.tools.as_deref().unwrap_or(&[]))?
-        };
+        let registry =
+            super::bridge::CustomToolBridge::for_plan(request, &route.capabilities, editing, true)?;
         if let Some(Input::Items(items)) = &request.input {
             for (index, item) in items.iter().enumerate() {
                 if let Item::ToolCall(call) = item {
@@ -448,7 +464,7 @@ pub(crate) fn plan_translation_with_history(
         }
     }
     Ok(TranslationPlan {
-        editing: None,
+        editing: editing.cloned(),
         route: route.clone(),
         retains_source_extensions: required.contains(Feature::Extensions),
         required,

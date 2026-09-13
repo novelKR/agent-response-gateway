@@ -103,6 +103,11 @@ pub(crate) fn encode_with_history(
         return Err(unsupported());
     }
     for feature in plan.required.iter() {
+        if feature == Feature::StructuredToolOutput
+            && plan.bridges.contains(&BridgeRule::CodeModeTextParts)
+        {
+            continue;
+        }
         if managed && matches!(feature, Feature::ReasoningSummary | Feature::ReasoningItems) {
             continue;
         }
@@ -137,8 +142,12 @@ pub(crate) fn encode_with_history(
             return Err(unsupported());
         }
     }
-    let registry = CustomToolBridge::new(request.tools.as_deref().unwrap_or(&[]))?
-        .with_editing(plan.editing.as_ref(), request)?;
+    let registry = CustomToolBridge::for_plan(
+        request,
+        &plan.route.capabilities,
+        plan.editing.as_ref(),
+        true,
+    )?;
     let mut messages = Vec::new();
     let instruction_bridge = plan.bridges.contains(&BridgeRule::ChatInstructionEnvelope);
     if dialect == Some(crate::ir::reasoning::ChatDialect::DeepSeek)
@@ -244,7 +253,7 @@ pub(crate) fn encode_with_history(
                         if !call.1 {
                             registry.lower_result(result, call.0)?;
                         }
-                        let text = result.output.as_str().ok_or(unsupported())?;
+                        let text = registry.result_text(result, call.0)?;
                         messages.push(json!({"role":"tool","tool_call_id":result.call_id.as_str(),"content":text}));
                     }
                     _ => return Err(unsupported()),
