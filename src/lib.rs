@@ -7,6 +7,7 @@ pub mod extensions;
 mod http;
 pub mod manifest;
 pub mod profile_packs;
+pub(crate) mod provider_plugins;
 mod proxy;
 
 pub use config::{Config, Limits, Model, Provider, Secrets};
@@ -26,3 +27,6 @@ mod proxy_managed;
 pub mod usage;
 
 pub mod editing;
+
+#[cfg(all(test, unix))]
+mod provider_proxy_tests;

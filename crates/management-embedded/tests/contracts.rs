@@ -484,7 +484,7 @@ fn expected_runtime_binds_current_manifest_readiness_versions_and_exact_digests(
         Err(Error::UnsupportedSchema)
     ));
     // Synthetic projections test supported version matching; they are not configuration admission.
-    for version in [1, 2, 3, 4, 5, 6, 7, 8] {
+    for version in [1, 2, 3, 4, 5, 6, 7, 8, 9] {
         let mut embedded = base.clone();
         if version > 2 {
             embedded["schema"] = json!(format!("gateway-embedded-manifest/v{version}"));

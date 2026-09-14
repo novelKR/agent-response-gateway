@@ -51,6 +51,18 @@ pub fn router_with_usage(
     usage: Option<crate::usage::UsageSink>,
 ) -> Result<Router, ConfigError> {
     config.validate()?;
+    if usage
+        .as_ref()
+        .is_some_and(|sink| sink.mode != crate::usage::Mode::Off)
+        && config
+            .models
+            .values()
+            .any(|model| model.api == crate::ir::ApiProtocol::Plugin)
+    {
+        return Err(ConfigError(
+            "Provider routes require the versioned usage recording contract".into(),
+        ));
+    }
     secrets.validate(&config)?;
     let client = reqwest::Client::builder()
         .redirect(reqwest::redirect::Policy::none())

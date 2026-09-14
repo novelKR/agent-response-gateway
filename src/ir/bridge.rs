@@ -209,7 +209,10 @@ impl CustomToolBridge {
         add_alternatives: bool,
     ) -> Result<Self, IrError> {
         use super::capability::{BridgeRule, Feature, Support};
-        let responses = profile.protocol == super::ApiProtocol::Responses;
+        let responses = matches!(
+            profile.protocol,
+            super::ApiProtocol::Responses | super::ApiProtocol::Plugin
+        );
         Self::build(
             request.tools.as_deref().unwrap_or(&[]),
             !responses

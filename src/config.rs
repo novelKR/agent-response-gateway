@@ -31,6 +31,10 @@ pub struct Config {
     pub compatibility_policies: BTreeMap<String, crate::compatibility::CompatibilityPolicy>,
     pub continuation: Option<crate::continuation::Configuration>,
     #[serde(skip)]
+    pub(crate) provider_plugins: BTreeMap<String, crate::provider_plugins::Binding>,
+    #[serde(skip)]
+    pub(crate) provider_qualification: bool,
+    #[serde(skip)]
     pub(crate) codecs: BTreeMap<String, crate::codecs::Binding>,
     #[serde(default)]
     pub(crate) capability_profile_imports: BTreeMap<String, crate::profile_packs::CapabilityImport>,
@@ -68,6 +72,9 @@ pub struct Model {
     pub capability_profile: Option<String>,
     pub compatibility_policy: Option<String>,
     pub api_codec: Option<String>,
+    pub provider_plugin: Option<String>,
+    pub provider_protocol: Option<String>,
+    pub provider_path: Option<String>,
     pub messages_version: Option<String>,
     pub continuation_mode: Option<ContinuationMode>,
 
@@ -218,7 +225,10 @@ impl Config {
         Ok(config)
     }
 
-    pub fn resolved_usage_profile(&self, model: &Model) -> gateway_usage_contract::Profile {
+    pub fn resolved_usage_profile(&self, model: &Model) -> Option<gateway_usage_contract::Profile> {
+        if model.api == ApiProtocol::Plugin {
+            return None;
+        }
         if model
             .capability_profile
             .as_ref()
@@ -227,7 +237,7 @@ impl Config {
             .and_then(|c| c.chat_dialect())
             == Some(crate::ir::reasoning::ChatDialect::DeepSeek)
         {
-            gateway_usage_contract::Profile::DeepSeekV1
+            Some(gateway_usage_contract::Profile::DeepSeekV1)
         } else {
             model.resolved_usage_profile()
         }
@@ -305,7 +315,7 @@ impl Config {
         }
         for (id, model) in &self.models {
             let expected = self.resolved_usage_profile(model);
-            if model.usage_profile.is_some_and(|p| p != expected) {
+            if model.usage_profile.is_some_and(|p| Some(p) != expected) {
                 return Err(ConfigError("Usage profile does not match route API".into()));
             }
             if !safe_label(id)
@@ -344,6 +354,41 @@ impl Config {
 
 impl Config {
     pub(crate) fn validate_route(&self, model: &Model) -> Result<(), ConfigError> {
+        if model.api == ApiProtocol::Plugin {
+            if !(cfg!(test) && self.provider_qualification) {
+                return Err(ConfigError(
+                    "Provider plugin runtime is not available".into(),
+                ));
+            }
+            let binding = model
+                .provider_plugin
+                .as_ref()
+                .and_then(|id| self.provider_plugins.get(id))
+                .ok_or_else(|| {
+                    ConfigError("Provider requires an activated provider package".into())
+                })?;
+            if model.api_codec.is_some()
+                || model.auth.is_none()
+                || model.capability_profile.is_none()
+                || model.provider_protocol.as_deref() != Some(binding.provider_protocol.as_str())
+                || model.provider_path.is_none()
+                || model.usage_profile.is_some()
+                || model.continuation_mode == Some(ContinuationMode::Managed)
+                || model.editing_policy.is_some()
+                || model.compatibility_policy.is_some()
+            {
+                return Err(ConfigError(
+                    "Unsupported provider route declarations".into(),
+                ));
+            }
+        } else if model.provider_plugin.is_some()
+            || model.provider_protocol.is_some()
+            || model.provider_path.is_some()
+        {
+            return Err(ConfigError(
+                "Provider declarations require the plugin API".into(),
+            ));
+        }
         if let Some(id) = &model.editing_policy
             && (!self.editing_policies.contains_key(id)
                 || model.capability_profile.is_none()
@@ -476,7 +521,8 @@ impl Config {
                 None,
                 ApiProtocol::Responses
                 | ApiProtocol::ChatCompletions
-                | ApiProtocol::GeminiInteractions,
+                | ApiProtocol::GeminiInteractions
+                | ApiProtocol::Plugin,
             ) => {}
             _ => {
                 return Err(ConfigError(
@@ -489,12 +535,33 @@ impl Config {
 }
 
 impl Provider {
+    pub(crate) fn plugin_url(&self, path: &str) -> Result<Url, ConfigError> {
+        // Closed ASCII segment grammar avoids URL joining, escape decoding and
+        // authority/path normalization changing the host-selected destination.
+        if path.is_empty()
+            || path.len() > 1024
+            || path.split('/').any(|segment| {
+                segment.is_empty()
+                    || matches!(segment, "." | "..")
+                    || !segment
+                        .bytes()
+                        .all(|b| b.is_ascii_alphanumeric() || b"._-".contains(&b))
+            })
+        {
+            return Err(ConfigError("Invalid provider request path".into()));
+        }
+        let mut url = self.validated_base_url()?;
+        let base = url.path().trim_end_matches('/').to_owned();
+        url.set_path(&format!("{base}/{path}"));
+        Ok(url)
+    }
+
     pub fn responses_url(&self) -> Result<Url, ConfigError> {
         self.api_url(ApiProtocol::Responses)
     }
 
-    pub fn api_url(&self, api: ApiProtocol) -> Result<Url, ConfigError> {
-        let mut url = Url::parse(&self.base_url)
+    fn validated_base_url(&self) -> Result<Url, ConfigError> {
+        let url = Url::parse(&self.base_url)
             .map_err(|_| ConfigError("Invalid provider base_url".into()))?;
         let loopback = url
             .host_str()
@@ -509,7 +576,17 @@ impl Provider {
         {
             return Err(ConfigError("Provider base_url requires HTTPS (HTTP only for a numeric loopback host), without credentials, query or fragment".into()));
         }
+        Ok(url)
+    }
+
+    pub fn api_url(&self, api: ApiProtocol) -> Result<Url, ConfigError> {
+        let mut url = self.validated_base_url()?;
         let endpoint = match api {
+            ApiProtocol::Plugin => {
+                return Err(ConfigError(
+                    "Plugin requires an explicit provider path".into(),
+                ));
+            }
             ApiProtocol::Responses => "responses",
             ApiProtocol::Messages => "messages",
             ApiProtocol::ChatCompletions => "chat/completions",
@@ -570,14 +647,19 @@ impl Secrets {
 }
 
 impl Model {
-    pub fn resolved_usage_profile(&self) -> gateway_usage_contract::Profile {
-        match self.api {
+    pub fn resolved_usage_profile(&self) -> Option<gateway_usage_contract::Profile> {
+        Some(match self.api {
+            ApiProtocol::Plugin => return None,
             ApiProtocol::Responses => gateway_usage_contract::Profile::ResponsesV1,
             ApiProtocol::ChatCompletions => gateway_usage_contract::Profile::ChatV1,
             ApiProtocol::Messages => gateway_usage_contract::Profile::MessagesV1,
             ApiProtocol::GeminiInteractions => {
                 gateway_usage_contract::Profile::GeminiInteractionsV1
             }
-        }
+        })
     }
 }
+
+#[cfg(all(test, unix))]
+#[path = "provider_config_tests.rs"]
+mod provider_tests;

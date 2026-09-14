@@ -132,7 +132,19 @@ pub(crate) async fn responses(
         .config
         .resolve_route(&model_id)
         .expect("configuration was validated");
-    if route.compatibility.is_some()
+    let is_provider = route.snapshot.api == crate::ir::ApiProtocol::Plugin;
+    // Provider observations require the versioned recording contract, never a
+    // built-in parser profile. Normal provider startup remains gated separately.
+    if is_provider
+        && state
+            .usage
+            .as_ref()
+            .is_some_and(|sink| sink.mode != usage::Mode::Off)
+    {
+        return Err(accounting_error());
+    }
+    if is_provider
+        || route.compatibility.is_some()
         || route.editing.is_some()
         || state.config.models[&model_id].api_codec.is_some()
     {
@@ -163,8 +175,10 @@ pub(crate) async fn responses(
                     .api_codec
                     .as_ref()
                     .and_then(|id| state.config.codecs.get(id)),
+                route.provider_plugin.as_ref(),
                 &request,
                 &plan,
+                state.config.limits.max_request_bytes,
                 state.config.limits.max_response_bytes,
                 state
                     .config
@@ -192,42 +206,47 @@ pub(crate) async fn responses(
     } else {
         send
     };
-    let profile = match route.snapshot.api {
-        crate::ir::ApiProtocol::Responses => Profile::ResponsesV1,
-        crate::ir::ApiProtocol::Messages => Profile::MessagesV1,
-        crate::ir::ApiProtocol::ChatCompletions => Profile::ChatV1,
-        crate::ir::ApiProtocol::GeminiInteractions => Profile::GeminiInteractionsV1,
+    let mut attempt = if is_provider {
+        None
+    } else {
+        let profile = match route.snapshot.api {
+            crate::ir::ApiProtocol::Responses => Profile::ResponsesV1,
+            crate::ir::ApiProtocol::Messages => Profile::MessagesV1,
+            crate::ir::ApiProtocol::ChatCompletions => Profile::ChatV1,
+            crate::ir::ApiProtocol::GeminiInteractions => Profile::GeminiInteractionsV1,
+            crate::ir::ApiProtocol::Plugin => return Err(accounting_error()),
+        };
+        let timestamp = usage::now();
+        Attempt::start(
+            state.usage.as_ref(),
+            UsageEvent {
+                schema: usage::SCHEMA.into(),
+                producer_id: String::new(),
+                request_id: id.0.clone(),
+                attempt_id: uuid::Uuid::new_v4().to_string(),
+                event_id: uuid::Uuid::new_v4().to_string(),
+                revision: 0,
+                kind: EventKind::AttemptStarted,
+                started_at_ms: timestamp,
+                observed_at_ms: timestamp,
+                provider: route.snapshot.provider_id.clone(),
+                model_alias: model_id.clone(),
+                upstream_model: route.snapshot.model.clone(),
+                reported_model: None,
+                provider_request_id: None,
+                provider_response_id: None,
+                profile,
+                configuration_sha256: state.configuration_sha256.clone(),
+                upstream: Outcome::InProgress,
+                gateway: Outcome::InProgress,
+                finality: Finality::Unobserved,
+                observation_incomplete: false,
+                usage: Default::default(),
+            },
+        )
+        .await
+        .map_err(|_| accounting_error())?
     };
-    let timestamp = usage::now();
-    let mut attempt = Attempt::start(
-        state.usage.as_ref(),
-        UsageEvent {
-            schema: usage::SCHEMA.into(),
-            producer_id: String::new(),
-            request_id: id.0.clone(),
-            attempt_id: uuid::Uuid::new_v4().to_string(),
-            event_id: uuid::Uuid::new_v4().to_string(),
-            revision: 0,
-            kind: EventKind::AttemptStarted,
-            started_at_ms: timestamp,
-            observed_at_ms: timestamp,
-            provider: route.snapshot.provider_id.clone(),
-            model_alias: model_id.clone(),
-            upstream_model: route.snapshot.model.clone(),
-            reported_model: None,
-            provider_request_id: None,
-            provider_response_id: None,
-            profile,
-            configuration_sha256: state.configuration_sha256.clone(),
-            upstream: Outcome::InProgress,
-            gateway: Outcome::InProgress,
-            finality: Finality::Unobserved,
-            observation_incomplete: false,
-            usage: Default::default(),
-        },
-    )
-    .await
-    .map_err(|_| accounting_error())?;
     let send = send
         .header(
             header::ACCEPT,
@@ -366,7 +385,7 @@ pub(crate) async fn responses(
             let mut framing = SseDecoder::new(maximum).expect("positive configured byte limit");
             let mut observation = state.usage.as_ref().map(|_| SseDecoder::new(maximum).expect("positive limit"));
             let mut converted = match prepared.as_mut() {
-                Some(p)=>match p.stream(maximum).await {Ok(s)=>Some(s),Err(_)=>{let _=usage::finish(&mut attempt,Outcome::ConversionFailed).await;yield Err(io::Error::other("Codec stream initialization failed"));return;}},
+                Some(p)=>match p.stream(maximum, format!("resp_{}", lease.request_id)).await {Ok(s)=>Some(s),Err(_)=>{let _=usage::finish(&mut attempt,Outcome::ConversionFailed).await;yield Err(io::Error::other("Codec stream initialization failed"));return;}},
                 None=>None,
             };
             'upstream: loop {
@@ -387,7 +406,7 @@ pub(crate) async fn responses(
                                 if let Ok(payload) = crate::adapters::json::decode(event.data.as_bytes()) {
                                     if usage::observe_payload(&mut attempt, &payload).await.is_err() { lease.mark("usage_record_failed"); yield Err(io::Error::other("Usage record failed")); break 'upstream; }
                                 } else if event.data.trim() != "[DONE]" && let Some(a) = &mut attempt { a.incomplete(); }
-                                let events = match converted.event(event).await {
+                                let batch = match converted.event(event).await {
                                     Ok(events) => events,
                                     Err(_) => {
                                         lease.mark("upstream_invalid_stream");
@@ -396,6 +415,13 @@ pub(crate) async fn responses(
                                         break 'upstream;
                                     }
                                 };
+                                // Never strip plugin provenance into a legacy recorder event.
+                                if batch.provider_observation.is_some() && attempt.is_some() {
+                                    lease.mark("usage_record_failed");
+                                    yield Err(io::Error::other("Provider usage contract is unavailable"));
+                                    break 'upstream;
+                                }
+                                let events = batch.events;
                                 // Checked Responses releases executable items only with a fully
                                 // validated terminal; commit accounting before the entire batch.
                                 if converted.gates_tool_completion()
@@ -520,7 +546,9 @@ pub(crate) async fn responses(
             a.incomplete();
         }
         if let Some(mut prepared) = prepared {
-            let decoded = prepared.decode_bytes(&data).await;
+            let decoded = prepared
+                .decode_bytes(&data, &format!("resp_{}", lease.request_id))
+                .await;
             if decoded.is_err() {
                 let _ = usage::finish(&mut attempt, Outcome::ConversionFailed).await;
             }
@@ -531,8 +559,12 @@ pub(crate) async fn responses(
                     "Upstream response cannot be converted",
                 )
             })?;
-            data = serde_json::to_vec(&output).expect("constructed JSON response");
-            if route.compatibility.is_some() && data.len() > state.config.limits.max_response_bytes
+            if output.provider_observation.is_some() && attempt.is_some() {
+                return Err(accounting_error());
+            }
+            data = serde_json::to_vec(&output.response).expect("constructed JSON response");
+            if (route.compatibility.is_some() || is_provider)
+                && data.len() > state.config.limits.max_response_bytes
             {
                 let _ = usage::finish(&mut attempt, Outcome::ConversionFailed).await;
                 return Err(ApiError::new(

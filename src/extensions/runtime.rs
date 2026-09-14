@@ -90,7 +90,9 @@ impl ExtensionRuntime {
             _store_lock: Some(lock),
         };
         for (entry, package) in plan.activation.extensions.iter().zip(&plan.packages) {
-            if crate::codecs::contract::supported_protocol(&package.protocol) {
+            if crate::codecs::contract::supported_protocol(&package.protocol)
+                || package.protocol == gateway_plugin_contract::PROVIDER_PROTOCOL
+            {
                 continue;
             }
             let executable = plan

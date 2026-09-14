@@ -9,6 +9,7 @@ use crate::ConfigError;
 
 #[cfg(unix)]
 pub(crate) mod filesystem;
+pub(crate) mod framed_process;
 mod runtime;
 mod usage_runtime;
 pub use runtime::{ExtensionRuntime, ObserverSink};
@@ -264,6 +265,14 @@ pub struct ExtensionPlan {
 impl ExtensionPlan {
     #[cfg(unix)]
     pub fn load(path: &std::path::Path) -> Result<Self, ConfigError> {
+        Self::load_inner(path, false)
+    }
+    #[cfg(all(test, unix))]
+    pub(crate) fn load_provider_qualification(path: &std::path::Path) -> Result<Self, ConfigError> {
+        Self::load_inner(path, true)
+    }
+    #[cfg(unix)]
+    fn load_inner(path: &std::path::Path, qualification: bool) -> Result<Self, ConfigError> {
         host_target()?;
         filesystem::no_links(path)?;
         let root = path.parent().ok_or_else(invalid)?.to_path_buf();
@@ -285,7 +294,9 @@ impl ExtensionPlan {
             }
             let package: Package = decode(&raw)?;
             package.validate()?;
-            if package.protocol == gateway_plugin_contract::PROVIDER_PROTOCOL {
+            if package.protocol == gateway_plugin_contract::PROVIDER_PROTOCOL
+                && !(cfg!(test) && qualification)
+            {
                 return Err(ConfigError(
                     "Provider plugin runtime is not available".into(),
                 ));
@@ -347,7 +358,16 @@ impl ExtensionPlan {
                 return Err(invalid());
             }
         }
-        let configuration = json!({"schema":if packages.iter().any(|p| p.capabilities.is_some()) {"gateway-extension-configuration/v3"} else if activation.recorder.is_some() {"gateway-extension-configuration/v2"} else {"gateway-extension-configuration/v1"}, "store":root,
+        if activation.recorder.is_some()
+            && packages
+                .iter()
+                .any(|p| p.protocol == gateway_plugin_contract::PROVIDER_PROTOCOL)
+        {
+            return Err(ConfigError(
+                "Provider plugins require a compatible usage recorder contract".into(),
+            ));
+        }
+        let configuration = json!({"schema":if packages.iter().any(|p| p.protocol == gateway_plugin_contract::PROVIDER_PROTOCOL) {"gateway-extension-configuration/v4"} else if packages.iter().any(|p| p.capabilities.is_some()) {"gateway-extension-configuration/v3"} else if activation.recorder.is_some() {"gateway-extension-configuration/v2"} else {"gateway-extension-configuration/v1"}, "store":root,
             "activation":activation, "packages":packages});
         let configuration_sha256 = hash(&canonical(&configuration)?);
         Ok(Self {
@@ -363,6 +383,45 @@ impl ExtensionPlan {
     #[cfg(not(unix))]
     pub fn load(_path: &std::path::Path) -> Result<Self, ConfigError> {
         Err(invalid())
+    }
+
+    pub(crate) fn provider_bindings(&self) -> BTreeMap<String, crate::provider_plugins::Binding> {
+        self.activation
+            .extensions
+            .iter()
+            .zip(&self.packages)
+            .filter(|(_, p)| p.protocol == gateway_plugin_contract::PROVIDER_PROTOCOL)
+            .map(|(entry, p)| {
+                let directory = self
+                    .root
+                    .join("packages")
+                    .join(&entry.id)
+                    .join(&entry.version)
+                    .join(&entry.package_sha256);
+                (
+                    entry.id.clone(),
+                    crate::provider_plugins::Binding {
+                        protocol: p.protocol.clone(),
+                        provider_protocol: p
+                            .provider_protocol
+                            .clone()
+                            .expect("validated provider identity"),
+                        capabilities: p
+                            .capabilities
+                            .clone()
+                            .expect("validated provider capabilities"),
+                        id: entry.id.clone(),
+                        version: entry.version.clone(),
+                        package_sha256: entry.package_sha256.clone(),
+                        executable_sha256: p.files["extension"].clone(),
+                        executable: directory.join("extension"),
+                        directory,
+                        #[cfg(unix)]
+                        owner: self.owner,
+                    },
+                )
+            })
+            .collect()
     }
 
     pub(crate) fn codec_bindings(&self) -> BTreeMap<String, crate::codecs::Binding> {
@@ -402,7 +461,13 @@ impl ExtensionPlan {
     }
 
     pub fn manifest_schema(&self) -> &'static str {
-        if self.packages.iter().any(|p| p.capabilities.is_some()) {
+        if self
+            .packages
+            .iter()
+            .any(|p| p.protocol == gateway_plugin_contract::PROVIDER_PROTOCOL)
+        {
+            "gateway-extended-manifest/v9"
+        } else if self.packages.iter().any(|p| p.capabilities.is_some()) {
             "gateway-extended-manifest/v8"
         } else if self.activation.recorder.is_some() {
             "gateway-extended-manifest/v2"
@@ -411,7 +476,13 @@ impl ExtensionPlan {
         }
     }
     pub fn ready_schema(&self) -> &'static str {
-        if self.packages.iter().any(|p| p.capabilities.is_some()) {
+        if self
+            .packages
+            .iter()
+            .any(|p| p.protocol == gateway_plugin_contract::PROVIDER_PROTOCOL)
+        {
+            "gateway-extended-ready/v9"
+        } else if self.packages.iter().any(|p| p.capabilities.is_some()) {
             "gateway-extended-ready/v8"
         } else if self.activation.recorder.is_some() {
             "gateway-extended-ready/v2"
@@ -454,7 +525,7 @@ impl ExtensionPlan {
         }
         let execution_sha256 = hash(&canonical(&configuration)?);
         Ok(
-            json!({"schema":if self.packages.iter().any(|p| p.capabilities.is_some()) { "gateway-extended-manifest/v8" } else if editing { "gateway-extended-manifest/v7" } else if codecs { "gateway-extended-manifest/v6" } else if profile_packs { "gateway-extended-manifest/v5" } else if compatibility { "gateway-extended-manifest/v4" } else if managed { "gateway-extended-manifest/v3" } else { self.manifest_schema() }, "configuration":configuration,
+            json!({"schema":if self.packages.iter().any(|p| p.protocol == gateway_plugin_contract::PROVIDER_PROTOCOL) { "gateway-extended-manifest/v9" } else if self.packages.iter().any(|p| p.capabilities.is_some()) { "gateway-extended-manifest/v8" } else if editing { "gateway-extended-manifest/v7" } else if codecs { "gateway-extended-manifest/v6" } else if profile_packs { "gateway-extended-manifest/v5" } else if compatibility { "gateway-extended-manifest/v4" } else if managed { "gateway-extended-manifest/v3" } else { self.manifest_schema() }, "configuration":configuration,
             "execution_sha256":execution_sha256}),
         )
     }

@@ -16,6 +16,7 @@ use crate::{
 
 #[derive(Clone, Debug)]
 pub struct ResolvedRoute {
+    pub(crate) provider_plugin: Option<crate::provider_plugins::Binding>,
     pub editing: Option<crate::editing::Policy>,
     pub compatibility: Option<crate::compatibility::BoundPolicy>,
     pub managed: bool,
@@ -98,6 +99,16 @@ impl Config {
                 snapshot.adapter_version, self.codecs[id].package_sha256
             );
         }
+        if let Some(id) = &model.provider_plugin {
+            let identity = serde_json::json!({"binding":self.provider_plugins[id].projection(), "path":model.provider_path, "endpoint":provider.plugin_url(model.provider_path.as_deref().ok_or_else(|| ConfigError("Missing provider path".into()))?)?.as_str()});
+            snapshot.adapter_version = format!(
+                "{}/provider/1/{}",
+                snapshot.adapter_version,
+                crate::continuation::hex(&crate::digest::sha256(
+                    &serde_json::to_vec(&identity).expect("provider binding")
+                ))
+            );
+        }
         let editing = model
             .editing_policy
             .as_ref()
@@ -123,6 +134,10 @@ impl Config {
             .validate()
             .map_err(|_| ConfigError("Invalid route snapshot".into()))?;
         Ok(ResolvedRoute {
+            provider_plugin: model
+                .provider_plugin
+                .as_ref()
+                .map(|id| self.provider_plugins[id].clone()),
             editing,
             compatibility,
             managed: model.continuation_mode.unwrap_or(
@@ -133,7 +148,16 @@ impl Config {
                 },
             ) == crate::config::ContinuationMode::Managed,
             alias: alias.into(),
-            endpoint: provider.api_url(model.api)?,
+            endpoint: if model.api == ApiProtocol::Plugin {
+                provider.plugin_url(
+                    model
+                        .provider_path
+                        .as_deref()
+                        .ok_or_else(|| ConfigError("Missing provider path".into()))?,
+                )?
+            } else {
+                provider.api_url(model.api)?
+            },
             auth: model.auth.unwrap_or_default(),
             messages_version: model.messages_version.clone(),
             snapshot,
@@ -165,6 +189,14 @@ impl ResolvedRoute {
             if requested > limit {
                 return Err(IrError::UnsupportedFeature);
             }
+        }
+        if self.snapshot.api == ApiProtocol::Plugin
+            && self.provider_plugin.as_ref().is_none_or(|binding| {
+                payload.get("stream") == Some(&Value::Bool(true))
+                    && !binding.capabilities.supports("streaming")
+            })
+        {
+            return Err(IrError::UnsupportedFeature);
         }
         payload.insert("model".into(), Value::String(self.snapshot.model.clone()));
         if self.snapshot.api == ApiProtocol::Responses && self.compatibility.is_none() {
