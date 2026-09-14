@@ -191,7 +191,22 @@ def run_plan(root, plan):
         if not present:
             missing.append(tool)
     if missing:
-        raise ValidationError('Missing tools: ' + ', '.join(missing) + '; prepare the selected tools using the development and licensing guides')
+        affected = sorted(c for c in plan['checks'] if set(policy['checks'][c]['tools']) & set(missing))
+        preparation = []
+        if 'cargo' in missing:
+            preparation.append('rustup toolchain install 1.98.0 --profile minimal --component clippy --component rustfmt')
+        if 'cargo-deny' in missing:
+            preparation.append(sys.executable + ' -B scripts/prepare_tools.py')
+        if {'node', 'npm'} & set(missing):
+            preparation.append('Install Node 24.21.0 and npm 11.19.0 using your Node manager')
+            for check, directory in [('web', 'management-web'), ('web-api', 'management-web'), ('docs', 'docs-site')]:
+                command = 'npm ci --prefix ' + directory + ' --ignore-scripts'
+                if check in plan['checks'] and command not in preparation:
+                    preparation.append(command)
+        if 'git' in missing:
+            preparation.append('Install Git using your platform package manager')
+        raise ValidationError('Missing tools: ' + ', '.join(missing) + '; affected checks: ' + ', '.join(affected)
+                              + '; preparation (not executed): ' + '; '.join(preparation))
     state = root / '.local/validation'
     state.mkdir(parents=True, exist_ok=True)
     result = dict(schema='gateway-validation-result/v1', plan=plan, checks=[], success=False)

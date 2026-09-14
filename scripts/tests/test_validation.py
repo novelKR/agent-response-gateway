@@ -154,3 +154,14 @@ class GitSelectionTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class MissingToolTests(unittest.TestCase):
+    def test_missing_rust_reports_check_and_preparation_without_execution(self):
+        policy,digest=v.read_policy(ROOT)
+        plan=dict(scope='worktree',head_sha='a'*40,policy_sha256=digest,tools=['cargo'],checks=['rust'])
+        with patch.object(v.shutil,'which',return_value=None),patch.object(v.subprocess,'run') as run:
+            with self.assertRaises(v.ValidationError) as error:v.run_plan(ROOT,plan)
+        self.assertIn('affected checks: rust',str(error.exception))
+        self.assertIn('rustup toolchain install 1.98.0',str(error.exception))
+        run.assert_not_called()
