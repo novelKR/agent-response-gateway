@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import io
+import importlib.util
+from unittest.mock import patch
 import json
 import os
 from pathlib import Path
@@ -336,3 +338,24 @@ class PublicBoundaryTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class BoundaryBudgetTests(unittest.TestCase):
+    def test_repeated_history_paths_do_not_exhaust_distinct_input_budget(self):
+        spec=importlib.util.spec_from_file_location('boundary_budget',SCRIPT)
+        module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+        checker=module.Checker(ROOT,[])
+        with patch.object(module,'MAX_ENTRIES',2):
+            for _ in range(20):checker.path(b'repeated.md')
+            checker.path(b'repeated.md',b'100755')
+            self.assertEqual(checker.entries,2)
+            with self.assertRaises(module.BoundaryError):checker.path(b'another.md')
+        with self.assertRaises(module.BoundaryError):checker.path(b'repeated.md',b'120000')
+
+    def test_new_content_at_cached_path_is_still_checked(self):
+        spec=importlib.util.spec_from_file_location('boundary_content',SCRIPT)
+        module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+        checker=module.Checker(ROOT,[MARKER.encode()])
+        checker.path(b'repeated.md');checker.content(b'Public text')
+        checker.path(b'repeated.md')
+        with self.assertRaises(module.BoundaryError):checker.content(MARKER.encode())
