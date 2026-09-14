@@ -2,8 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { jsonTokens } from '../src/json-tokens.mjs';
-import { createServer } from 'vite';
-import vue from '@vitejs/plugin-vue';
+import { parse, compileScript } from '@vue/compiler-sfc';
 import { createSSRApp, h } from 'vue';
 import { renderToString } from 'vue/server-renderer';
 
@@ -25,19 +24,22 @@ test('JSON tokens preserve exact serialized text, escapes, numeric lexemes and t
 });
 
 test('shared Vue component escapes HTML and distinguishes missing observations from false and zero', async () => {
-  const server=await createServer({configFile:false,root:new URL('..',import.meta.url).pathname,plugins:[vue()],server:{middlewareMode:true,hmr:false}});
-  try {
-    const {default:JsonView}=await server.ssrLoadModule('/src/JsonView.vue');
-    const render=value=>renderToString(createSSRApp({render:()=>h(JsonView,{value,emptyText:'미관측'})}));
-    const html=await render(sample);
-    assert.doesNotMatch(html,/<script|<img/);
-    assert.match(html,/&lt;script&gt;/);
-    assert.match(html,/class="json-null">null/);
-    assert.match(html,/class="json-number">0/);
-    assert.match(html,/class="json-boolean">false/);
-    for(const value of [null,undefined]) assert.match(await render(value),/미관측/);
-    for(const value of [false,0,'',[],{}]) assert.doesNotMatch(await render(value),/미관측/);
-  } finally {await server.close();}
+  const source=readFileSync(new URL('../src/JsonView.vue',import.meta.url),'utf8');
+  const {descriptor}=parse(source);
+  const script=compileScript(descriptor,{id:'json-view-test',inlineTemplate:true});
+  const module=script.content
+    .replace(/from (["'])vue\1/g,`from ${JSON.stringify(import.meta.resolve('vue'))}`)
+    .replace("'./json-tokens.mjs'",JSON.stringify(new URL('../src/json-tokens.mjs',import.meta.url).href));
+  const {default:JsonView}=await import(`data:text/javascript;base64,${Buffer.from(module).toString('base64')}`);
+  const render=value=>renderToString(createSSRApp({render:()=>h(JsonView,{value,emptyText:'미관측'})}));
+  const html=await render(sample);
+  assert.doesNotMatch(html,/<script|<img/);
+  assert.match(html,/&lt;script&gt;/);
+  assert.match(html,/class="json-null">null/);
+  assert.match(html,/class="json-number">0/);
+  assert.match(html,/class="json-boolean">false/);
+  for(const value of [null,undefined]) assert.match(await render(value),/미관측/);
+  for(const value of [false,0,'',[],{}]) assert.doesNotMatch(await render(value),/미관측/);
 });
 
 test('JSON token colors have at least 4.5:1 contrast on both theme surfaces', () => {
