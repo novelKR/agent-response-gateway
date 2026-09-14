@@ -1185,6 +1185,34 @@
       ],
       "source_sha256": "58c87b20a5c0f55879008e3b1cc9b5799c53af7fbc46783cec2dc5ae856d1948",
       "translation_sha256": "95f3fe2dcbd659ffe3242446260e769340b4dc40ce8369f6aee04562bd9cfcfe"
+    },
+    {
+      "id": "plugin-authoring",
+      "section": "reference",
+      "order": 25,
+      "source": "docs/plugin-authoring.md",
+      "translation": "docs/ko/plugin-authoring.md",
+      "source_sha256": "9e5b1c0516e1c0d4befe7e808fa03637dee54e604c5da4a622185ff17d5f9d6e",
+      "translation_sha256": "ee26355a0546b7c9e0610125296faa8f57437e1594593591b1f6d58e2cf4ec20",
+      "anchors": [
+        "choose-a-supported-role",
+        "codec-messages-and-state-machine",
+        "codec-nested-types-and-invariants",
+        "codec-메시지와-상태-기계",
+        "codec-중첩-타입과-불변-조건",
+        "observer-protocol",
+        "observer-프로토콜",
+        "package-bytes-and-execution",
+        "recorder-protocol",
+        "recorder-프로토콜",
+        "validate-and-release-independently",
+        "writing-native-plugins",
+        "네이티브-플러그인-작성",
+        "독립-검증과-배포",
+        "지원-역할-선택",
+        "패키지-바이트와-실행"
+      ],
+      "route": "/guide/plugin-authoring"
     }
   ]
 }

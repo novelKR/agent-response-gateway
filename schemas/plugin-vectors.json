@@ -1,0 +1,1485 @@
+{
+  "schema": "gateway-plugin-contract-vectors/v1",
+  "cases": [
+    {
+      "id": "package-observer",
+      "schema": "gateway-extension-package-v1.schema.json",
+      "value": {
+        "schema": "gateway-extension-package/v1",
+        "id": "example-observer",
+        "version": "1.0.0",
+        "target": "linux-x64",
+        "protocol": "gateway-observer/v1",
+        "permissions": [
+          "observe_http_metadata",
+          "write_private_state"
+        ],
+        "state_schema": "observer-state/v1",
+        "files": {
+          "extension": "9afd2910ff2a64488c0177d36c1d41e94bd42df8904093a79cb297d1136f38d1",
+          "LICENSE.txt": "3619b0b715bbbabadfa3165cad0e37affa65799c5ee6da58a43e12f117deacbd"
+        }
+      },
+      "valid": true
+    },
+    {
+      "id": "package-role-1",
+      "schema": "gateway-extension-package-v1.schema.json",
+      "value": {
+        "schema": "gateway-extension-package/v1",
+        "id": "example-observer",
+        "version": "1.0.0",
+        "target": "linux-x64",
+        "protocol": "gateway-usage-recorder/v1",
+        "permissions": [
+          "export_usage",
+          "observe_usage",
+          "write_usage_store"
+        ],
+        "state_schema": "usage-store/v1",
+        "files": {
+          "extension": "9afd2910ff2a64488c0177d36c1d41e94bd42df8904093a79cb297d1136f38d1",
+          "LICENSE.txt": "3619b0b715bbbabadfa3165cad0e37affa65799c5ee6da58a43e12f117deacbd"
+        }
+      },
+      "valid": true
+    },
+    {
+      "id": "package-role-2",
+      "schema": "gateway-extension-package-v1.schema.json",
+      "value": {
+        "schema": "gateway-extension-package/v1",
+        "id": "example-observer",
+        "version": "1.0.0",
+        "target": "linux-x64",
+        "protocol": "gateway-api-codec/v1",
+        "permissions": [
+          "read_model_payload",
+          "transform_model_protocol"
+        ],
+        "state_schema": "request-memory/v1",
+        "files": {
+          "extension": "9afd2910ff2a64488c0177d36c1d41e94bd42df8904093a79cb297d1136f38d1",
+          "LICENSE.txt": "3619b0b715bbbabadfa3165cad0e37affa65799c5ee6da58a43e12f117deacbd"
+        }
+      },
+      "valid": true
+    },
+    {
+      "id": "package-role-3",
+      "schema": "gateway-extension-package-v1.schema.json",
+      "value": {
+        "schema": "gateway-extension-package/v1",
+        "id": "example-observer",
+        "version": "1.0.0",
+        "target": "linux-x64",
+        "protocol": "gateway-api-codec/v2",
+        "permissions": [
+          "read_model_payload",
+          "transform_model_protocol"
+        ],
+        "state_schema": "request-memory/v1",
+        "files": {
+          "extension": "9afd2910ff2a64488c0177d36c1d41e94bd42df8904093a79cb297d1136f38d1",
+          "LICENSE.txt": "3619b0b715bbbabadfa3165cad0e37affa65799c5ee6da58a43e12f117deacbd"
+        }
+      },
+      "valid": true
+    },
+    {
+      "id": "package-permission-order",
+      "schema": "gateway-extension-package-v1.schema.json",
+      "value": {
+        "schema": "gateway-extension-package/v1",
+        "id": "example-observer",
+        "version": "1.0.0",
+        "target": "linux-x64",
+        "protocol": "gateway-observer/v1",
+        "permissions": [
+          "write_private_state",
+          "observe_http_metadata"
+        ],
+        "state_schema": "observer-state/v1",
+        "files": {
+          "extension": "9afd2910ff2a64488c0177d36c1d41e94bd42df8904093a79cb297d1136f38d1",
+          "LICENSE.txt": "3619b0b715bbbabadfa3165cad0e37affa65799c5ee6da58a43e12f117deacbd"
+        }
+      },
+      "valid": false
+    },
+    {
+      "id": "package-unknown-target",
+      "schema": "gateway-extension-package-v1.schema.json",
+      "value": {
+        "schema": "gateway-extension-package/v1",
+        "id": "example-observer",
+        "version": "1.0.0",
+        "target": "windows-x64",
+        "protocol": "gateway-observer/v1",
+        "permissions": [
+          "observe_http_metadata",
+          "write_private_state"
+        ],
+        "state_schema": "observer-state/v1",
+        "files": {
+          "extension": "9afd2910ff2a64488c0177d36c1d41e94bd42df8904093a79cb297d1136f38d1",
+          "LICENSE.txt": "3619b0b715bbbabadfa3165cad0e37affa65799c5ee6da58a43e12f117deacbd"
+        }
+      },
+      "valid": false
+    },
+    {
+      "id": "package-unknown-field",
+      "schema": "gateway-extension-package-v1.schema.json",
+      "value": {
+        "schema": "gateway-extension-package/v1",
+        "id": "example-observer",
+        "version": "1.0.0",
+        "target": "linux-x64",
+        "protocol": "gateway-observer/v1",
+        "permissions": [
+          "observe_http_metadata",
+          "write_private_state"
+        ],
+        "state_schema": "observer-state/v1",
+        "files": {
+          "extension": "9afd2910ff2a64488c0177d36c1d41e94bd42df8904093a79cb297d1136f38d1",
+          "LICENSE.txt": "3619b0b715bbbabadfa3165cad0e37affa65799c5ee6da58a43e12f117deacbd"
+        },
+        "publisher": "example"
+      },
+      "valid": false
+    },
+    {
+      "id": "observer-ready",
+      "schema": "gateway-observer-v1.schema.json",
+      "value": {
+        "type": "ready",
+        "protocol": "gateway-observer/v1"
+      },
+      "valid": true
+    },
+    {
+      "id": "observer-http",
+      "schema": "gateway-observer-v1.schema.json",
+      "value": {
+        "type": "http",
+        "sequence": 1,
+        "status": 200,
+        "headers_ms": 8
+      },
+      "valid": true
+    },
+    {
+      "id": "observer-ack",
+      "schema": "gateway-observer-v1.schema.json",
+      "value": {
+        "type": "ack",
+        "sequence": 1
+      },
+      "valid": true
+    },
+    {
+      "id": "observer-unknown-field",
+      "schema": "gateway-observer-v1.schema.json",
+      "value": {
+        "type": "ack",
+        "sequence": 1,
+        "body": "forbidden"
+      },
+      "valid": false
+    },
+    {
+      "id": "observer-sequence-zero",
+      "schema": "gateway-observer-v1.schema.json",
+      "value": {
+        "type": "ack",
+        "sequence": 0
+      },
+      "valid": false
+    },
+    {
+      "id": "observer-overflow",
+      "schema": "gateway-observer-v1.schema.json",
+      "value": {
+        "type": "ack",
+        "sequence": 18446744073709551616
+      },
+      "valid": false
+    },
+    {
+      "id": "recorder-ready",
+      "schema": "gateway-usage-recorder-v1.schema.json",
+      "value": {
+        "type": "ready",
+        "protocol": "gateway-usage-recorder/v1",
+        "producer_id": "synthetic-producer"
+      },
+      "valid": true
+    },
+    {
+      "id": "recorder-committed",
+      "schema": "gateway-usage-recorder-v1.schema.json",
+      "value": {
+        "type": "committed",
+        "event_id": "synthetic-event",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "valid": true
+    },
+    {
+      "id": "recorder-unknown-field",
+      "schema": "gateway-usage-recorder-v1.schema.json",
+      "value": {
+        "type": "ready",
+        "protocol": "gateway-usage-recorder/v1",
+        "producer_id": "synthetic-producer",
+        "credential": "forbidden"
+      },
+      "valid": false
+    },
+    {
+      "id": "codec-v1-ready",
+      "schema": "gateway-api-codec-v1.schema.json",
+      "value": {
+        "protocol": "gateway-api-codec/v1",
+        "sequence": 0,
+        "value": {
+          "result": "ready",
+          "apis": [
+            "responses",
+            "messages",
+            "chat_completions",
+            "gemini_interactions"
+          ],
+          "replay_versions": [
+            1
+          ]
+        }
+      },
+      "valid": true
+    },
+    {
+      "id": "codec-v1-prepare",
+      "schema": "gateway-api-codec-v1.schema.json",
+      "value": {
+        "protocol": "gateway-api-codec/v1",
+        "sequence": 1,
+        "operation": {
+          "operation": "prepare",
+          "value": {
+            "request": {
+              "model": "synthetic",
+              "input": "test",
+              "stream": false
+            },
+            "route": {
+              "api": "responses",
+              "model": "synthetic",
+              "profile_id": "synthetic",
+              "profile_version": "1",
+              "reasoning_contract": null,
+              "support": {},
+              "context_window": 8192,
+              "max_output_tokens": 2048
+            },
+            "managed": false,
+            "pending_tools": false,
+            "history": [],
+            "max_output_bytes": 65536
+          }
+        }
+      },
+      "valid": true
+    },
+    {
+      "id": "codec-v1-editing-null",
+      "schema": "gateway-api-codec-v1.schema.json",
+      "value": {
+        "protocol": "gateway-api-codec/v1",
+        "sequence": 1,
+        "operation": {
+          "operation": "prepare",
+          "value": {
+            "request": {
+              "model": "synthetic",
+              "input": "test",
+              "stream": false
+            },
+            "route": {
+              "api": "responses",
+              "model": "synthetic",
+              "profile_id": "synthetic",
+              "profile_version": "1",
+              "reasoning_contract": null,
+              "support": {},
+              "context_window": 8192,
+              "max_output_tokens": 2048
+            },
+            "managed": false,
+            "pending_tools": false,
+            "history": [],
+            "max_output_bytes": 65536,
+            "editing": null
+          }
+        }
+      },
+      "valid": false
+    },
+    {
+      "id": "codec-v1-subset-ready",
+      "schema": "gateway-api-codec-v1.schema.json",
+      "value": {
+        "protocol": "gateway-api-codec/v1",
+        "sequence": 0,
+        "value": {
+          "result": "ready",
+          "apis": [
+            "responses"
+          ],
+          "replay_versions": [
+            1
+          ]
+        }
+      },
+      "valid": false
+    },
+    {
+      "id": "codec-v1-operation-json",
+      "schema": "gateway-api-codec-v1.schema.json",
+      "value": {
+        "protocol": "gateway-api-codec/v1",
+        "sequence": 2,
+        "operation": {
+          "operation": "json",
+          "body": "",
+          "response_id": ""
+        }
+      },
+      "valid": true
+    },
+    {
+      "id": "codec-v1-operation-stream",
+      "schema": "gateway-api-codec-v1.schema.json",
+      "value": {
+        "protocol": "gateway-api-codec/v1",
+        "sequence": 2,
+        "operation": {
+          "operation": "stream",
+          "response_id": ""
+        }
+      },
+      "valid": true
+    },
+    {
+      "id": "codec-v1-operation-event",
+      "schema": "gateway-api-codec-v1.schema.json",
+      "value": {
+        "protocol": "gateway-api-codec/v1",
+        "sequence": 2,
+        "operation": {
+          "operation": "event",
+          "event": "",
+          "data": ""
+        }
+      },
+      "valid": true
+    },
+    {
+      "id": "codec-v1-operation-finish",
+      "schema": "gateway-api-codec-v1.schema.json",
+      "value": {
+        "protocol": "gateway-api-codec/v1",
+        "sequence": 2,
+        "operation": {
+          "operation": "finish"
+        }
+      },
+      "valid": true
+    },
+    {
+      "id": "codec-v2-ready",
+      "schema": "gateway-api-codec-v2.schema.json",
+      "value": {
+        "protocol": "gateway-api-codec/v2",
+        "sequence": 0,
+        "value": {
+          "result": "ready",
+          "apis": [
+            "responses",
+            "messages",
+            "chat_completions",
+            "gemini_interactions"
+          ],
+          "replay_versions": [
+            1
+          ]
+        }
+      },
+      "valid": true
+    },
+    {
+      "id": "codec-v2-prepare",
+      "schema": "gateway-api-codec-v2.schema.json",
+      "value": {
+        "protocol": "gateway-api-codec/v2",
+        "sequence": 1,
+        "operation": {
+          "operation": "prepare",
+          "value": {
+            "request": {
+              "model": "synthetic",
+              "input": "test",
+              "stream": false
+            },
+            "route": {
+              "api": "responses",
+              "model": "synthetic",
+              "profile_id": "synthetic",
+              "profile_version": "1",
+              "reasoning_contract": null,
+              "support": {},
+              "context_window": 8192,
+              "max_output_tokens": 2048
+            },
+            "managed": false,
+            "pending_tools": false,
+            "history": [],
+            "max_output_bytes": 65536
+          }
+        }
+      },
+      "valid": true
+    },
+    {
+      "id": "codec-v2-editing-null",
+      "schema": "gateway-api-codec-v2.schema.json",
+      "value": {
+        "protocol": "gateway-api-codec/v2",
+        "sequence": 1,
+        "operation": {
+          "operation": "prepare",
+          "value": {
+            "request": {
+              "model": "synthetic",
+              "input": "test",
+              "stream": false
+            },
+            "route": {
+              "api": "responses",
+              "model": "synthetic",
+              "profile_id": "synthetic",
+              "profile_version": "1",
+              "reasoning_contract": null,
+              "support": {},
+              "context_window": 8192,
+              "max_output_tokens": 2048
+            },
+            "managed": false,
+            "pending_tools": false,
+            "history": [],
+            "max_output_bytes": 65536,
+            "editing": null
+          }
+        }
+      },
+      "valid": true
+    },
+    {
+      "id": "codec-v2-subset-ready",
+      "schema": "gateway-api-codec-v2.schema.json",
+      "value": {
+        "protocol": "gateway-api-codec/v2",
+        "sequence": 0,
+        "value": {
+          "result": "ready",
+          "apis": [
+            "responses"
+          ],
+          "replay_versions": [
+            1
+          ]
+        }
+      },
+      "valid": false
+    },
+    {
+      "id": "codec-v2-operation-json",
+      "schema": "gateway-api-codec-v2.schema.json",
+      "value": {
+        "protocol": "gateway-api-codec/v2",
+        "sequence": 2,
+        "operation": {
+          "operation": "json",
+          "body": "",
+          "response_id": ""
+        }
+      },
+      "valid": true
+    },
+    {
+      "id": "codec-v2-operation-stream",
+      "schema": "gateway-api-codec-v2.schema.json",
+      "value": {
+        "protocol": "gateway-api-codec/v2",
+        "sequence": 2,
+        "operation": {
+          "operation": "stream",
+          "response_id": ""
+        }
+      },
+      "valid": true
+    },
+    {
+      "id": "codec-v2-operation-event",
+      "schema": "gateway-api-codec-v2.schema.json",
+      "value": {
+        "protocol": "gateway-api-codec/v2",
+        "sequence": 2,
+        "operation": {
+          "operation": "event",
+          "event": "",
+          "data": ""
+        }
+      },
+      "valid": true
+    },
+    {
+      "id": "codec-v2-operation-finish",
+      "schema": "gateway-api-codec-v2.schema.json",
+      "value": {
+        "protocol": "gateway-api-codec/v2",
+        "sequence": 2,
+        "operation": {
+          "operation": "finish"
+        }
+      },
+      "valid": true
+    },
+    {
+      "id": "package-id-trailing-newline",
+      "schema": "gateway-extension-package-v1.schema.json",
+      "value": {
+        "schema": "gateway-extension-package/v1",
+        "id": "example-observer\n",
+        "version": "1.0.0",
+        "target": "linux-x64",
+        "protocol": "gateway-observer/v1",
+        "permissions": [
+          "observe_http_metadata",
+          "write_private_state"
+        ],
+        "state_schema": "observer-state/v1",
+        "files": {
+          "extension": "9afd2910ff2a64488c0177d36c1d41e94bd42df8904093a79cb297d1136f38d1",
+          "LICENSE.txt": "3619b0b715bbbabadfa3165cad0e37affa65799c5ee6da58a43e12f117deacbd"
+        }
+      },
+      "valid": false
+    },
+    {
+      "id": "package-version-trailing-newline",
+      "schema": "gateway-extension-package-v1.schema.json",
+      "value": {
+        "schema": "gateway-extension-package/v1",
+        "id": "example-observer",
+        "version": "1.0.0\n",
+        "target": "linux-x64",
+        "protocol": "gateway-observer/v1",
+        "permissions": [
+          "observe_http_metadata",
+          "write_private_state"
+        ],
+        "state_schema": "observer-state/v1",
+        "files": {
+          "extension": "9afd2910ff2a64488c0177d36c1d41e94bd42df8904093a79cb297d1136f38d1",
+          "LICENSE.txt": "3619b0b715bbbabadfa3165cad0e37affa65799c5ee6da58a43e12f117deacbd"
+        }
+      },
+      "valid": false
+    },
+    {
+      "id": "package-file-name-trailing-newline",
+      "schema": "gateway-extension-package-v1.schema.json",
+      "value": {
+        "schema": "gateway-extension-package/v1",
+        "id": "example-observer",
+        "version": "1.0.0",
+        "target": "linux-x64",
+        "protocol": "gateway-observer/v1",
+        "permissions": [
+          "observe_http_metadata",
+          "write_private_state"
+        ],
+        "state_schema": "observer-state/v1",
+        "files": {
+          "extension": "9afd2910ff2a64488c0177d36c1d41e94bd42df8904093a79cb297d1136f38d1",
+          "LICENSE.txt\n": "3619b0b715bbbabadfa3165cad0e37affa65799c5ee6da58a43e12f117deacbd"
+        }
+      },
+      "valid": false
+    },
+    {
+      "id": "package-file-digest-trailing-newline",
+      "schema": "gateway-extension-package-v1.schema.json",
+      "value": {
+        "schema": "gateway-extension-package/v1",
+        "id": "example-observer",
+        "version": "1.0.0",
+        "target": "linux-x64",
+        "protocol": "gateway-observer/v1",
+        "permissions": [
+          "observe_http_metadata",
+          "write_private_state"
+        ],
+        "state_schema": "observer-state/v1",
+        "files": {
+          "extension": "9afd2910ff2a64488c0177d36c1d41e94bd42df8904093a79cb297d1136f38d1\n",
+          "LICENSE.txt": "3619b0b715bbbabadfa3165cad0e37affa65799c5ee6da58a43e12f117deacbd"
+        }
+      },
+      "valid": false
+    },
+    {
+      "id": "recorder-label-trailing-newline",
+      "schema": "gateway-usage-recorder-v1.schema.json",
+      "value": {
+        "type": "ready",
+        "protocol": "gateway-usage-recorder/v1",
+        "producer_id": "synthetic\n"
+      },
+      "valid": false
+    },
+    {
+      "id": "recorder-event",
+      "schema": "gateway-usage-recorder-v1.schema.json",
+      "value": {
+        "schema": "gateway-usage-event/v1",
+        "producer_id": "synthetic-producer",
+        "request_id": "synthetic-request",
+        "attempt_id": "synthetic-attempt",
+        "event_id": "synthetic-event",
+        "revision": 0,
+        "kind": "attempt_started",
+        "started_at_ms": 1,
+        "observed_at_ms": 1,
+        "provider": "synthetic-provider",
+        "model_alias": "synthetic",
+        "upstream_model": "synthetic",
+        "reported_model": null,
+        "provider_request_id": null,
+        "provider_response_id": null,
+        "profile": "responses_v1",
+        "configuration_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "upstream": "in_progress",
+        "gateway": "in_progress",
+        "finality": "unobserved",
+        "observation_incomplete": false,
+        "usage": {
+          "counters": {
+            "input_tokens": {
+              "value": null,
+              "source": "not_reported"
+            },
+            "output_tokens": {
+              "value": null,
+              "source": "not_reported"
+            },
+            "total_tokens": {
+              "value": null,
+              "source": "not_reported"
+            },
+            "input_regular_tokens": {
+              "value": null,
+              "source": "not_reported"
+            },
+            "cache_read_input_tokens": {
+              "value": null,
+              "source": "not_reported"
+            },
+            "cache_write_input_tokens": {
+              "value": null,
+              "source": "not_reported"
+            },
+            "reasoning_output_tokens": {
+              "value": null,
+              "source": "not_reported"
+            }
+          },
+          "cache_write_details": [],
+          "reported": {},
+          "violations": []
+        }
+      },
+      "valid": true
+    },
+    {
+      "id": "recorder-actual-ack",
+      "schema": "gateway-usage-recorder-v1.schema.json",
+      "value": {
+        "type": "committed",
+        "event_id": "synthetic-event",
+        "sha256": "c799c513558f3c8f82327105edc8aee08d32b11a4f26e0e21e3aac11e9b1c025"
+      },
+      "valid": true
+    },
+    {
+      "id": "codec-v1-result-prepared",
+      "schema": "gateway-api-codec-v1.schema.json",
+      "value": {
+        "protocol": "gateway-api-codec/v1",
+        "sequence": 2,
+        "value": {
+          "result": "prepared",
+          "payload": {
+            "model": "synthetic"
+          }
+        }
+      },
+      "valid": true
+    },
+    {
+      "id": "codec-v1-result-json",
+      "schema": "gateway-api-codec-v1.schema.json",
+      "value": {
+        "protocol": "gateway-api-codec/v1",
+        "sequence": 2,
+        "value": {
+          "result": "json",
+          "response": {
+            "id": "resp_synthetic",
+            "object": "response",
+            "status": "completed",
+            "output": []
+          }
+        }
+      },
+      "valid": true
+    },
+    {
+      "id": "codec-v1-result-managed",
+      "schema": "gateway-api-codec-v1.schema.json",
+      "value": {
+        "protocol": "gateway-api-codec/v1",
+        "sequence": 2,
+        "value": {
+          "result": "managed",
+          "value": {
+            "response": {
+              "id": "resp_synthetic",
+              "object": "response",
+              "status": "completed",
+              "output": []
+            },
+            "native": {
+              "format": "messages_content",
+              "version": 1,
+              "blocks": [
+                {
+                  "type": "text",
+                  "text": "synthetic"
+                }
+              ],
+              "controls": {}
+            },
+            "outcome": "completed",
+            "accounting": {
+              "usage": {
+                "counters": {
+                  "input_tokens": {
+                    "value": null,
+                    "source": "not_reported"
+                  },
+                  "output_tokens": {
+                    "value": null,
+                    "source": "not_reported"
+                  },
+                  "total_tokens": {
+                    "value": null,
+                    "source": "not_reported"
+                  },
+                  "input_regular_tokens": {
+                    "value": null,
+                    "source": "not_reported"
+                  },
+                  "cache_read_input_tokens": {
+                    "value": null,
+                    "source": "not_reported"
+                  },
+                  "cache_write_input_tokens": {
+                    "value": null,
+                    "source": "not_reported"
+                  },
+                  "reasoning_output_tokens": {
+                    "value": null,
+                    "source": "not_reported"
+                  }
+                },
+                "cache_write_details": [],
+                "reported": {},
+                "violations": []
+              },
+              "model": null,
+              "response_id": null,
+              "upstream": "completed"
+            }
+          }
+        }
+      },
+      "valid": true
+    },
+    {
+      "id": "codec-v1-result-progress",
+      "schema": "gateway-api-codec-v1.schema.json",
+      "value": {
+        "protocol": "gateway-api-codec/v1",
+        "sequence": 2,
+        "value": {
+          "result": "progress",
+          "events": [],
+          "complete": false,
+          "accounting": null
+        }
+      },
+      "valid": true
+    },
+    {
+      "id": "codec-v1-result-finished",
+      "schema": "gateway-api-codec-v1.schema.json",
+      "value": {
+        "protocol": "gateway-api-codec/v1",
+        "sequence": 2,
+        "value": {
+          "result": "finished"
+        }
+      },
+      "valid": true
+    },
+    {
+      "id": "codec-v1-result-rejected",
+      "schema": "gateway-api-codec-v1.schema.json",
+      "value": {
+        "protocol": "gateway-api-codec/v1",
+        "sequence": 2,
+        "value": {
+          "result": "rejected"
+        }
+      },
+      "valid": true
+    },
+    {
+      "id": "codec-v1-unknown-replay",
+      "schema": "gateway-api-codec-v1.schema.json",
+      "value": {
+        "protocol": "gateway-api-codec/v1",
+        "sequence": 2,
+        "value": {
+          "result": "managed",
+          "value": {
+            "response": {
+              "id": "resp_synthetic",
+              "object": "response",
+              "status": "completed",
+              "output": []
+            },
+            "native": {
+              "format": "messages_content",
+              "version": 2,
+              "blocks": [
+                {
+                  "type": "text",
+                  "text": "synthetic"
+                }
+              ],
+              "controls": {}
+            },
+            "outcome": "completed",
+            "accounting": {
+              "usage": {
+                "counters": {
+                  "input_tokens": {
+                    "value": null,
+                    "source": "not_reported"
+                  },
+                  "output_tokens": {
+                    "value": null,
+                    "source": "not_reported"
+                  },
+                  "total_tokens": {
+                    "value": null,
+                    "source": "not_reported"
+                  },
+                  "input_regular_tokens": {
+                    "value": null,
+                    "source": "not_reported"
+                  },
+                  "cache_read_input_tokens": {
+                    "value": null,
+                    "source": "not_reported"
+                  },
+                  "cache_write_input_tokens": {
+                    "value": null,
+                    "source": "not_reported"
+                  },
+                  "reasoning_output_tokens": {
+                    "value": null,
+                    "source": "not_reported"
+                  }
+                },
+                "cache_write_details": [],
+                "reported": {},
+                "violations": []
+              },
+              "model": null,
+              "response_id": null,
+              "upstream": "completed"
+            }
+          }
+        }
+      },
+      "valid": false
+    },
+    {
+      "id": "codec-v2-result-prepared",
+      "schema": "gateway-api-codec-v2.schema.json",
+      "value": {
+        "protocol": "gateway-api-codec/v2",
+        "sequence": 2,
+        "value": {
+          "result": "prepared",
+          "payload": {
+            "model": "synthetic"
+          }
+        }
+      },
+      "valid": true
+    },
+    {
+      "id": "codec-v2-result-json",
+      "schema": "gateway-api-codec-v2.schema.json",
+      "value": {
+        "protocol": "gateway-api-codec/v2",
+        "sequence": 2,
+        "value": {
+          "result": "json",
+          "response": {
+            "id": "resp_synthetic",
+            "object": "response",
+            "status": "completed",
+            "output": []
+          }
+        }
+      },
+      "valid": true
+    },
+    {
+      "id": "codec-v2-result-managed",
+      "schema": "gateway-api-codec-v2.schema.json",
+      "value": {
+        "protocol": "gateway-api-codec/v2",
+        "sequence": 2,
+        "value": {
+          "result": "managed",
+          "value": {
+            "response": {
+              "id": "resp_synthetic",
+              "object": "response",
+              "status": "completed",
+              "output": []
+            },
+            "native": {
+              "format": "messages_content",
+              "version": 1,
+              "blocks": [
+                {
+                  "type": "text",
+                  "text": "synthetic"
+                }
+              ],
+              "controls": {}
+            },
+            "outcome": "completed",
+            "accounting": {
+              "usage": {
+                "counters": {
+                  "input_tokens": {
+                    "value": null,
+                    "source": "not_reported"
+                  },
+                  "output_tokens": {
+                    "value": null,
+                    "source": "not_reported"
+                  },
+                  "total_tokens": {
+                    "value": null,
+                    "source": "not_reported"
+                  },
+                  "input_regular_tokens": {
+                    "value": null,
+                    "source": "not_reported"
+                  },
+                  "cache_read_input_tokens": {
+                    "value": null,
+                    "source": "not_reported"
+                  },
+                  "cache_write_input_tokens": {
+                    "value": null,
+                    "source": "not_reported"
+                  },
+                  "reasoning_output_tokens": {
+                    "value": null,
+                    "source": "not_reported"
+                  }
+                },
+                "cache_write_details": [],
+                "reported": {},
+                "violations": []
+              },
+              "model": null,
+              "response_id": null,
+              "upstream": "completed"
+            }
+          }
+        }
+      },
+      "valid": true
+    },
+    {
+      "id": "codec-v2-result-progress",
+      "schema": "gateway-api-codec-v2.schema.json",
+      "value": {
+        "protocol": "gateway-api-codec/v2",
+        "sequence": 2,
+        "value": {
+          "result": "progress",
+          "events": [],
+          "complete": false,
+          "accounting": null
+        }
+      },
+      "valid": true
+    },
+    {
+      "id": "codec-v2-result-finished",
+      "schema": "gateway-api-codec-v2.schema.json",
+      "value": {
+        "protocol": "gateway-api-codec/v2",
+        "sequence": 2,
+        "value": {
+          "result": "finished"
+        }
+      },
+      "valid": true
+    },
+    {
+      "id": "codec-v2-result-rejected",
+      "schema": "gateway-api-codec-v2.schema.json",
+      "value": {
+        "protocol": "gateway-api-codec/v2",
+        "sequence": 2,
+        "value": {
+          "result": "rejected"
+        }
+      },
+      "valid": true
+    },
+    {
+      "id": "codec-v2-unknown-replay",
+      "schema": "gateway-api-codec-v2.schema.json",
+      "value": {
+        "protocol": "gateway-api-codec/v2",
+        "sequence": 2,
+        "value": {
+          "result": "managed",
+          "value": {
+            "response": {
+              "id": "resp_synthetic",
+              "object": "response",
+              "status": "completed",
+              "output": []
+            },
+            "native": {
+              "format": "messages_content",
+              "version": 2,
+              "blocks": [
+                {
+                  "type": "text",
+                  "text": "synthetic"
+                }
+              ],
+              "controls": {}
+            },
+            "outcome": "completed",
+            "accounting": {
+              "usage": {
+                "counters": {
+                  "input_tokens": {
+                    "value": null,
+                    "source": "not_reported"
+                  },
+                  "output_tokens": {
+                    "value": null,
+                    "source": "not_reported"
+                  },
+                  "total_tokens": {
+                    "value": null,
+                    "source": "not_reported"
+                  },
+                  "input_regular_tokens": {
+                    "value": null,
+                    "source": "not_reported"
+                  },
+                  "cache_read_input_tokens": {
+                    "value": null,
+                    "source": "not_reported"
+                  },
+                  "cache_write_input_tokens": {
+                    "value": null,
+                    "source": "not_reported"
+                  },
+                  "reasoning_output_tokens": {
+                    "value": null,
+                    "source": "not_reported"
+                  }
+                },
+                "cache_write_details": [],
+                "reported": {},
+                "violations": []
+              },
+              "model": null,
+              "response_id": null,
+              "upstream": "completed"
+            }
+          }
+        }
+      },
+      "valid": false
+    },
+    {
+      "id": "observer-largest-sequence",
+      "schema": "gateway-observer-v1.schema.json",
+      "value": {
+        "type": "ack",
+        "sequence": 18446744073709551615
+      },
+      "valid": true
+    },
+    {
+      "id": "recorder-event-producer-id-trailing-newline",
+      "schema": "gateway-usage-recorder-v1.schema.json",
+      "value": {
+        "schema": "gateway-usage-event/v1",
+        "producer_id": "synthetic-producer\n",
+        "request_id": "synthetic-request",
+        "attempt_id": "synthetic-attempt",
+        "event_id": "synthetic-event",
+        "revision": 0,
+        "kind": "attempt_started",
+        "started_at_ms": 1,
+        "observed_at_ms": 1,
+        "provider": "synthetic-provider",
+        "model_alias": "synthetic",
+        "upstream_model": "synthetic",
+        "reported_model": null,
+        "provider_request_id": null,
+        "provider_response_id": null,
+        "profile": "responses_v1",
+        "configuration_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "upstream": "in_progress",
+        "gateway": "in_progress",
+        "finality": "unobserved",
+        "observation_incomplete": false,
+        "usage": {
+          "counters": {
+            "input_tokens": {
+              "value": null,
+              "source": "not_reported"
+            },
+            "output_tokens": {
+              "value": null,
+              "source": "not_reported"
+            },
+            "total_tokens": {
+              "value": null,
+              "source": "not_reported"
+            },
+            "input_regular_tokens": {
+              "value": null,
+              "source": "not_reported"
+            },
+            "cache_read_input_tokens": {
+              "value": null,
+              "source": "not_reported"
+            },
+            "cache_write_input_tokens": {
+              "value": null,
+              "source": "not_reported"
+            },
+            "reasoning_output_tokens": {
+              "value": null,
+              "source": "not_reported"
+            }
+          },
+          "cache_write_details": [],
+          "reported": {},
+          "violations": []
+        }
+      },
+      "valid": false
+    },
+    {
+      "id": "recorder-event-configuration-sha256-trailing-newline",
+      "schema": "gateway-usage-recorder-v1.schema.json",
+      "value": {
+        "schema": "gateway-usage-event/v1",
+        "producer_id": "synthetic-producer",
+        "request_id": "synthetic-request",
+        "attempt_id": "synthetic-attempt",
+        "event_id": "synthetic-event",
+        "revision": 0,
+        "kind": "attempt_started",
+        "started_at_ms": 1,
+        "observed_at_ms": 1,
+        "provider": "synthetic-provider",
+        "model_alias": "synthetic",
+        "upstream_model": "synthetic",
+        "reported_model": null,
+        "provider_request_id": null,
+        "provider_response_id": null,
+        "profile": "responses_v1",
+        "configuration_sha256": "0000000000000000000000000000000000000000000000000000000000000000\n",
+        "upstream": "in_progress",
+        "gateway": "in_progress",
+        "finality": "unobserved",
+        "observation_incomplete": false,
+        "usage": {
+          "counters": {
+            "input_tokens": {
+              "value": null,
+              "source": "not_reported"
+            },
+            "output_tokens": {
+              "value": null,
+              "source": "not_reported"
+            },
+            "total_tokens": {
+              "value": null,
+              "source": "not_reported"
+            },
+            "input_regular_tokens": {
+              "value": null,
+              "source": "not_reported"
+            },
+            "cache_read_input_tokens": {
+              "value": null,
+              "source": "not_reported"
+            },
+            "cache_write_input_tokens": {
+              "value": null,
+              "source": "not_reported"
+            },
+            "reasoning_output_tokens": {
+              "value": null,
+              "source": "not_reported"
+            }
+          },
+          "cache_write_details": [],
+          "reported": {},
+          "violations": []
+        }
+      },
+      "valid": false
+    },
+    {
+      "id": "recorder-event-reported-model-trailing-newline",
+      "schema": "gateway-usage-recorder-v1.schema.json",
+      "value": {
+        "schema": "gateway-usage-event/v1",
+        "producer_id": "synthetic-producer",
+        "request_id": "synthetic-request",
+        "attempt_id": "synthetic-attempt",
+        "event_id": "synthetic-event",
+        "revision": 0,
+        "kind": "attempt_started",
+        "started_at_ms": 1,
+        "observed_at_ms": 1,
+        "provider": "synthetic-provider",
+        "model_alias": "synthetic",
+        "upstream_model": "synthetic",
+        "reported_model": "synthetic\n",
+        "provider_request_id": null,
+        "provider_response_id": null,
+        "profile": "responses_v1",
+        "configuration_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "upstream": "in_progress",
+        "gateway": "in_progress",
+        "finality": "unobserved",
+        "observation_incomplete": false,
+        "usage": {
+          "counters": {
+            "input_tokens": {
+              "value": null,
+              "source": "not_reported"
+            },
+            "output_tokens": {
+              "value": null,
+              "source": "not_reported"
+            },
+            "total_tokens": {
+              "value": null,
+              "source": "not_reported"
+            },
+            "input_regular_tokens": {
+              "value": null,
+              "source": "not_reported"
+            },
+            "cache_read_input_tokens": {
+              "value": null,
+              "source": "not_reported"
+            },
+            "cache_write_input_tokens": {
+              "value": null,
+              "source": "not_reported"
+            },
+            "reasoning_output_tokens": {
+              "value": null,
+              "source": "not_reported"
+            }
+          },
+          "cache_write_details": [],
+          "reported": {},
+          "violations": []
+        }
+      },
+      "valid": false
+    }
+  ],
+  "canonical_package": {
+    "value": {
+      "schema": "gateway-extension-package/v1",
+      "id": "example-observer",
+      "version": "1.0.0",
+      "target": "linux-x64",
+      "protocol": "gateway-observer/v1",
+      "permissions": [
+        "observe_http_metadata",
+        "write_private_state"
+      ],
+      "state_schema": "observer-state/v1",
+      "files": {
+        "extension": "9afd2910ff2a64488c0177d36c1d41e94bd42df8904093a79cb297d1136f38d1",
+        "LICENSE.txt": "3619b0b715bbbabadfa3165cad0e37affa65799c5ee6da58a43e12f117deacbd"
+      }
+    },
+    "utf8": "{\"files\":{\"LICENSE.txt\":\"3619b0b715bbbabadfa3165cad0e37affa65799c5ee6da58a43e12f117deacbd\",\"extension\":\"9afd2910ff2a64488c0177d36c1d41e94bd42df8904093a79cb297d1136f38d1\"},\"id\":\"example-observer\",\"permissions\":[\"observe_http_metadata\",\"write_private_state\"],\"protocol\":\"gateway-observer/v1\",\"schema\":\"gateway-extension-package/v1\",\"state_schema\":\"observer-state/v1\",\"target\":\"linux-x64\",\"version\":\"1.0.0\"}\n",
+    "sha256": "b7324363f75a3170140a8541e01a312458bfca5914303fe6084ef915fda2a7e2",
+    "files_utf8": {
+      "extension": "synthetic-extension\n",
+      "LICENSE.txt": "Synthetic vector notice; not a license grant.\n"
+    }
+  },
+  "observer_frames": [
+    {
+      "id": "observer-ready",
+      "utf8": "{\"protocol\":\"gateway-observer/v1\",\"type\":\"ready\"}\n",
+      "valid": true
+    },
+    {
+      "id": "observer-http",
+      "utf8": "{\"headers_ms\":8,\"sequence\":1,\"status\":200,\"type\":\"http\"}\n",
+      "valid": true
+    },
+    {
+      "id": "observer-ack",
+      "utf8": "{\"sequence\":1,\"type\":\"ack\"}\n",
+      "valid": true
+    },
+    {
+      "id": "observer-unknown-field",
+      "utf8": "{\"body\":\"forbidden\",\"sequence\":1,\"type\":\"ack\"}\n",
+      "valid": false
+    },
+    {
+      "id": "observer-sequence-zero",
+      "utf8": "{\"sequence\":0,\"type\":\"ack\"}\n",
+      "valid": false
+    },
+    {
+      "id": "observer-overflow",
+      "utf8": "{\"sequence\":18446744073709551616,\"type\":\"ack\"}\n",
+      "valid": false
+    },
+    {
+      "id": "observer-largest-sequence",
+      "utf8": "{\"sequence\":18446744073709551615,\"type\":\"ack\"}\n",
+      "valid": true
+    }
+  ],
+  "canonical_usage_event": {
+    "value": {
+      "schema": "gateway-usage-event/v1",
+      "producer_id": "synthetic-producer",
+      "request_id": "synthetic-request",
+      "attempt_id": "synthetic-attempt",
+      "event_id": "synthetic-event",
+      "revision": 0,
+      "kind": "attempt_started",
+      "started_at_ms": 1,
+      "observed_at_ms": 1,
+      "provider": "synthetic-provider",
+      "model_alias": "synthetic",
+      "upstream_model": "synthetic",
+      "reported_model": null,
+      "provider_request_id": null,
+      "provider_response_id": null,
+      "profile": "responses_v1",
+      "configuration_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "upstream": "in_progress",
+      "gateway": "in_progress",
+      "finality": "unobserved",
+      "observation_incomplete": false,
+      "usage": {
+        "counters": {
+          "input_tokens": {
+            "value": null,
+            "source": "not_reported"
+          },
+          "output_tokens": {
+            "value": null,
+            "source": "not_reported"
+          },
+          "total_tokens": {
+            "value": null,
+            "source": "not_reported"
+          },
+          "input_regular_tokens": {
+            "value": null,
+            "source": "not_reported"
+          },
+          "cache_read_input_tokens": {
+            "value": null,
+            "source": "not_reported"
+          },
+          "cache_write_input_tokens": {
+            "value": null,
+            "source": "not_reported"
+          },
+          "reasoning_output_tokens": {
+            "value": null,
+            "source": "not_reported"
+          }
+        },
+        "cache_write_details": [],
+        "reported": {},
+        "violations": []
+      }
+    },
+    "utf8": "{\"attempt_id\":\"synthetic-attempt\",\"configuration_sha256\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"event_id\":\"synthetic-event\",\"finality\":\"unobserved\",\"gateway\":\"in_progress\",\"kind\":\"attempt_started\",\"model_alias\":\"synthetic\",\"observation_incomplete\":false,\"observed_at_ms\":1,\"producer_id\":\"synthetic-producer\",\"profile\":\"responses_v1\",\"provider\":\"synthetic-provider\",\"provider_request_id\":null,\"provider_response_id\":null,\"reported_model\":null,\"request_id\":\"synthetic-request\",\"revision\":0,\"schema\":\"gateway-usage-event/v1\",\"started_at_ms\":1,\"upstream\":\"in_progress\",\"upstream_model\":\"synthetic\",\"usage\":{\"cache_write_details\":[],\"counters\":{\"cache_read_input_tokens\":{\"source\":\"not_reported\",\"value\":null},\"cache_write_input_tokens\":{\"source\":\"not_reported\",\"value\":null},\"input_regular_tokens\":{\"source\":\"not_reported\",\"value\":null},\"input_tokens\":{\"source\":\"not_reported\",\"value\":null},\"output_tokens\":{\"source\":\"not_reported\",\"value\":null},\"reasoning_output_tokens\":{\"source\":\"not_reported\",\"value\":null},\"total_tokens\":{\"source\":\"not_reported\",\"value\":null}},\"reported\":{},\"violations\":[]}}",
+    "sha256": "c799c513558f3c8f82327105edc8aee08d32b11a4f26e0e21e3aac11e9b1c025",
+    "ack": {
+      "type": "committed",
+      "event_id": "synthetic-event",
+      "sha256": "c799c513558f3c8f82327105edc8aee08d32b11a4f26e0e21e3aac11e9b1c025"
+    }
+  }
+}

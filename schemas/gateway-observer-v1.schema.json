@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Gateway observer v1 messages",
+  "description": "Structural wire validation only. The authoring specification defines byte identity, state transitions, semantic validation and host compatibility.",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "protocol"
+      ],
+      "properties": {
+        "type": {
+          "const": "ready"
+        },
+        "protocol": {
+          "const": "gateway-observer/v1"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "sequence",
+        "status",
+        "headers_ms"
+      ],
+      "properties": {
+        "type": {
+          "const": "http"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 18446744073709551615
+        },
+        "status": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 599
+        },
+        "headers_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18446744073709551615
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "sequence"
+      ],
+      "properties": {
+        "type": {
+          "const": "ack"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 18446744073709551615
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,800 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Gateway API codec v2 messages",
+  "description": "Structural wire validation only. The authoring specification defines byte identity, state transitions, semantic validation and host compatibility.",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocol",
+        "sequence",
+        "operation"
+      ],
+      "properties": {
+        "protocol": {
+          "const": "gateway-api-codec/v2"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 18446744073709551615
+        },
+        "operation": {
+          "$ref": "#/$defs/operation"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocol",
+        "sequence",
+        "value"
+      ],
+      "properties": {
+        "protocol": {
+          "const": "gateway-api-codec/v2"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18446744073709551615
+        },
+        "value": {
+          "$ref": "#/$defs/result"
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "route": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "api",
+        "model",
+        "profile_id",
+        "profile_version",
+        "support"
+      ],
+      "properties": {
+        "api": {
+          "enum": [
+            "responses",
+            "messages",
+            "chat_completions",
+            "gemini_interactions"
+          ]
+        },
+        "model": {
+          "type": "string"
+        },
+        "profile_id": {
+          "type": "string"
+        },
+        "profile_version": {
+          "type": "string"
+        },
+        "reasoning_contract": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/reasoning"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "support": {
+          "type": "object",
+          "propertyNames": {
+            "enum": [
+              "instructions",
+              "instruction_hierarchy",
+              "images",
+              "function_tools",
+              "strict_tool_arguments",
+              "custom_tools",
+              "custom_grammar",
+              "namespaced_tools",
+              "structured_tool_output",
+              "tool_choice",
+              "parallel_tool_control",
+              "structured_output",
+              "strict_structured_output",
+              "max_output_tokens",
+              "temperature",
+              "top_p",
+              "reasoning_effort",
+              "reasoning_summary",
+              "reasoning_items",
+              "opaque_continuation",
+              "extensions"
+            ]
+          },
+          "additionalProperties": {
+            "enum": [
+              "native",
+              "unsupported",
+              "code_mode_text_parts",
+              "custom_tool_json",
+              "tool_namespace",
+              "codex_patch_grammar",
+              "registered_grammar_validation",
+              "messages_instruction_envelope",
+              "gemini_instruction_envelope",
+              "chat_instruction_envelope",
+              "provider_parallel_permission"
+            ]
+          }
+        },
+        "context_window": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 18446744073709551615
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "max_output_tokens": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 18446744073709551615
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "reasoning": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "version",
+            "efforts",
+            "default_effort"
+          ],
+          "properties": {
+            "kind": {
+              "const": "deep_seek"
+            },
+            "version": {
+              "const": 1
+            },
+            "efforts": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "uniqueItems": true
+            },
+            "default_effort": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "version",
+            "provider_endpoint",
+            "formats"
+          ],
+          "properties": {
+            "kind": {
+              "const": "open_router"
+            },
+            "version": {
+              "const": 1
+            },
+            "provider_endpoint": {
+              "type": "string"
+            },
+            "efforts": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "uniqueItems": true
+            },
+            "default_effort": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "max_tokens": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 18446744073709551615
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "formats": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "uniqueItems": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "version",
+            "efforts",
+            "default_effort"
+          ],
+          "properties": {
+            "kind": {
+              "const": "claude_adaptive"
+            },
+            "version": {
+              "const": 1
+            },
+            "efforts": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "uniqueItems": true
+            },
+            "default_effort": {
+              "type": "string"
+            },
+            "allow_forced_tools": {
+              "type": "boolean"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "version",
+            "budget_tokens"
+          ],
+          "properties": {
+            "kind": {
+              "const": "claude_manual"
+            },
+            "version": {
+              "const": 1
+            },
+            "budget_tokens": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 18446744073709551615
+            },
+            "effort_budgets": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 18446744073709551615
+              }
+            },
+            "interleaved_beta": {
+              "type": "boolean"
+            }
+          }
+        }
+      ]
+    },
+    "native": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "format",
+            "version",
+            "steps"
+          ],
+          "properties": {
+            "format": {
+              "const": "gemini_steps"
+            },
+            "version": {
+              "const": 1
+            },
+            "steps": {
+              "type": "array",
+              "items": {},
+              "minItems": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "format",
+            "version",
+            "dialect",
+            "assistant",
+            "controls"
+          ],
+          "properties": {
+            "format": {
+              "const": "chat_assistant"
+            },
+            "version": {
+              "const": 1
+            },
+            "dialect": {
+              "enum": [
+                "deep_seek",
+                "open_router"
+              ]
+            },
+            "assistant": {
+              "type": "object"
+            },
+            "controls": {
+              "type": "object"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "format",
+            "version",
+            "blocks",
+            "controls"
+          ],
+          "properties": {
+            "format": {
+              "const": "messages_content"
+            },
+            "version": {
+              "const": 1
+            },
+            "blocks": {
+              "type": "array",
+              "items": {},
+              "minItems": 1
+            },
+            "controls": {
+              "type": "object"
+            }
+          }
+        }
+      ]
+    },
+    "accounting": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "usage",
+        "upstream"
+      ],
+      "properties": {
+        "usage": {
+          "$ref": "gateway-usage-event-v1.schema.json#/properties/usage"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "response_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "upstream": {
+          "$ref": "gateway-usage-event-v1.schema.json#/properties/upstream"
+        }
+      }
+    },
+    "managed": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "response",
+        "native",
+        "outcome",
+        "accounting"
+      ],
+      "properties": {
+        "response": {
+          "type": "object"
+        },
+        "native": {
+          "$ref": "#/$defs/native"
+        },
+        "outcome": {
+          "enum": [
+            "completed",
+            "awaiting_tools"
+          ]
+        },
+        "accounting": {
+          "$ref": "#/$defs/accounting"
+        }
+      }
+    },
+    "prepare": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "request",
+        "route",
+        "managed",
+        "pending_tools",
+        "history",
+        "max_output_bytes"
+      ],
+      "properties": {
+        "request": {
+          "type": "object"
+        },
+        "route": {
+          "$ref": "#/$defs/route"
+        },
+        "managed": {
+          "type": "boolean"
+        },
+        "pending_tools": {
+          "type": "boolean"
+        },
+        "history": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "start",
+              "end",
+              "native"
+            ],
+            "properties": {
+              "start": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 18446744073709551615
+              },
+              "end": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 18446744073709551615
+              },
+              "native": {
+                "$ref": "#/$defs/native"
+              }
+            }
+          }
+        },
+        "max_output_bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 67108864
+        },
+        "editing": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/editing"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "operation": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "operation",
+            "value"
+          ],
+          "properties": {
+            "operation": {
+              "const": "prepare"
+            },
+            "value": {
+              "$ref": "#/$defs/prepare"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "operation",
+            "body",
+            "response_id"
+          ],
+          "properties": {
+            "operation": {
+              "const": "json"
+            },
+            "body": {
+              "type": "string"
+            },
+            "response_id": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "operation",
+            "response_id"
+          ],
+          "properties": {
+            "operation": {
+              "const": "stream"
+            },
+            "response_id": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "operation",
+            "event",
+            "data"
+          ],
+          "properties": {
+            "operation": {
+              "const": "event"
+            },
+            "event": {
+              "type": "string"
+            },
+            "data": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "operation"
+          ],
+          "properties": {
+            "operation": {
+              "const": "finish"
+            }
+          }
+        }
+      ]
+    },
+    "result": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "result",
+            "apis",
+            "replay_versions"
+          ],
+          "properties": {
+            "result": {
+              "const": "ready"
+            },
+            "apis": {
+              "const": [
+                "responses",
+                "messages",
+                "chat_completions",
+                "gemini_interactions"
+              ]
+            },
+            "replay_versions": {
+              "const": [
+                1
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "result",
+            "payload"
+          ],
+          "properties": {
+            "result": {
+              "const": "prepared"
+            },
+            "payload": {
+              "type": "object"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "result",
+            "response"
+          ],
+          "properties": {
+            "result": {
+              "const": "json"
+            },
+            "response": {
+              "type": "object"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "result",
+            "value"
+          ],
+          "properties": {
+            "result": {
+              "const": "managed"
+            },
+            "value": {
+              "$ref": "#/$defs/managed"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "result",
+            "events",
+            "complete"
+          ],
+          "properties": {
+            "result": {
+              "const": "progress"
+            },
+            "events": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            },
+            "complete": {
+              "type": "boolean"
+            },
+            "accounting": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/accounting"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "result"
+          ],
+          "properties": {
+            "result": {
+              "const": "finished"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "result"
+          ],
+          "properties": {
+            "result": {
+              "const": "rejected"
+            }
+          }
+        }
+      ]
+    },
+    "editing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "client_contract",
+        "representation",
+        "patch_dialect",
+        "normalization"
+      ],
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "client_contract": {
+          "enum": [
+            "codex-direct-custom/v1",
+            "codex-code-mode/v1"
+          ]
+        },
+        "representation": {
+          "enum": [
+            "operations/v1",
+            "patch-text/v1",
+            "context-lines/v1"
+          ]
+        },
+        "patch_dialect": {
+          "const": "codex-patch/1"
+        },
+        "normalization": {
+          "enum": [
+            "none",
+            "patch-envelope/v1"
+          ]
+        },
+        "client_descriptor_sha256": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}(?![\\s\\S])"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    }
+  }
+}
