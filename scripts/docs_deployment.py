@@ -16,8 +16,17 @@ def needed(root, event, env):
     if env.get('GITHUB_REF')!='refs/heads/main':raise ValueError('Documentation deployment requires main')
     if env['GITHUB_EVENT_NAME']=='workflow_dispatch':return True
     if env['GITHUB_EVENT_NAME']!='push':raise ValueError('Unsupported documentation deployment event')
-    plan=validation.make_plan(root,'affected','range',event['before'],env['GITHUB_SHA'],'main')
-    return 'docs' in plan['jobs']
+    try:
+        paths,_,_=validation.changes(root,'range',event['before'],env['GITHUB_SHA'])
+    except validation.ValidationError:
+        return True  # Unknown inputs require rebuilding trusted documentation.
+    manifest=json.loads((root/'docs/translations.json').read_text())
+    inputs={entry[field] for entry in manifest['documents'] for field in ('source','translation')}
+    inputs.update({'docs/translations.json','LICENSE','.gitattributes',
+                   '.github/workflows/docs-deploy.yml','scripts/docs_deployment.py',
+                   'scripts/check_docs.py','scripts/check_docs_publication.py',
+                   'scripts/check_public_boundary.py','scripts/validation.py'})
+    return any(path in inputs or path.startswith('docs-site/') for path in paths)
 
 
 def verify_bytes(raw, commit, digest):

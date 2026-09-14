@@ -14,6 +14,29 @@ import release_package as package
 ROOT=Path(__file__).resolve().parents[1]
 
 
+def verify_notices(raw, records):
+    # This is the management Web notice format emitted by web-notices.mjs.
+    introduction=b'Web dependencies shipped by the optional management dashboard.\nOriginal license and notice bytes follow each package heading.\n'
+    package.require(raw.startswith(introduction),'Web notice introduction differs')
+    sections=[]
+    for record in records:
+        identity=record['name']+'@'+record['version'] if 'version' in record else record['name']+' ('+record['embedded_version']+')'
+        heading=('\n===== '+identity+' =====\n').encode()
+        package.require(bool(record['notices']),'Web original notices missing')
+        for notice in record['notices']:
+            sections.append((heading+('\n--- '+notice['file']+' ---\n').encode(),notice['sha256']))
+            heading=b''
+    offset=len(introduction)
+    for index,(prefix,digest) in enumerate(sections):
+        package.require(raw.startswith(prefix,offset),'Web notice section differs')
+        start=offset+len(prefix)
+        end=raw.find(sections[index+1][0],start) if index+1<len(sections) else len(raw)
+        package.require(end>start and raw[end-1:end]==b'\n','Web notice framing differs')
+        package.require(package.sha(raw[start:end-1])==digest,'Web original notice digest differs')
+        offset=end
+    package.require(offset==len(raw),'Web notice inventory differs')
+
+
 def verify(source, directory, commit):
     package.require(directory.is_dir() and not directory.is_symlink(),'Web assets are not a regular directory')
     files={}
@@ -31,6 +54,7 @@ def verify(source, directory, commit):
     package.require(all(package.sha(files[n])==h for n,h in manifest['files'].items()),'Web asset digest differs')
     package.require({'index.html','LICENSE.txt','web-notices.txt','web-dependencies.json'}<=set(files),'Web required asset missing')
     package.require(files['LICENSE.txt']==package.read(source/'LICENSE') and files['web-dependencies.json']==package.read(source/'management-web/licensing/dependencies.json'),'Web reviewed notices differ')
+    verify_notices(files['web-notices.txt'],package.json_value(files['web-dependencies.json']))
     return files
 
 
