@@ -327,6 +327,8 @@ def main() -> int:
             raise BoundaryError
         if args.staged and not args.files_only or args.staged and args.worktree or args.files_only and args.archive:
             raise BoundaryError
+        if args.base == '' or args.head == '':
+            raise BoundaryError
         if bool(args.base) != bool(args.head) or args.base and (not args.files_only or args.staged or args.worktree):
             raise BoundaryError
         if args.files_only:

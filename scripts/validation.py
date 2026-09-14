@@ -263,6 +263,8 @@ def main():
     parser.add_argument('--output', type=Path)
     args = parser.parse_args()
     try:
+        if args.base == '' or args.head == '':
+            raise ValidationError('Non-empty base and head are required')
         if bool(args.base) != bool(args.head):
             raise ValidationError('Both base and head are required')
         scope = 'range' if args.base else 'staged' if args.staged else 'worktree'

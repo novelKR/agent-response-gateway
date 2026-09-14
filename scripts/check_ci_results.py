@@ -26,6 +26,8 @@ def succeeded(raw, plan_raw=None, source=None, base=None, head=None):
                 or plan['policy_sha256'] != hashlib.sha256(policy_raw).hexdigest()
                 or set(policy['jobs']) != expected or plan['profile'] not in {'full', 'affected'}
                 or plan['mode'] not in {'shadow', 'affected'}
+                or plan['stage'] not in {'pr', 'main', 'release'}
+                or policy['force_full'] and plan['profile'] != 'full'
                 or len(plan['jobs']) != len(set(plan['jobs']))
                 or len(plan['execution_jobs']) != len(set(plan['execution_jobs']))
                 or not set(plan['jobs']) <= expected

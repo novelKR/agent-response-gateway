@@ -102,6 +102,18 @@ class PlannedCiTests(unittest.TestCase):
         for job in self.jobs.values(): job['result'] = 'success'
         self.assertTrue(self.check())
 
+    def test_force_full_policy_cannot_be_overridden_by_a_reduced_plan(self):
+        self.policy['force_full']=True
+        self.assertFalse(self.check())
+        self.plan.update(profile='full',jobs=sorted(module.REQUIRED_JOBS-{'validation-plan'}),execution_jobs=sorted(module.REQUIRED_JOBS-{'validation-plan'}))
+        for job in self.jobs.values():job['result']='success'
+        self.assertTrue(self.check())
+
+    def test_unknown_stage_fails_even_with_full_execution(self):
+        self.plan.update(stage='unknown',mode='shadow',execution_jobs=sorted(module.REQUIRED_JOBS-{'validation-plan'}))
+        for job in self.jobs.values():job['result']='success'
+        self.assertFalse(self.check())
+
     def test_full_cannot_claim_a_subset(self):
         self.plan['profile'] = 'full'
         self.assertFalse(self.check())

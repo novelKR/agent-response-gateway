@@ -218,5 +218,12 @@ class MissingToolTests(unittest.TestCase):
         run.assert_not_called()
 
 
+class RangeCliTests(unittest.TestCase):
+    def test_explicit_empty_range_does_not_become_a_worktree_plan(self):
+        result=v.subprocess.run([v.sys.executable,'-B',str(ROOT/'scripts/validation.py'),'plan','--base','','--head',''],capture_output=True,text=True)
+        self.assertNotEqual(result.returncode,0)
+        self.assertIn('Non-empty base and head',result.stderr)
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -325,6 +325,10 @@ class PublicBoundaryTests(unittest.TestCase):
         self.patterns.write_text("not valid json", encoding="utf-8")
         self.check(ok=False)
 
+    def test_empty_range_does_not_become_a_full_history_check(self):
+        self.stage();self.commit()
+        self.check('--base','','--head','',ok=False)
+
     def test_commit_range_reads_selected_blobs_not_current_worktree(self):
         self.stage();base=self.commit()
         self.write('README.md',MARKER);self.stage();head=self.commit()
