@@ -286,8 +286,8 @@
       "order": 3,
       "source": "docs/github-workflow.md",
       "translation": "docs/ko/github-workflow.md",
-      "source_sha256": "de063d3330efb632974b60d31a44be9b4914e93647e41ffdece27ddca0d5e6fb",
-      "translation_sha256": "ebc3fc8cdbf2cc91030813eb43b0da2438733339bebb97ec9f4f8046d5848f64",
+      "source_sha256": "212ebfa6ee5d5691f6f55dacc187df69857ae7448eb75257287f34f2209b4d6c",
+      "translation_sha256": "bb71469248cf92df1bd5b0f8d66cf9690c3974151dcdc7d4066482df89ce0acf",
       "anchors": [
         "branches-commits-and-reviews",
         "github-delivery-workflow",
@@ -473,8 +473,8 @@
       "order": 2,
       "source": "docs/release-promotion.md",
       "translation": "docs/ko/release-promotion.md",
-      "source_sha256": "54c1f863d98160bf1019793504c269b60ce3dd4dff4a561e7242b3b4239f1453",
-      "translation_sha256": "c7132cd0204ac25de3448466b7e550c17161aee22cbfab1ff6c7674419ac4c8b",
+      "source_sha256": "df1a1b0fbf70dd99bb9fe2eb6d627cec647ee751bcee8975943b66f47aff171e",
+      "translation_sha256": "ae075ba2dacfd43ef95d566adf2a23b4fe589310f051d7f31bc6017a22eb9e13",
       "anchors": [
         "build-and-signing-boundaries",
         "failure-and-recovery",

@@ -94,14 +94,18 @@ Rust 1.98.0과 Python 3.14를 사용한다. 각 네이티브 CLI 시험은 설�
 로컬 미리보기 경계와 웹 의존성 고지를 검사한다. 검증한 사이트를 검토용으로
 14일간 보관한다. Pages 배포 권한은 없으며 산출물 보관은 공개 승인이 아니다.
 
-main push 또는 main CI 수동 실행에서는 검사한 같은 사이트를 Pages용으로
-포장한다. ci-required 성공 후 배포 작업이 공개
-[docs-actions workflow](https://github.com/novelKR/docs-actions)를
-[소비자 lock](../../.github/docs-pages-deploy.lock.json)에 기록한 전체 commit으로
-호출한다. 이 작업에만 pages: write와 id-token: write를 부여하며, Pages 사이트와
-github-pages 환경은 호출자 저장소가 소유한다. 공개 전에 Pages를 GitHub Actions로
-설정하고 해당 환경을 main으로 제한한다. 별도 공개 승인이 필요하면 환경에 필수
-검토자를 지정한다. PR에서는 배포하지 않는다.
+문서 배포는 별도의 main 전용 워크플로를 사용한다. 문서 입력이나 배포 정책 변경을
+선택하고 명시적인 수동 배포도 지원한다. 검토한 문서, 공개 경계, Web 고지와 정적
+산출물을 검사한 뒤 같은 산출물을 Pages용으로 포장한다. 제품 적합성이나 네이티브
+패키지 작업에는 의존하지 않는다. 배포 후 제공되는 build manifest가 빌드의 소스
+커밋과 정확한 manifest 바이트에 일치해야 한다.
+
+배포는 [소비자 lock](../../.github/docs-pages-deploy.lock.json)에 기록한 전체 commit의
+공개 [docs-actions workflow](https://github.com/novelKR/docs-actions)를 호출한다.
+배포 작업에만 pages: write와 id-token: write를 부여한다. Pages를 GitHub Actions로
+설정하고 github-pages 환경을 main으로 제한한다. 필수 검토자는 계속 공개를 제어하며
+PR에서는 배포하지 않는다. 배포 실행은 중단 없이 직렬화하고 오래된 통합 검사 정리와
+분리한다.
 
 중앙 변경은 중앙 contracts CI 성공 후 workflow SHA, lock, 실행되지 않는 시험
 사본을 함께 바꾸는 검토된 PR로 채택한다. 빌드 도구와 문서 검증은 이 저장소에

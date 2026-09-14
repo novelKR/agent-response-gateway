@@ -89,6 +89,7 @@ class DocsPagesWorkflowTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.ci = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+        cls.deployment = (ROOT / ".github/workflows/docs-deploy.yml").read_text(encoding="utf-8")
         cls.lock = json.loads((ROOT / ".github/docs-pages-deploy.lock.json").read_text(encoding="utf-8"))
         cls.reusable = (ROOT / "scripts/tests/fixtures/docs-actions-reusable.yml").read_text(encoding="utf-8")
         if (cls.lock.get("repository") != "novelKR/docs-actions" or
@@ -97,10 +98,10 @@ class DocsPagesWorkflowTests(unittest.TestCase):
                 hashlib.sha256(cls.reusable.encode()).hexdigest() != cls.lock.get("workflow_sha256")):
             raise ValueError("Central workflow lock or verified snapshot has drifted")
 
-    def job(self, name):
+    def job(self, name, deployment=False):
         # This is a source-contract regression for the repository's YAML layout,
         # not a general YAML parser or a substitute for GitHub's workflow validation.
-        match = re.search(r"^  " + re.escape(name) + r":\n(.*?)(?=^  [\w-]+:|\Z)", self.ci, re.M | re.S)
+        match = re.search(r"^  " + re.escape(name) + r":\n(.*?)(?=^  [\w-]+:|\Z)", self.deployment if deployment else self.ci, re.M | re.S)
         self.assertIsNotNone(match, name)
         return match[1]
 
@@ -116,10 +117,11 @@ class DocsPagesWorkflowTests(unittest.TestCase):
         self.assertNotIn("paths:", header)
         self.assertNotIn("paths-ignore:", header)
 
-    def test_publication_is_after_the_complete_merge_gate_and_main_only(self):
+    def test_publication_requires_its_own_verified_build_and_main_only(self):
         self.assertIn("docs", self.job("ci-required").split("needs:", 1)[1].split("\n", 1)[0])
-        deploy = self.job("docs-pages")
-        self.assertIn("needs: ci-required\n", deploy)
+        deploy = self.job("deploy", deployment=True)
+        self.assertIn("needs: build\n", deploy)
+        self.assertNotIn("ci-required", self.deployment)
         self.assertIn("github.ref == 'refs/heads/main'", deploy)
         self.assertIn("github.event_name == 'push' || github.event_name == 'workflow_dispatch'", deploy)
         self.assertNotIn("always()", deploy)
@@ -130,19 +132,21 @@ class DocsPagesWorkflowTests(unittest.TestCase):
         self.assertIn("id-token: write", deploy)
         self.assertNotIn("contents: write", deploy)
 
-    def test_upload_reuses_the_checked_output_and_is_main_only(self):
-        docs = self.job("docs")
+    def test_upload_reuses_checked_output_without_cross_run_input(self):
+        docs = self.job("build", deployment=True)
         self.assertEqual(docs.count("npm run build --prefix docs-site"), 1)
         check = docs.index("docs-site/scripts/check-output.py")
         provenance = docs.index('scripts/check_docs_publication.py --commit "$GITHUB_SHA"')
         upload = docs.index("uses: actions/upload-pages-artifact@")
         self.assertLess(check, provenance)
         self.assertLess(provenance, upload)
-        self.assertEqual(docs.count("github.ref == 'refs/heads/main'"), 2)
-        self.assertEqual(docs.count("github.event_name == 'push' || github.event_name == 'workflow_dispatch'"), 2)
-        self.assertEqual(docs.count("path: .local/docs-site/dist/"), 2)
+        self.assertIn("scripts/check_public_boundary.py", docs)
         self.assertIn("name: github-pages", docs[upload:])
         self.assertIn("retention-days: 14", docs[upload:])
+        self.assertNotIn("run-id:", docs)
+        self.assertNotIn("upload-pages-artifact", self.job("docs"))
+        self.assertNotIn("pull_request:", self.deployment)
+        self.assertIn("scripts/docs_deployment.py verify", self.job("verify-served", deployment=True))
 
     def test_reusable_deployment_has_no_checkout_build_or_cross_run_input(self):
         self.assertIn("workflow_call:", self.reusable)
@@ -157,11 +161,11 @@ class DocsPagesWorkflowTests(unittest.TestCase):
         actions = re.findall(r"uses: ([^\s]+)", self.reusable)
         self.assertEqual(len(actions), 1)
         self.assertRegex(actions[0], r"^actions/deploy-pages@[0-9a-f]{40}$")
-        self.assertRegex(self.job("docs"), r"uses: actions/upload-pages-artifact@[0-9a-f]{40}")
+        self.assertRegex(self.job("build", deployment=True), r"uses: actions/upload-pages-artifact@[0-9a-f]{40}")
 
-    def test_main_deployments_are_not_cancelled_by_prs_or_new_pushes(self):
-        self.assertIn("group: ci-${{ github.event.pull_request.number || github.ref }}", self.ci)
-        self.assertIn("cancel-in-progress: ${{ github.event_name == 'pull_request' }}", self.ci)
+    def test_main_deployment_concurrency_is_independent_of_integration(self):
+        self.assertIn("group: docs-deployment-main\n  cancel-in-progress: false", self.deployment)
+        self.assertIn("github.event_name == 'push' && github.ref == 'refs/heads/main'", self.ci)
         self.assertIn("group: github-pages\n      cancel-in-progress: false", self.reusable)
 
 

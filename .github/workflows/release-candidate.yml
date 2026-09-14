@@ -36,15 +36,21 @@ jobs:
         with:
           python-version: '3.14'
       - id: gate
-        name: Require existing version tag, main ancestry and exact successful CI
+        name: Require existing version tag and main ancestry before full qualification
         env:
           GH_TOKEN: ${{ github.token }}
         run: python -B scripts/release_provenance.py gate
       - id: targets
         run: echo "matrix=$(python -B scripts/release_targets.py)" >> "$GITHUB_OUTPUT"
 
-  build:
+  qualification:
     needs: gate
+    uses: ./.github/workflows/ci.yml
+    with:
+      release_profile: true
+
+  build:
+    needs: [gate, qualification]
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.gate.outputs.matrix) }}
@@ -66,6 +72,12 @@ jobs:
         with:
           python-version: '3.14'
       - run: rustup toolchain install 1.98.0 --profile minimal
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          skip-decompress: false
+          digest-mismatch: error
+          name: release-qualification
+          path: .local/qualification
       - name: Prepare pinned sources and notice tool without PR caches
         shell: bash
         run: |
@@ -75,7 +87,7 @@ jobs:
         run: |
           python -B scripts/release_package.py build --target "$PACKAGE_TARGET" --output .local/candidate
           python -B scripts/release_package.py verify .local/candidate --commit "$GITHUB_SHA" --target "$PACKAGE_TARGET"
-          python -B scripts/release_provenance.py pack --directory .local/candidate --output .local/distribution
+          python -B scripts/release_provenance.py pack --directory .local/candidate --output .local/distribution --qualification .local/qualification/qualification.json
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           archive: true

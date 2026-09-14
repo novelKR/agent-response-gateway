@@ -16,11 +16,13 @@ import tomllib
 import zipfile
 
 import release_package as package
+import release_qualification as qualification
 
 ROOT = Path(__file__).resolve().parents[1]
 REPOSITORY = "novelKR/agent-response-gateway"
 WORKFLOW = ".github/workflows/release-candidate.yml"
 SCHEMA = "gateway-distribution/v1"
+QUALIFIED_SCHEMA = "gateway-distribution/v2"
 PROMOTION = "gateway-release-manifest/v1"
 MANIFEST = "release-manifest.json"
 require = package.require
@@ -95,10 +97,14 @@ def validate_run(value, commit, tag=None):
     return value
 
 
-def require_main_ci(github, commit):
+def require_main_ancestry(github, commit):
     commit_sha(commit)
     comparison = github.api(f"repos/{REPOSITORY}/compare/main...{commit}")
     require(comparison["merge_base_commit"]["sha"] == commit and comparison["status"] in {"identical", "behind"}, "source commit is not contained in main")
+
+
+def require_main_ci(github, commit):
+    require_main_ancestry(github, commit)
     values = github.api(f"repos/{REPOSITORY}/actions/workflows/ci.yml/runs?head_sha={commit}&event=push&branch=main&per_page=100")["workflow_runs"]
     require(values, "main CI has not run for the selected commit")
     return validate_run(max(values, key=lambda v: v["id"]), commit)
@@ -107,7 +113,7 @@ def require_main_ci(github, commit):
 def require_source(github, tag, commit, version=None):
     version_tag(tag, version)
     validate_tag(github, tag, commit)
-    require_main_ci(github, commit)
+    require_main_ancestry(github, commit)
     cargo = github.api(f"repos/{REPOSITORY}/contents/Cargo.toml?ref={commit}")
     require(cargo["encoding"] == "base64", "source package manifest encoding differs")
     source_version = tomllib.loads(base64.b64decode(cargo["content"]).decode())["package"]["version"]
@@ -123,8 +129,12 @@ def candidate_gate(github):
     return {"tag":tag, "commit":commit, "version":version}
 
 
-def pack_distribution(candidate, output):
+def pack_distribution(candidate, output, qualification_record=None):
     manifest = package.verify_candidate(candidate)
+    if qualification_record is not None:
+        with tarfile.open(candidate/manifest['source_archive']) as source:
+            policy = source.extractfile('agent-response-gateway/scripts/validation-policy.json').read()
+        qualification.validate(qualification_record, manifest['source_commit'], policy)
     require(not output.exists(), "distribution destination must not exist")
     target, version = manifest["target"], manifest["version"]
     filename = f"agent-response-gateway-{version}-{target}-distribution.{package.TARGETS[target]['archive']}"
@@ -134,6 +144,8 @@ def pack_distribution(candidate, output):
     package.write_new(output/filename, archive)
     descriptor = {"schema":SCHEMA, "source_commit":manifest["source_commit"], "target":target, "version":version,
         "filename":filename, "sha256":package.sha(archive), "candidate_sha256":package.sha(package.read(candidate/"candidate.json")), "cargo_lock_sha256":manifest["cargo_lock_sha256"]}
+    if qualification_record is not None:
+        descriptor.update(schema=QUALIFIED_SCHEMA, qualification=qualification_record)
     package.write_new(output/f"{target}.manifest.json", package.encoded(descriptor))
     return descriptor
 
@@ -143,8 +155,10 @@ def inspect_distribution(directory, commit, target, state_dir):
     require(target in package.TARGETS, "unsupported distribution target")
     descriptor_path = directory/f"{target}.manifest.json"
     descriptor = package.json_value(package.read(descriptor_path))
-    require(set(descriptor) == {"schema","source_commit","target","version","filename","sha256","candidate_sha256","cargo_lock_sha256"}, "invalid distribution descriptor")
-    require(descriptor["schema"] == SCHEMA and descriptor["source_commit"] == commit and descriptor["target"] == target, "distribution binding differs")
+    qualified = descriptor.get('schema') == QUALIFIED_SCHEMA
+    expected = {"schema","source_commit","target","version","filename","sha256","candidate_sha256","cargo_lock_sha256"}
+    require(set(descriptor) == expected | ({'qualification'} if qualified else set()), "invalid distribution descriptor")
+    require(descriptor["schema"] in {SCHEMA, QUALIFIED_SCHEMA} and descriptor["source_commit"] == commit and descriptor["target"] == target, "distribution binding differs")
     name = descriptor["filename"]
     require(package.relative_name(name).name == name and name == f"agent-response-gateway-{descriptor['version']}-{target}-distribution.{package.TARGETS[target]['archive']}", "invalid distribution filename")
     require(package.sha(package.read(directory/name)) == descriptor["sha256"], "distribution digest differs")
@@ -158,6 +172,11 @@ def inspect_distribution(directory, commit, target, state_dir):
         candidate = temporary/"candidate"
         manifest = package.verify_candidate(candidate, commit, target)
         require(package.sha(package.read(candidate/"candidate.json")) == descriptor["candidate_sha256"] and manifest["version"] == descriptor["version"] and manifest["cargo_lock_sha256"] == descriptor["cargo_lock_sha256"], "inner candidate binding differs")
+        if qualified:
+            with tarfile.open(candidate/manifest['source_archive']) as source:
+                policy = source.extractfile('agent-response-gateway/scripts/validation-policy.json').read()
+            qualification.validate(descriptor['qualification'], commit, policy)
+
     return descriptor
 
 
@@ -170,6 +189,10 @@ def verify_distribution(github, directory, commit, target, run_id, attempt, stat
     package.read(proof)
     for name in [descriptor["filename"], f"{target}.manifest.json"]:
         github.verify(directory/name, proof, commit, run_id, attempt, tag)
+    if descriptor['schema'] == QUALIFIED_SCHEMA:
+        qualification.verify_live(github, REPOSITORY, descriptor['qualification'], commit, run_id, attempt)
+    else:
+        qualification.verify_legacy_main(github, REPOSITORY, commit, require_main_ci(github, commit))
     return descriptor
 
 
@@ -190,6 +213,8 @@ def prepare_publication(github, directory, run_id, output, state_dir):
         for path in folder.iterdir():
             require(path.name not in assets, "duplicate publication asset name")
             assets[path.name] = package.sha(package.read(path))
+    require(len({d['schema'] for d in descriptors}) == 1, 'Mixed qualification formats are not a release')
+    require(len({package.sha(package.encoded(d.get('qualification'))) for d in descriptors}) == 1, 'Candidate targets have different qualification evidence')
     require(len({d["cargo_lock_sha256"] for d in descriptors}) == 1, "candidate targets have different source locks")
     require(not output.exists(), "publication destination must not exist")
     output.mkdir(parents=True)
@@ -213,7 +238,7 @@ def verify_publication(github, directory, state_dir):
     require(run["id"] == receipt["candidate_run_id"] and run["run_attempt"] == receipt["candidate_run_attempt"], "candidate run identity or attempt differs")
     require_source(github, receipt["tag"], receipt["source_commit"], receipt["version"])
     state_dir.mkdir(parents=True, exist_ok=True)
-    assets, locks = set(), set()
+    assets, locks, formats, qualifications = set(), set(), set(), set()
     with tempfile.TemporaryDirectory(prefix="publish-", dir=state_dir) as temporary:
         for target in sorted(package.TARGETS):
             folder = Path(temporary)/target; folder.mkdir()
@@ -225,7 +250,9 @@ def verify_publication(github, directory, state_dir):
             verified = verify_distribution(github, folder, receipt["source_commit"], target, receipt["candidate_run_id"], receipt["candidate_run_attempt"], state_dir, receipt["tag"])
             require(verified["version"] == receipt["version"], "release package version differs")
             locks.add(verified["cargo_lock_sha256"])
-    require(assets == set(receipt["assets"]) and len(locks) == 1, "release contains mixed or unsigned extra inputs")
+            formats.add(verified["schema"])
+            qualifications.add(package.sha(package.encoded(verified.get("qualification"))))
+    require(assets == set(receipt["assets"]) and len(locks) == 1 and len(formats) == 1 and len(qualifications) == 1, "release contains mixed or unsigned extra inputs")
     return receipt
 
 
@@ -351,6 +378,7 @@ def main():
     parser.add_argument("--attempt")
     parser.add_argument("--tag")
     parser.add_argument("--receipt-sha")
+    parser.add_argument("--qualification", type=Path)
     args = parser.parse_args()
     github, state = Github(), ROOT/".local/provenance-state"
     try:
@@ -360,7 +388,8 @@ def main():
                 for key, val in value.items():
                     output.write(f"{key}={val}\n")
         elif args.command == "pack":
-            pack_distribution(args.directory, args.output)
+            require(args.qualification is not None, 'New distributions require full qualification')
+            pack_distribution(args.directory, args.output, package.json_value(package.read(args.qualification)))
         elif args.command == "inspect":
             inspect_distribution(args.directory, args.commit, args.target, state)
         elif args.command == "verify":
