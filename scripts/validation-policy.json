@@ -479,6 +479,37 @@
       "full": true
     },
     {
+      "name": "plugin-tooling",
+      "patterns": [
+        "tools/plugin-conformance/**",
+        "scripts/tests/test_plugin_conformance.py"
+      ],
+      "ci": [
+        "targets",
+        "format",
+        "rust",
+        "publication",
+        "licenses",
+        "codex-conformance",
+        "package-smoke",
+        "docs",
+        "usage-recorder",
+        "api-codecs",
+        "management-web"
+      ],
+      "local": [
+        "boundary",
+        "scripts",
+        "rust",
+        "licenses",
+        "docs",
+        "web",
+        "web-api",
+        "extension"
+      ],
+      "full": true
+    },
+    {
       "name": "scripts",
       "patterns": [
         "scripts/**"
