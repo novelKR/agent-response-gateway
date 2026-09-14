@@ -56,6 +56,15 @@ class CiPlanningTests(unittest.TestCase):
             self.assertEqual(p['profile'],'full')
             self.assertEqual(p['mode'],'shadow')
 
+    def test_release_caller_qualifies_exact_tag_source_even_on_push(self):
+        self.env.update(GITHUB_EVENT_NAME='push', VALIDATION_RELEASE='true')
+        self.event = {'before':'0'*40}
+        p = self.prepare()
+        self.assertEqual(p['stage'], 'release')
+        self.assertEqual(p['profile'], 'full')
+        self.assertEqual(p['base_sha'], self.env['GITHUB_SHA'])
+        self.assertEqual(p['head_sha'], self.env['GITHUB_SHA'])
+
     def test_push_uses_before_and_actual_commit(self):
         self.env['GITHUB_EVENT_NAME'] = 'push'
         self.event = {'before':'b'*40}

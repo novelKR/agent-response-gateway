@@ -14,6 +14,7 @@ import release_provenance as provenance
 import release_package as package
 import test_release_package as fixtures
 
+ROOT = Path(__file__).resolve().parents[2]
 COMMIT = fixtures.COMMIT
 
 
@@ -51,6 +52,14 @@ class FakeGithub:
             self.writes.append((method, endpoint, copy.deepcopy(data)))
         if "/compare/main..." in endpoint:
             return {"merge_base_commit":{"sha":COMMIT if self.ancestor else "2"*40}, "status":"identical" if self.main == COMMIT else "behind"}
+        if "/contents/.github/workflows/ci.yml?ref=" in endpoint:
+            raw=b"jobs:\n  ci-required:\n    needs: [targets, format, rust, publication, licenses, codex-conformance, package-smoke, docs]\n"
+            return {"encoding":"base64","content":base64.b64encode(raw).decode()}
+        if "/contents/scripts/conformance-suites.json?ref=" in endpoint:
+            return None
+        if "/attempts/" in endpoint and "/jobs?" in endpoint:
+            names=provenance.qualification.job_names(provenance.qualification.MINIMUM)
+            return {"total_count":len(names),"jobs":[{"name":n,"status":"completed","conclusion":self.ci_conclusion} for n in names]}
         if "/contents/Cargo.toml?ref=" in endpoint:
             return {"encoding":"base64", "content":base64.b64encode(('[package]\nversion="'+self.version+'"\n').encode()).decode()}
         if "/actions/workflows/ci.yml/runs?" in endpoint:
@@ -103,19 +112,35 @@ def prepared(root, github):
 
 
 class ReleaseProvenanceTests(unittest.TestCase):
-    def test_candidate_requires_existing_tag_main_ancestry_exact_version_and_successful_ci(self):
+    def test_candidate_requires_tag_ancestry_and_version_before_independent_qualification(self):
         env = {"GITHUB_REPOSITORY":provenance.REPOSITORY,"GITHUB_REF":"refs/tags/v0.1.0","GITHUB_SHA":COMMIT,"GITHUB_RUN_ATTEMPT":"1","GITHUB_EVENT_NAME":"push"}
         github = FakeGithub()
         with patch.dict(os.environ,env):
             self.assertEqual(provenance.candidate_gate(github)["commit"],COMMIT)
+            with patch.object(github, 'ci_conclusion', 'cancelled'):
+                self.assertEqual(provenance.candidate_gate(github)['commit'], COMMIT)
             for field,replacement in [("GITHUB_SHA","2"*40),("GITHUB_REF","refs/heads/main"),("GITHUB_RUN_ATTEMPT","2"),("GITHUB_EVENT_NAME","pull_request")]:
                 with patch.dict(os.environ,{field:replacement}), self.assertRaises(package.PackageError):
                     provenance.candidate_gate(github)
-            for field,replacement in [("ci_conclusion","failure"),("ancestor",False),("version","0.2.0"),("tag",None)]:
+            for field,replacement in [("ancestor",False),("version","0.2.0"),("tag",None)]:
                 with patch.object(github,field,replacement), self.assertRaises(package.PackageError):
                     provenance.candidate_gate(github)
             github.main = "2"*40
             provenance.candidate_gate(github)
+
+    def test_legacy_workflow_success_does_not_hide_a_skipped_required_job(self):
+        github = FakeGithub()
+        original = github.api
+        def api(endpoint, **kwargs):
+            value = original(endpoint, **kwargs)
+            if '/attempts/' in endpoint and '/jobs?' in endpoint:
+                value['jobs'][0]['conclusion'] = 'skipped'
+            return value
+        state = ROOT / '.local/test-state'
+        state.mkdir(parents=True, exist_ok=True)
+        with patch.object(github, 'api', side_effect=api), tempfile.TemporaryDirectory(dir=state) as d:
+            with self.assertRaises(ValueError):
+                prepared(Path(d), github)
 
     def test_only_successful_selected_tag_workflow_is_eligible(self):
         provenance.validate_run(successful_run(), COMMIT, "v0.1.0")

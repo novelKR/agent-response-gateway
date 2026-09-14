@@ -14,7 +14,10 @@ def prepare(root, event, env):
     source = validation.git(root, 'rev-parse', 'HEAD').decode().strip()
     if source != env['GITHUB_SHA']:
         raise validation.ValidationError('Workflow checkout differs from the selected source')
-    if name == 'pull_request':
+    if env.get('VALIDATION_RELEASE') == 'true':
+        base = head = source
+        stage, profile = 'release', 'full'
+    elif name == 'pull_request':
         base, head = event['pull_request']['base']['sha'], event['pull_request']['head']['sha']
         stage, profile = 'pr', 'affected'
     elif name == 'push':

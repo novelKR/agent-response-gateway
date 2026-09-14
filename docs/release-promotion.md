@@ -19,9 +19,10 @@ same tag, Release ID and download files to a formal Release.
 
 The tag must exactly equal v followed by the Cargo.toml package version. Both
 vX.Y.Z and prerelease versions such as vX.Y.Z-rc.1 are accepted. Tags with build
-metadata are not supported. The source commit must be contained in main, and the
-latest main push CI run for that exact commit must have succeeded. Main can move
-forward later without requiring a rebuild; moving the version tag is rejected.
+metadata are not supported. The source commit must be contained in main. The
+candidate runs full qualification for that exact tag commit before building or
+signing distributions, independently of ordinary main integration CI. Main can
+move forward later without requiring a rebuild; moving the version tag is rejected.
 
 Release candidate starts on a version-tag push. To recover a failed candidate,
 start a new manual run against the same existing tag after inspecting the failure.
@@ -33,6 +34,21 @@ license audit tool, without PR caches. Each distribution includes the binary
 archive, corresponding source, notices, scoped SBOM, candidate manifest and
 checksums. A target descriptor binds the distribution and inner candidate hashes,
 source commit, version, target and Cargo.lock hash.
+
+New descriptors use `gateway-distribution/v2` and embed
+`gateway-release-qualification/v1`. The record binds source commit, validation
+policy hash, all required job outcomes, all supported targets and the exact run
+ID/attempt. The descriptor signature covers the record. Verification checks its
+policy against the corresponding source and the completed qualification jobs in
+that candidate run. Missing records, mixed formats or different target records
+fail. The `pack` command requires `--qualification` for new distributions.
+
+Existing `gateway-distribution/v1` files remain verifiable through the legacy
+path. It requires actual successful outcomes for the full prerequisite set of
+that source's main CI, including platform and scenario matrices; a generic
+workflow success is insufficient. Original bytes and signatures are preserved.
+Do not remove the new reader when recovering workflows that already produced
+qualified distributions; pause candidate generation instead.
 
 Build jobs have contents:read. Separate signing jobs have contents:read,
 actions:read, id-token:write and attestations:write. They inspect the downloaded

@@ -473,8 +473,8 @@
       "order": 2,
       "source": "docs/release-promotion.md",
       "translation": "docs/ko/release-promotion.md",
-      "source_sha256": "54c1f863d98160bf1019793504c269b60ce3dd4dff4a561e7242b3b4239f1453",
-      "translation_sha256": "c7132cd0204ac25de3448466b7e550c17161aee22cbfab1ff6c7674419ac4c8b",
+      "source_sha256": "df1a1b0fbf70dd99bb9fe2eb6d627cec647ee751bcee8975943b66f47aff171e",
+      "translation_sha256": "ae075ba2dacfd43ef95d566adf2a23b4fe589310f051d7f31bc6017a22eb9e13",
       "anchors": [
         "build-and-signing-boundaries",
         "failure-and-recovery",
