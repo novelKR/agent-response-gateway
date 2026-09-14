@@ -64,6 +64,7 @@ impl EmbeddedManifest {
                 Some("gateway-extended-manifest/v6") => "gateway-extended-ready/v6",
                 Some("gateway-extended-manifest/v7") => "gateway-extended-ready/v7",
                 Some("gateway-extended-manifest/v9") => "gateway-extended-ready/v9",
+                Some("gateway-extended-manifest/v10") => "gateway-extended-ready/v10",
                 Some("gateway-extended-manifest/v8") => "gateway-extended-ready/v8",
                 _ => return Err(ConfigError("Unsupported readiness schema".into())),
             };
@@ -86,6 +87,7 @@ impl EmbeddedManifest {
         match self.schema {
             "gateway-embedded-manifest/v7" => "gateway-ready/v7",
             "gateway-embedded-manifest/v9" => "gateway-ready/v9",
+            "gateway-embedded-manifest/v10" => "gateway-ready/v10",
             "gateway-embedded-manifest/v8" => "gateway-ready/v8",
             "gateway-embedded-manifest/v6" => "gateway-ready/v6",
             "gateway-embedded-manifest/v5" => "gateway-ready/v5",
@@ -188,7 +190,11 @@ impl Config {
                 route_projection["wire_contract_version"] = json!("v1");
             }
             // Preserve the original Gemini binding byte for byte.
-            if snapshot.api != crate::ir::ApiProtocol::GeminiInteractions && route.managed {
+            if !matches!(
+                snapshot.api,
+                crate::ir::ApiProtocol::GeminiInteractions | crate::ir::ApiProtocol::Plugin
+            ) && route.managed
+            {
                 route_projection["continuation_mode"] = json!("managed");
                 route_projection["capability_profile"]["reasoning_contract"] =
                     json!(snapshot.capabilities.reasoning_contract);
@@ -196,6 +202,11 @@ impl Config {
                 route_projection["wire_contract_sha256"] = json!(crate::continuation::hex(
                     &crate::digest::sha256(include_bytes!("../tests/reasoning/wire-lock.json"))
                 ));
+            }
+            if snapshot.api == crate::ir::ApiProtocol::Plugin && route.managed {
+                route_projection["continuation_mode"] = json!("managed");
+                route_projection["provider_replay_schema"] = json!(crate::continuation::REPLAY_V3);
+                route_projection["provider_state_limit_bytes"] = json!(1024 * 1024);
             }
             if matches!(
                 snapshot.capabilities.reasoning_contract,
@@ -226,7 +237,14 @@ impl Config {
         if let Some(c) = &self.continuation {
             configuration["continuation"] =
                 serde_json::to_value(c).expect("continuation configuration");
-            configuration["replay_versions"] = json!({"read":[1,2],"write":2});
+            configuration["replay_versions"] = if self.models.values().any(|model| {
+                model.api == crate::ir::ApiProtocol::Plugin
+                    && model.continuation_mode == Some(crate::config::ContinuationMode::Managed)
+            }) {
+                json!({"read":[1,2,3],"write_builtin":2,"write_provider":3})
+            } else {
+                json!({"read":[1,2],"write":2})
+            };
             configuration = sorted(configuration);
         }
         if let Some(packs) = self.profile_pack_projection() {
@@ -240,7 +258,12 @@ impl Config {
             .map(|byte| format!("{byte:02x}"))
             .collect();
         Ok(EmbeddedManifest {
-            schema: if self.models.values().any(|m| m.provider_plugin.is_some()) {
+            schema: if self.models.values().any(|m| {
+                m.api == crate::ir::ApiProtocol::Plugin
+                    && m.continuation_mode == Some(crate::config::ContinuationMode::Managed)
+            }) {
+                "gateway-embedded-manifest/v10"
+            } else if self.models.values().any(|m| m.provider_plugin.is_some()) {
                 "gateway-embedded-manifest/v9"
             } else if self
                 .models

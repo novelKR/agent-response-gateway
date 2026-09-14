@@ -112,7 +112,7 @@ impl OpaqueState {
 /// This type deliberately has no Debug or deserialization implementation.
 #[derive(Default)]
 pub struct VerifiedProviderHistory {
-    pub(crate) segments: std::collections::BTreeMap<usize, (usize, NativeReplay)>,
+    pub(crate) segments: std::collections::BTreeMap<usize, (usize, NativeState)>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -160,5 +160,125 @@ impl NativeReplay {
             } if !blocks.is_empty() && controls.is_object() => Ok(()),
             _ => Err(IrError::ContinuityMismatch),
         }
+    }
+}
+
+/// Internal state dispatch has no serde implementation, so it cannot widen old codec wire types.
+#[derive(Clone, PartialEq)]
+pub(crate) enum NativeState {
+    Builtin(NativeReplay),
+    Provider(ProviderNativeState),
+}
+impl From<NativeReplay> for NativeState {
+    fn from(value: NativeReplay) -> Self {
+        Self::Builtin(value)
+    }
+}
+impl NativeState {
+    pub(crate) fn builtin(&self) -> Result<&NativeReplay, IrError> {
+        match self {
+            Self::Builtin(value) => Ok(value),
+            Self::Provider(_) => Err(IrError::ContinuityMismatch),
+        }
+    }
+    pub(crate) fn provider(&self) -> Result<&ProviderNativeState, IrError> {
+        match self {
+            Self::Provider(value) => Ok(value),
+            Self::Builtin(_) => Err(IrError::ContinuityMismatch),
+        }
+    }
+}
+#[derive(Clone, PartialEq, Eq)]
+pub(crate) struct ProviderStateBinding {
+    pub protocol: String,
+    pub provider_protocol: String,
+    pub id: String,
+    pub version: String,
+    pub package_sha256: String,
+    pub executable_sha256: String,
+}
+impl ProviderStateBinding {
+    pub(crate) fn validate(&self) -> Result<(), IrError> {
+        let id = &self.id;
+        let parts: Vec<_> = self.version.split('.').collect();
+        let hash = |value: &str| {
+            value.len() == 64
+                && value
+                    .bytes()
+                    .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        };
+        if self.protocol != gateway_plugin_contract::PROVIDER_PROTOCOL
+            || !gateway_plugin_contract::valid_provider_protocol(&self.provider_protocol)
+            || id.is_empty()
+            || id.len() > 64
+            || !id.as_bytes()[0].is_ascii_lowercase()
+            || !id
+                .bytes()
+                .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+            || parts.len() != 3
+            || parts.iter().any(|p| {
+                p.is_empty()
+                    || p.len() > 6
+                    || !p.bytes().all(|b| b.is_ascii_digit())
+                    || (p.len() > 1 && p.starts_with('0'))
+            })
+            || !hash(&self.package_sha256)
+            || !hash(&self.executable_sha256)
+        {
+            return Err(IrError::ContinuityMismatch);
+        }
+        Ok(())
+    }
+}
+/// Plain native bytes only exist after host validation; never Debug or Serialize.
+#[derive(Clone, PartialEq)]
+pub(crate) struct ProviderNativeState {
+    pub binding: ProviderStateBinding,
+    pub format: String,
+    pub version: u32,
+    bytes: Vec<u8>,
+}
+impl ProviderNativeState {
+    pub(crate) const MAX_BYTES: usize = 1024 * 1024;
+    pub(crate) fn new(
+        binding: ProviderStateBinding,
+        format: String,
+        version: u32,
+        bytes: Vec<u8>,
+    ) -> Result<Self, IrError> {
+        binding.validate()?;
+        if format.is_empty()
+            || format.len() > 64
+            || !format.as_bytes()[0].is_ascii_lowercase()
+            || !format
+                .bytes()
+                .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b"._-".contains(&b))
+            || version == 0
+            || bytes.len() > Self::MAX_BYTES
+        {
+            return Err(IrError::ContinuityMismatch);
+        }
+        Ok(Self {
+            binding,
+            format,
+            version,
+            bytes,
+        })
+    }
+    pub(crate) fn bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+    pub(crate) fn validate_for(
+        &self,
+        binding: &ProviderStateBinding,
+        expected_format: Option<(&str, u32)>,
+    ) -> Result<(), IrError> {
+        if &self.binding != binding
+            || expected_format
+                .is_some_and(|(format, version)| format != self.format || version != self.version)
+        {
+            return Err(IrError::ContinuityMismatch);
+        }
+        binding.validate()
     }
 }

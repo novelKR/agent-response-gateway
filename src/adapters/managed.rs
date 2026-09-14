@@ -136,7 +136,7 @@ impl ManagedAdapter {
             let Some((_, native)) = history.segments.values().last() else {
                 return Err(IrError::ContinuityMismatch);
             };
-            let NativeReplay::Chat { controls, .. } = native else {
+            let NativeReplay::Chat { controls, .. } = native.builtin()? else {
                 return Err(IrError::ContinuityMismatch);
             };
             if p.reasoning_controls.as_ref() != Some(controls) {
@@ -147,7 +147,7 @@ impl ManagedAdapter {
             let Some((_, native)) = history.segments.values().last() else {
                 return Err(IrError::ContinuityMismatch);
             };
-            let NativeReplay::Messages { controls, .. } = native else {
+            let NativeReplay::Messages { controls, .. } = native.builtin()? else {
                 return Err(IrError::ContinuityMismatch);
             };
             if p.reasoning_controls.as_ref() != Some(controls) {

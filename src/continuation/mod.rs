@@ -3,8 +3,10 @@ pub mod control;
 mod replay;
 mod sqlite;
 pub use replay::{
-    ENVELOPE_V2, NativeReplay, Outcome, REPLAY_V2, ReplayRecord, ReplayV2, public_reasoning,
+    ENVELOPE_V2, ENVELOPE_V3, NativeReplay, Outcome, ProviderBindingWire, ProviderReplayWire,
+    REPLAY_V2, REPLAY_V3, ReplayRecord, ReplayV2, ReplayV3, public_reasoning,
 };
+pub(crate) use replay::{ReplayMetadataOwned, decode_provider_state};
 use ring::{
     aead,
     rand::{SecureRandom, SystemRandom},
@@ -153,10 +155,10 @@ impl Protector {
     }
     pub fn seal_record(&self, replay: &ReplayRecord) -> Result<String> {
         replay.validate()?;
-        let prefix = if replay.schema() == SCHEMA {
-            ENVELOPE_PREFIX
-        } else {
-            ENVELOPE_V2
+        let prefix = match replay {
+            ReplayRecord::V1(_) => ENVELOPE_PREFIX,
+            ReplayRecord::V2(_) => ENVELOPE_V2,
+            ReplayRecord::V3(_) => ENVELOPE_V3,
         };
         let aad = if replay.schema() == SCHEMA {
             self.id.clone()
@@ -188,14 +190,18 @@ impl Protector {
     pub fn open(&self, envelope: &str) -> Result<Replay> {
         match self.open_record(envelope)? {
             ReplayRecord::V1(v) => Ok(v),
-            ReplayRecord::V2(_) => Err(Error("legacy replay required")),
+            ReplayRecord::V2(_) | ReplayRecord::V3(_) => Err(Error("legacy replay required")),
         }
     }
     pub fn open_record(&self, envelope: &str) -> Result<ReplayRecord> {
         let prefix = if envelope.starts_with(ENVELOPE_PREFIX) {
             ENVELOPE_PREFIX
-        } else {
+        } else if envelope.starts_with(ENVELOPE_V2) {
             ENVELOPE_V2
+        } else if envelope.starts_with(ENVELOPE_V3) {
+            ENVELOPE_V3
+        } else {
+            return Err(Error("envelope version"));
         };
         let aad = if prefix == ENVELOPE_PREFIX {
             self.id.clone()
@@ -227,11 +233,35 @@ impl Protector {
                 &mut bytes,
             )
             .map_err(|_| Error("authentication"))?;
-        let replay: ReplayRecord =
-            serde_json::from_slice(plain).map_err(|_| Error("replay format"))?;
+        if plain.len() > MAX_PAYLOAD {
+            return Err(Error("payload limit"));
+        }
+        let replay: ReplayRecord = match prefix {
+            ENVELOPE_PREFIX => {
+                ReplayRecord::V1(serde_json::from_slice(plain).map_err(|_| Error("replay format"))?)
+            }
+            ENVELOPE_V2 => {
+                ReplayRecord::V2(serde_json::from_slice(plain).map_err(|_| Error("replay format"))?)
+            }
+            ENVELOPE_V3 => {
+                ReplayRecord::V3(serde_json::from_slice(plain).map_err(|_| Error("replay format"))?)
+            }
+            _ => return Err(Error("envelope version")),
+        };
         replay.validate()?;
-        if (prefix == ENVELOPE_PREFIX) != (replay.schema() == SCHEMA) {
+        let expected = match prefix {
+            ENVELOPE_PREFIX => SCHEMA,
+            ENVELOPE_V2 => REPLAY_V2,
+            ENVELOPE_V3 => REPLAY_V3,
+            _ => return Err(Error("envelope version")),
+        };
+        if replay.schema() != expected {
             return Err(Error("replay version mismatch"));
+        }
+        if prefix == ENVELOPE_V3
+            && serde_json::to_vec(&replay).map_err(|_| Error("encoding"))? != plain
+        {
+            return Err(Error("noncanonical provider replay"));
         }
         Ok(replay)
     }
@@ -307,14 +337,28 @@ impl Runtime {
         self.access(move |store, key| {
             let original = key.open_record(&envelope)?;
             let hash = digest(&original)?;
-            let replay = original.clone().normalize();
+            if matches!(&original, ReplayRecord::V3(_)) {
+                let current = store.session(&session.id)?;
+                if current.id != session.id
+                    || current.epoch != session.epoch
+                    || current.origin != session.origin
+                    || current.revision != session.revision
+                    || current.head != session.head
+                    || current.status != session.status
+                    || current.pending_tools != session.pending_tools
+                    || current.portable_sha256 != session.portable_sha256
+                {
+                    return Err(Error("stale provider session"));
+                }
+            }
+            let replay = original.metadata();
             if replay.session != session.id
                 || replay.epoch != session.epoch
-                || replay.origin != session.origin
+                || replay.origin != &session.origin
             {
                 return Err(Error("origin mismatch"));
             }
-            let record = store.record(&replay.response)?;
+            let record = store.record(replay.response)?;
             if record.session != session.id
                 || record.epoch != session.epoch
                 || record.digest != hash
@@ -337,7 +381,7 @@ impl Runtime {
     pub async fn restore(&self, session: Session, envelope: String) -> Result<Replay> {
         match self.restore_record(session, envelope).await? {
             ReplayRecord::V1(v) => Ok(v),
-            ReplayRecord::V2(_) => Err(Error("legacy replay required")),
+            ReplayRecord::V2(_) | ReplayRecord::V3(_) => Err(Error("legacy replay required")),
         }
     }
     pub async fn finalize(
@@ -353,13 +397,50 @@ impl Runtime {
     ) -> Result<String> {
         let record = replay.into();
         self.access(move |store, key| {
+            if let ReplayRecord::V3(provider) = &record {
+                provider.validate()?;
+                let session = store.session(&provider.session)?;
+                if session.epoch != provider.epoch
+                    || session.origin != provider.origin
+                    || session.head != provider.parent
+                    || !matches!(session.status.as_str(), "pending" | "compacting_pending")
+                {
+                    return Err(Error("provider checkpoint origin"));
+                }
+                if let Some(parent) = &provider.parent {
+                    let saved = store.record(parent)?;
+                    if saved.session != session.id || saved.epoch != session.epoch {
+                        return Err(Error("provider parent origin"));
+                    }
+                    let previous = key.open_record(
+                        saved
+                            .envelope
+                            .as_deref()
+                            .ok_or(Error("provider parent payload missing"))?,
+                    )?;
+                    if digest(&previous)? != saved.digest {
+                        return Err(Error("provider parent digest"));
+                    }
+                    let ReplayRecord::V3(previous) = previous else {
+                        return Err(Error("provider parent version"));
+                    };
+                    if previous.response != *parent
+                        || previous.origin != provider.origin
+                        || previous.native.binding != provider.native.binding
+                        || previous.native.format != provider.native.format
+                        || previous.native.version != provider.native.version
+                    {
+                        return Err(Error("provider state binding"));
+                    }
+                }
+            }
             let envelope = key.seal_record(&record)?;
             check(&envelope)?;
             let hash = digest(&record)?;
-            let replay = record.normalize();
+            let replay = record.metadata();
             store.finalize(
-                &replay.session,
-                &replay.response,
+                replay.session,
+                replay.response,
                 &hash,
                 &envelope,
                 replay.outcome == Outcome::AwaitingTools,

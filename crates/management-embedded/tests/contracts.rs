@@ -484,7 +484,7 @@ fn expected_runtime_binds_current_manifest_readiness_versions_and_exact_digests(
         Err(Error::UnsupportedSchema)
     ));
     // Synthetic projections test supported version matching; they are not configuration admission.
-    for version in [1, 2, 3, 4, 5, 6, 7, 8, 9] {
+    for version in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] {
         let mut embedded = base.clone();
         if version > 2 {
             embedded["schema"] = json!(format!("gateway-embedded-manifest/v{version}"));
@@ -492,7 +492,8 @@ fn expected_runtime_binds_current_manifest_readiness_versions_and_exact_digests(
         let configuration = json!({"gateway":embedded,"extensions":{}});
         let digest = Digest::of(&serde_json::to_vec(&configuration).unwrap());
         let extended = json!({"schema":format!("gateway-extended-manifest/v{version}"),"configuration":configuration,"execution_sha256":digest});
-        let expected = ExpectedRuntime::from_manifest(&extended).unwrap();
+        let expected = ExpectedRuntime::from_manifest(&extended)
+            .unwrap_or_else(|error| panic!("manifest version {version}: {error:?}"));
         let mut observed = ready.clone();
         observed["schema"] = json!(format!("gateway-extended-ready/v{version}"));
         observed["manifest_schema"] = extended["schema"].clone();

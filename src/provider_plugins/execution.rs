@@ -12,19 +12,69 @@ use crate::{
         request::RequestIR,
     },
 };
+use base64::{Engine as _, engine::general_purpose::STANDARD};
 use serde_json::Value;
 
 #[derive(Default)]
 pub(crate) struct AuthorizedProviderHistory {
     spans: Vec<ReplaySpan>,
 }
+impl AuthorizedProviderHistory {
+    pub(crate) fn from_verified(
+        history: &crate::ir::continuity::VerifiedProviderHistory,
+        binding: &Binding,
+    ) -> Result<Self, IrError> {
+        let identity = binding.identity().state_binding();
+        let mut spans = Vec::new();
+        let mut last_end = 0;
+        let mut format: Option<(String, u32)> = None;
+        for (start, (end, native)) in &history.segments {
+            if start < &last_end || end < start {
+                return Err(IrError::ContinuityMismatch);
+            }
+            let state = native.provider()?;
+            state.validate_for(&identity, format.as_ref().map(|(f, v)| (f.as_str(), *v)))?;
+            if format.is_none() {
+                format = Some((state.format.clone(), state.version));
+            }
+            spans.push(ReplaySpan {
+                start: u32::try_from(*start).map_err(|_| IrError::SizeLimit)?,
+                end: u32::try_from(*end).map_err(|_| IrError::SizeLimit)?,
+                state: OpaqueState {
+                    format: state.format.clone(),
+                    version: state.version,
+                    data_base64: STANDARD.encode(state.bytes()),
+                },
+            });
+            last_end = *end;
+        }
+        Ok(Self { spans })
+    }
+    fn continuation(&self, pending_tools: bool) -> Continuation {
+        Continuation::Managed {
+            pending_tools,
+            history: self
+                .spans
+                .iter()
+                .map(|span| ReplaySpan {
+                    start: span.start,
+                    end: span.end,
+                    state: OpaqueState {
+                        format: span.state.format.clone(),
+                        version: span.state.version,
+                        data_base64: span.state.data_base64.clone(),
+                    },
+                })
+                .collect(),
+        }
+    }
+}
 #[derive(Clone, Copy)]
 pub(crate) struct ProviderLimits {
     pub request_bytes: usize,
     pub output_bytes: usize,
 }
-// This type is the handoff for host-authorized opaque state; PR6 never creates one.
-#[allow(dead_code)]
+// Decoded opaque bytes pass only through the host continuation boundary.
 pub(crate) struct ValidatedProviderState {
     pub format: String,
     pub version: u32,
@@ -32,9 +82,7 @@ pub(crate) struct ValidatedProviderState {
 }
 pub(crate) struct ProviderOutput {
     pub response: Value,
-    #[allow(dead_code)] // The managed/provenance consumers are introduced separately.
     pub outcome: Outcome,
-    #[allow(dead_code)] // PR6 explicitly rejects all state; this is the typed handoff.
     pub state: Option<ValidatedProviderState>,
     pub observation: ProviderObservation,
     pub terminal_events: Vec<Value>,
@@ -59,6 +107,8 @@ pub(crate) struct PreparedProvider {
     payload: Value,
     phase: Phase,
     streaming: bool,
+    managed: bool,
+    expected_format: Option<(String, u32)>,
     model: String,
     observation: ProviderObservation,
 }
@@ -71,8 +121,9 @@ impl PreparedProvider {
         managed_pending: Option<bool>,
         limits: ProviderLimits,
     ) -> Result<Self, IrError> {
-        // Durable opaque-state authorization is added separately; no provisional managed route.
-        if managed_pending.is_some() || !history.spans.is_empty() {
+        if (managed_pending.is_none() && !history.spans.is_empty())
+            || (managed_pending.is_some() && !binding.capabilities.supports("managed_continuation"))
+        {
             return Err(IrError::UnsupportedFeature);
         }
         if binding.protocol != gateway_plugin_contract::PROVIDER_PROTOCOL
@@ -121,7 +172,9 @@ impl PreparedProvider {
                     None => EditingSelection::None,
                 },
             },
-            continuation: Continuation::Stateless,
+            continuation: managed_pending.map_or(Continuation::Stateless, |pending| {
+                history.continuation(pending)
+            }),
             max_request_bytes: limits.request_bytes as u32,
             max_output_bytes: limits.output_bytes as u32,
         };
@@ -147,6 +200,11 @@ impl PreparedProvider {
             payload,
             phase: Phase::Prepared,
             streaming: request.generation.stream == Some(true),
+            managed: managed_pending.is_some(),
+            expected_format: history
+                .spans
+                .last()
+                .map(|span| (span.state.format.clone(), span.state.version)),
             model: request.model.clone(),
             observation: ProviderObservation {
                 identity: binding.identity(),
@@ -173,6 +231,9 @@ impl PreparedProvider {
     }
     fn verifier_model(&self) -> &str {
         &self.model
+    }
+    pub(crate) fn payload(&self) -> &Value {
+        &self.payload
     }
     pub(crate) fn take_payload(&mut self) -> Value {
         std::mem::take(&mut self.payload)
@@ -238,8 +299,30 @@ impl PreparedProvider {
         if response_id.is_empty() || value.response["id"] != response_id {
             return Err(IrError::InvalidEventOrder);
         }
-        if !matches!(value.state, StateResult::None) {
-            return Err(IrError::UnsupportedFeature);
+        let state = match (value.state, self.managed) {
+            (StateResult::None, false) => None,
+            (StateResult::Opaque { value: state }, true) => {
+                let decoded = crate::continuation::decode_provider_state(
+                    self.identity.state_binding(),
+                    state.format,
+                    state.version,
+                    &state.data_base64,
+                )
+                .map_err(|_| IrError::ContinuityMismatch)?;
+                decoded.validate_for(
+                    &self.identity.state_binding(),
+                    self.expected_format.as_ref().map(|(f, v)| (f.as_str(), *v)),
+                )?;
+                Some(ValidatedProviderState {
+                    format: decoded.format.clone(),
+                    version: decoded.version,
+                    bytes: decoded.bytes().to_vec(),
+                })
+            }
+            _ => return Err(IrError::ContinuityMismatch),
+        };
+        if self.managed && value.outcome == Outcome::Incomplete {
+            return Err(IrError::ContinuityMismatch);
         }
         bound(&value.response, self.limits.output_bytes)?;
         usage::verify_response(&value.response, &usage)?;
@@ -267,7 +350,7 @@ impl PreparedProvider {
         Ok(ProviderOutput {
             response,
             outcome: value.outcome,
-            state: None,
+            state,
             observation: ProviderObservation {
                 identity: self.identity.clone(),
                 usage,
@@ -498,6 +581,8 @@ impl PreparedProvider {
                 payload: serde_json::json!({"query":"synthetic"}),
                 phase: Phase::Prepared,
                 streaming: request.generation.stream == Some(true),
+                managed: false,
+                expected_format: None,
                 model: request.model.clone(),
                 observation: ProviderObservation {
                     identity: binding.identity(),

@@ -15,6 +15,8 @@ Messages and Chat remain stateless by default. Database configuration alone does
 not enable reasoning: select continuation_mode="managed" and a reasoning_contract
 on the capability profile. Gemini retains its existing managed default.
 
+The provider role uses separate [protected V3 continuation](provider-continuation.md), including exact package/state binding and original-version authentication. Production provider activation remains unavailable while integrated recording acceptance is pending. Builtin behavior below retains its existing contracts.
+
 ## Execution and display
 
 The request follows Responses input validation, session/history verification,
@@ -44,7 +46,7 @@ host-created x-gateway-session as a fixed HTTP header. Unknown sessions are reje
 Only the local gateway token and session ID reach Codex. The control token,
 provider credential and independent stable 256-bit encryption key stay with the host.
 
-The standalone managed manifest is gateway-embedded-manifest/v3 and readiness is
+For builtin-only managed configuration, the standalone manifest is gateway-embedded-manifest/v3 and readiness is
 gateway-ready/v3. They declare replay_versions read [1, 2], write 2. Enabling an
 extension with managed configuration produces gateway-extended-manifest/v3 and
 gateway-extended-ready/v3. Validate the nested gateway manifest, configuration
@@ -54,7 +56,7 @@ contract, not evidence that a provider was qualified.
 
 Existing Gemini v1 records are authenticated in their original serialized form
 and checked against their original finalized digest before internal conversion.
-The gateway writes ReplayV2 for new responses, preserving old ciphertext and
+Builtin adapters write ReplayV2 for new responses, preserving old ciphertext and
 Codex history. Gemini route binding and SQLite tables are unchanged. No automatic
 migration is performed. Messages/Chat contracts are part of new route bindings;
 changing provider, model or contract requires a new session.

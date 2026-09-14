@@ -89,7 +89,7 @@ padded standard base64. The host enforces a one-MiB decoded bound; schema patter
 validation does not prove canonical pad bits or the decoded size. The host owns
 protection, persistence and exact route/session/package binding. This contract
 provides no authority to approve sessions or migrate a package's stored state.
-The current host rejects managed provider requests; protected persistence and resume are not active. The declaration and independent example do not establish protected restart support.
+The host implements [protected V3 persistence and resume](provider-continuation.md) behind the provider activation gate. Normal startup still rejects provider activation until integrated acceptance is complete. The declaration and independent example alone do not establish protected restart support.
 
 <a id="독립-예제와-검증"></a>
 

@@ -33,6 +33,28 @@ fn replay(s: &Session, id: String) -> Replay {
         output: vec![json!({"type":"message","content":[]})],
     }
 }
+fn legacy_v2(value: Replay) -> ReplayV2 {
+    ReplayV2 {
+        schema: REPLAY_V2.into(),
+        session: value.session,
+        epoch: value.epoch,
+        origin: value.origin,
+        response: value.response,
+        parent: value.parent,
+        input_len: value.input_len,
+        input_sha256: value.input_sha256,
+        outcome: if value.provider_status == "requires_action" {
+            Outcome::AwaitingTools
+        } else {
+            Outcome::Completed
+        },
+        native: NativeReplay::Gemini {
+            version: 1,
+            steps: value.steps,
+        },
+        output: value.output,
+    }
+}
 fn open(path: &Path, init: bool) -> SqliteStore {
     SqliteStore::open(&path.canonicalize().unwrap(), init, 16 * 1024 * 1024).unwrap()
 }
@@ -329,7 +351,7 @@ fn replay_versions_authenticate_layout_and_version_before_normalization() {
     let v1 = key.seal(&old).unwrap();
     let record = key.open_record(&v1).unwrap();
     assert_eq!(digest(&record).unwrap(), digest(&old).unwrap());
-    let normalized = record.normalize();
+    let normalized = legacy_v2(old);
     assert_eq!(normalized.schema, REPLAY_V2);
     let v2 = key.seal_record(&normalized.clone().into()).unwrap();
     assert!(v2.starts_with(ENVELOPE_V2));
@@ -343,7 +365,7 @@ fn replay_versions_authenticate_layout_and_version_before_normalization() {
             .is_err()
     );
     assert_eq!(
-        digest(&key.open_record(&v2).unwrap().normalize()).unwrap(),
+        digest(&key.open_record(&v2).unwrap()).unwrap(),
         digest(&normalized).unwrap()
     );
     let mut invalid = normalized;
@@ -362,7 +384,7 @@ async fn finalized_v2_public_reasoning_and_native_state_repair_together() {
     let id = store
         .begin(&s.id, s.revision, None, "request", 4096)
         .unwrap();
-    let mut v2 = ReplayRecord::from(replay(&s, id.clone())).normalize();
+    let mut v2 = legacy_v2(replay(&s, id.clone()));
     v2.output = vec![public_reasoning(
         "reasoning_test",
         "synthetic public reasoning",
@@ -383,8 +405,7 @@ async fn finalized_v2_public_reasoning_and_native_state_repair_together() {
     let saved = runtime
         .restore_record(s.clone(), token.clone())
         .await
-        .unwrap()
-        .normalize();
+        .unwrap();
     assert_eq!(digest(&saved).unwrap(), digest(&v2).unwrap());
     let mut edited = v2;
     edited.output[0]["summary"][0]["text"] = json!("changed display");
@@ -393,4 +414,255 @@ async fn finalized_v2_public_reasoning_and_native_state_repair_together() {
         .seal_record(&edited.into())
         .unwrap();
     assert!(runtime.restore_record(s, forged).await.is_err());
+}
+
+fn provider_origin() -> Origin {
+    Origin {
+        route: json!({"api":"plugin","model":"synthetic","provider_plugin":{
+        "protocol":"gateway-provider/v1","provider_protocol":"synthetic-provider/v1","id":"synthetic-provider","version":"1.0.0",
+        "package_sha256":"a".repeat(64),"executable_sha256":"b".repeat(64)}}),
+        realm: "test".into(),
+        generation: "1".into(),
+    }
+}
+fn provider_replay(session: &Session, response: String, bytes: &[u8]) -> ReplayV3 {
+    use base64::Engine;
+    ReplayV3 {
+        schema: REPLAY_V3.into(),
+        session: session.id.clone(),
+        epoch: session.epoch,
+        origin: session.origin.clone(),
+        response,
+        parent: session.head.clone(),
+        input_len: 0,
+        input_sha256: digest(&json!([])).unwrap(),
+        outcome: Outcome::Completed,
+        native: ProviderReplayWire {
+            binding: ProviderBindingWire {
+                protocol: "gateway-provider/v1".into(),
+                provider_protocol: "synthetic-provider/v1".into(),
+                id: "synthetic-provider".into(),
+                version: "1.0.0".into(),
+                package_sha256: "a".repeat(64),
+                executable_sha256: "b".repeat(64),
+            },
+            format: "synthetic-counter".into(),
+            version: 1,
+            data_base64: base64::engine::general_purpose::STANDARD.encode(bytes),
+        },
+        output: vec![],
+    }
+}
+#[test]
+fn provider_record_has_explicit_version_canonical_binary_and_size_bounds() {
+    let temp = private();
+    let mut store = open(temp.path(), true);
+    let session = store.create(&provider_origin()).unwrap();
+    let replay = provider_replay(&session, "resp_provider".into(), &[0, 255, 1, 128, 0]);
+    let protector = Protector::new("key1".into(), &[1; 32]).unwrap();
+    let token = protector.seal_record(&replay.clone().into()).unwrap();
+    assert!(token.starts_with(ENVELOPE_V3));
+    assert!(protector.open(&token).is_err());
+    let original = protector.open_record(&token).unwrap();
+    assert_eq!(digest(&original).unwrap(), digest(&replay).unwrap());
+    for prefix in [ENVELOPE_PREFIX, ENVELOPE_V2, "arg-continuation-v4."] {
+        assert!(
+            protector
+                .open_record(&token.replacen(ENVELOPE_V3, prefix, 1))
+                .is_err()
+        );
+    }
+    let mut corrupt = token.into_bytes();
+    let n = corrupt.len() - 1;
+    corrupt[n] = if corrupt[n] == b'0' { b'1' } else { b'0' };
+    assert!(
+        protector
+            .open_record(std::str::from_utf8(&corrupt).unwrap())
+            .is_err()
+    );
+    for data in ["AA", "AA===", "AB==", "AA==\n", "_w==", "===="] {
+        let mut invalid = replay.clone();
+        invalid.native.data_base64 = data.into();
+        assert!(protector.seal_record(&invalid.into()).is_err());
+    }
+    let mut invalid = replay.clone();
+    invalid.native.version = 0;
+    assert!(protector.seal_record(&invalid.into()).is_err());
+    let mut invalid = replay.clone();
+    invalid.native.binding.package_sha256 = "c".repeat(64);
+    assert!(protector.seal_record(&invalid.into()).is_err());
+    let limit = provider_replay(&session, "resp_limit".into(), &vec![0; 1024 * 1024]);
+    assert!(protector.seal_record(&limit.clone().into()).is_ok());
+    assert!(
+        protector
+            .seal_record(
+                &provider_replay(&session, "resp_large".into(), &vec![0; 1024 * 1024 + 1]).into()
+            )
+            .is_err()
+    );
+    let mut too_large = limit;
+    too_large.output = vec![json!({"text":"x".repeat(1024*1024)})];
+    assert!(protector.seal_record(&too_large.into()).is_err());
+    let mut old_wire = serde_json::to_value(&replay).unwrap();
+    old_wire["schema"] = json!(REPLAY_V2);
+    assert!(serde_json::from_value::<ReplayV2>(old_wire).is_err());
+    assert!(
+        serde_json::from_value::<NativeReplay>(
+            json!({"format":"provider","version":1,"data_base64":"AA=="})
+        )
+        .is_err()
+    );
+}
+#[tokio::test]
+async fn provider_checkpoint_restart_repair_and_origin_pinning_preserve_legacy_rows() {
+    let temp = private();
+    let mut store = open(temp.path(), true);
+    let legacy = store.create(&origin()).unwrap();
+    let legacy_id = store
+        .begin(&legacy.id, legacy.revision, None, "old", 8192)
+        .unwrap();
+    let session = store.create(&provider_origin()).unwrap();
+    let id = store
+        .begin(&session.id, session.revision, None, "new", 8192)
+        .unwrap();
+    let runtime = Runtime::new(
+        Box::new(store),
+        Protector::new("key1".into(), &[1; 32]).unwrap(),
+    );
+    let old = legacy_v2(replay(&legacy, legacy_id.clone()));
+    let old_token = runtime.finalize(old.clone()).await.unwrap();
+    let first = provider_replay(&session, id.clone(), &[0, 255, 17]);
+    let token = runtime.finalize(first.clone()).await.unwrap();
+    drop(runtime);
+    let db = rusqlite::Connection::open(temp.path().join("continuation.sqlite3")).unwrap();
+    let prior: (String, String) = db
+        .query_row(
+            "SELECT digest,envelope FROM records WHERE id=?1",
+            [&legacy_id],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .unwrap();
+    db.execute("UPDATE records SET envelope=NULL WHERE id=?1", [&id])
+        .unwrap();
+    drop(db);
+    let mut store = open(temp.path(), false);
+    let head = store.session(&session.id).unwrap();
+    let runtime = Runtime::new(
+        Box::new(store),
+        Protector::new("key1".into(), &[1; 32]).unwrap(),
+    );
+    let restored = runtime
+        .restore_record(head.clone(), token.clone())
+        .await
+        .unwrap();
+    assert_eq!(digest(&restored).unwrap(), digest(&first).unwrap());
+    assert!(runtime.restore(head.clone(), token.clone()).await.is_err());
+    for field in [
+        "realm",
+        "generation",
+        "epoch",
+        "revision",
+        "pending_tools",
+        "package",
+        "protocol",
+    ] {
+        let mut wrong = head.clone();
+        match field {
+            "realm" => wrong.origin.realm = "other".into(),
+            "generation" => wrong.origin.generation = "2".into(),
+            "epoch" => wrong.epoch += 1,
+            "revision" => wrong.revision -= 1,
+            "pending_tools" => wrong.pending_tools = !wrong.pending_tools,
+            "package" => {
+                wrong.origin.route["provider_plugin"]["package_sha256"] = json!("c".repeat(64))
+            }
+            _ => wrong.origin.route["provider_plugin"]["provider_protocol"] = json!("other/v1"),
+        };
+        assert!(runtime.restore_record(wrong, token.clone()).await.is_err());
+    }
+    let s = head.clone();
+    let attempt = runtime
+        .access(move |store, _| store.begin(&s.id, s.revision, s.head.as_deref(), "next", 8192))
+        .await
+        .unwrap();
+    let next = provider_replay(&head, attempt.clone(), &[1, 2, 3]);
+    for kind in ["format", "version", "origin", "parent", "package"] {
+        let mut wrong = next.clone();
+        match kind {
+            "format" => wrong.native.format = "changed".into(),
+            "version" => wrong.native.version = 2,
+            "origin" => wrong.origin.realm = "other".into(),
+            "parent" => wrong.parent = None,
+            _ => {
+                wrong.native.binding.package_sha256 = "c".repeat(64);
+                wrong.origin.route["provider_plugin"]["package_sha256"] = json!("c".repeat(64));
+            }
+        };
+        assert!(runtime.finalize(wrong).await.is_err());
+    }
+    let next_token = runtime.finalize(next.clone()).await.unwrap();
+    let sid = head.id.clone();
+    let latest = runtime
+        .access(move |store, _| store.session(&sid))
+        .await
+        .unwrap();
+    assert!(
+        runtime
+            .restore_record(latest.clone(), next_token)
+            .await
+            .is_ok()
+    );
+    let sid = latest.id.clone();
+    let rev = head.revision;
+    assert!(
+        runtime
+            .access(move |store, _| store.begin(&sid, rev, Some(&attempt), "stale", 8192))
+            .await
+            .is_err()
+    );
+    drop(runtime);
+    let db = rusqlite::Connection::open(temp.path().join("continuation.sqlite3")).unwrap();
+    let after: (String, String) = db
+        .query_row(
+            "SELECT digest,envelope FROM records WHERE id=?1",
+            [&legacy_id],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!(prior, after);
+    assert_eq!(after.0, digest(&old).unwrap());
+    assert_eq!(after.1, old_token);
+}
+#[tokio::test]
+async fn provider_failed_publication_and_reservation_leave_unfinalized_attempts() {
+    let temp = private();
+    let mut store = open(temp.path(), true);
+    let session = store.create(&provider_origin()).unwrap();
+    let id = store
+        .begin(&session.id, session.revision, None, "input", 64)
+        .unwrap();
+    let runtime = Runtime::new(
+        Box::new(store),
+        Protector::new("key1".into(), &[1; 32]).unwrap(),
+    );
+    let replay = provider_replay(&session, id.clone(), &[0]);
+    assert!(
+        runtime
+            .finalize_checked(replay.clone(), |_| Err(Error(
+                "synthetic publication failure"
+            )))
+            .await
+            .is_err()
+    );
+    assert!(runtime.finalize(replay).await.is_err());
+    let sid = session.id.clone();
+    runtime
+        .access(move |store, _| {
+            assert!(store.record(&id).is_err());
+            assert_eq!(store.session(&sid)?.status, "pending");
+            store.uncertain(&sid, &id)?;
+            Ok(())
+        })
+        .await
+        .unwrap();
 }

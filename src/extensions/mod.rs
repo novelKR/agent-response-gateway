@@ -525,7 +525,7 @@ impl ExtensionPlan {
         }
         let execution_sha256 = hash(&canonical(&configuration)?);
         Ok(
-            json!({"schema":if self.packages.iter().any(|p| p.protocol == gateway_plugin_contract::PROVIDER_PROTOCOL) { "gateway-extended-manifest/v9" } else if self.packages.iter().any(|p| p.capabilities.is_some()) { "gateway-extended-manifest/v8" } else if editing { "gateway-extended-manifest/v7" } else if codecs { "gateway-extended-manifest/v6" } else if profile_packs { "gateway-extended-manifest/v5" } else if compatibility { "gateway-extended-manifest/v4" } else if managed { "gateway-extended-manifest/v3" } else { self.manifest_schema() }, "configuration":configuration,
+            json!({"schema":if base_manifest["schema"] == "gateway-embedded-manifest/v10" { "gateway-extended-manifest/v10" } else if self.packages.iter().any(|p| p.protocol == gateway_plugin_contract::PROVIDER_PROTOCOL) { "gateway-extended-manifest/v9" } else if self.packages.iter().any(|p| p.capabilities.is_some()) { "gateway-extended-manifest/v8" } else if editing { "gateway-extended-manifest/v7" } else if codecs { "gateway-extended-manifest/v6" } else if profile_packs { "gateway-extended-manifest/v5" } else if compatibility { "gateway-extended-manifest/v4" } else if managed { "gateway-extended-manifest/v3" } else { self.manifest_schema() }, "configuration":configuration,
             "execution_sha256":execution_sha256}),
         )
     }

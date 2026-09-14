@@ -175,7 +175,7 @@ pub(crate) fn encode_with_history(
                         dialect: prior,
                         assistant,
                         ..
-                    } = native
+                    } = native.builtin()?
                     else {
                         return Err(IrError::ContinuityMismatch);
                     };
@@ -266,7 +266,7 @@ pub(crate) fn encode_with_history(
                     dialect: prior,
                     assistant,
                     ..
-                } = native
+                } = native.builtin()?
                 else {
                     return Err(IrError::ContinuityMismatch);
                 };

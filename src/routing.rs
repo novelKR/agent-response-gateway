@@ -93,6 +93,13 @@ impl Config {
                 ))
             );
         }
+        if model.api == ApiProtocol::Plugin
+            && model.continuation_mode == Some(crate::config::ContinuationMode::Managed)
+        {
+            snapshot
+                .adapter_version
+                .push_str("/provider-continuation/3");
+        }
         if let Some(id) = &model.api_codec {
             snapshot.adapter_version = format!(
                 "{}/codec/1/{}",

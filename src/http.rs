@@ -89,13 +89,21 @@ pub fn router_with_usage(
         client,
         usage,
     });
+    Ok(state_router(state, observers, control))
+}
+
+pub(crate) fn state_router(
+    state: Arc<GatewayState>,
+    observers: Option<ObserverSink>,
+    control: Option<Router>,
+) -> Router {
     let protected = Router::new()
         .route("/v1/models", get(models))
         .route("/v1/responses", post(proxy::responses))
         .route("/v1/responses/compact", post(unsupported))
         .route("/v1/responses/{id}", get(unsupported).delete(unsupported))
         .route_layer(middleware::from_fn_with_state(state.clone(), authenticate));
-    Ok(Router::new()
+    Router::new()
         .route("/", get(about))
         .route("/healthz", get(|| async { Json(json!({"status": "ok"})) }))
         .route(
@@ -112,7 +120,7 @@ pub fn router_with_usage(
         })
         .with_state(state)
         .merge(control.unwrap_or_default())
-        .layer(middleware::from_fn_with_state(observers, audit)))
+        .layer(middleware::from_fn_with_state(observers, audit))
 }
 
 async fn authenticate(
