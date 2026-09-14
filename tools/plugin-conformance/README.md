@@ -5,7 +5,7 @@ Linux and macOS. Copy this directory without the gateway checkout. The runner
 consumes package bytes and public protocol messages; it imports no gateway code.
 Its executable interface is independent of the implementation language.
 
-Static inspection checks the existing `gateway-extension-package/v1` manifest,
+Static inspection checks `gateway-extension-package/v1` and explicit v2 manifests,
 canonical bytes, exact trusted digest, role permissions/state schema, target
 recognition, flat file inventory, regular files, links, size limits and hashes.
 It accepts another supported target for static inspection, but refuses to execute
@@ -26,7 +26,10 @@ The package directory must remain unchanged during inspection.
 
 Execution requires explicit `--execute`. Only the Observer v1 executable runner
 is currently supplied. Static checks support Observer v1, Recorder v1 and codec
-v1/v2. Other role execution reports `not-run`, never a successful conformance
+v1/v2/v3 and provider v1 declarations. Package v2 validates sorted API/features,
+exact required host contracts and role-specific provider identity; legacy package
+v1 cannot be reinterpreted as v2. Provider execution reports the explicit
+`provider_runtime_unavailable` code. Other role execution reports `not-run`, never a successful conformance
 claim. Additional runners register by exact protocol in `RUNNERS`; changing the
 report or wire contract requires an explicitly versioned change.
 

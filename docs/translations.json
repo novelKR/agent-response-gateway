@@ -921,8 +921,8 @@
       "order": 32,
       "source": "docs/api-codecs.md",
       "translation": "docs/ko/api-codecs.md",
-      "source_sha256": "288e647c7aa5cee35f0ed109386d497fa2cefbc97da584dca17750e25062d38e",
-      "translation_sha256": "c985841ae14bea44df0f8be48b5189a12fa50de5b9341131d1fba7849eda2afc",
+      "source_sha256": "82dc3f10b6e54f106ff620c0dad2ba6cfea156eec9eb98e1b918443153e34be2",
+      "translation_sha256": "603417ecdc835ec081268a3681bd2699c7eb5a54b6ec73f848f5bfeb0f405efc",
       "anchors": [
         "change-and-recovery",
         "external-api-codecs",
@@ -1039,8 +1039,8 @@
         "설치선택실제-적용-상태",
         "저장소와-원본의-소유권"
       ],
-      "source_sha256": "b6f0b384523c2d8112f1d8197ac9a2bc3abe1c76414b96176f9f42218ec212dd",
-      "translation_sha256": "d0a5b563b80251ed538eb0864da29f3dc8246a167036a64196efed16f1e0e7aa"
+      "source_sha256": "b8084993161b7dcc3fbf6a356b35b8fca89f500579d4f0e0a852f47ef832d8d5",
+      "translation_sha256": "68a1194b2523806a9a4f369dfa7b9aca97ac02bb8f11e40e1e8efe28a8b1fbac"
     },
     {
       "id": "management-api",
@@ -1192,8 +1192,8 @@
       "order": 25,
       "source": "docs/plugin-authoring.md",
       "translation": "docs/ko/plugin-authoring.md",
-      "source_sha256": "9e5b1c0516e1c0d4befe7e808fa03637dee54e604c5da4a622185ff17d5f9d6e",
-      "translation_sha256": "ee26355a0546b7c9e0610125296faa8f57437e1594593591b1f6d58e2cf4ec20",
+      "source_sha256": "eeb5459971cab153c6f2d7245755e5393169286eaa593b12966e0af7af8e141d",
+      "translation_sha256": "50917c9092ab022331df264463de9f0099195c25e3805379ee2a499f6ddd99f0",
       "anchors": [
         "choose-a-supported-role",
         "codec-messages-and-state-machine",
@@ -1206,9 +1206,11 @@
         "recorder-protocol",
         "recorder-프로토콜",
         "validate-and-release-independently",
+        "versioned-capability-declarations",
         "writing-native-plugins",
         "네이티브-플러그인-작성",
         "독립-검증과-배포",
+        "버전이-명시된-기능-선언",
         "지원-역할-선택",
         "패키지-바이트와-실행"
       ],

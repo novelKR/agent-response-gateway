@@ -48,9 +48,16 @@ into profile inventory.
 A trusted runtime owner may supply `EffectiveSelection`, including its instance,
 observation time, configuration/execution digests and exact selected packages.
 Without that observation, effective state is unknown. These entries mean inclusion
-in the runtime configuration, not a permanently running codec process. Codec v2
+in the runtime configuration, not a permanently running codec process. Codec v2/v3
 continues to execute per request. Changing selection does not update a supplied
 runtime observation or claim that a restart happened.
+
+Native inventory includes package v2 capability declarations for codec v3 and
+provider v1. Static validation and installation do not execute ready. A provider
+package can be installed and inspected, but enabling or selecting it for execution
+fails explicitly while provider runtime is unavailable. Codec v3 selection requires
+compatible declared APIs/features and an exact runtime handshake; installed,
+selected and observed-effective remain distinct states.
 
 | Operation | Native extension | Profile pack |
 |---|---|---|

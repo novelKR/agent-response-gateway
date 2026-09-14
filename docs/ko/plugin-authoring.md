@@ -4,7 +4,7 @@
 
 [English](../plugin-authoring.md) | [한국어](plugin-authoring.md)
 
-이 명세는 현재 설치 가능한 네이티브 역할을 설명합니다. 아래 프로세스·바이트 계약을 구현할 수 있는 언어라면 독립 저장소에서 플러그인을 제작할 수 있습니다. 호환 실행 파일 설치에는 게이트웨이 재빌드가 필요하지 않습니다. Rust ABI나 게이트웨이 라이브러리 의존성이 필요하지 않습니다. 이 문서는 새로운 런타임 역할, 공급자 API, 권한 또는 호환성 협상을 추가하지 않습니다.
+이 명세는 현재 설치 가능한 네이티브 역할을 설명합니다. 아래 프로세스·바이트 계약을 구현할 수 있는 언어라면 독립 저장소에서 플러그인을 제작할 수 있습니다. 호환 실행 파일 설치에는 게이트웨이 재빌드가 필요하지 않습니다. Rust ABI나 게이트웨이 라이브러리 의존성이 필요하지 않습니다. 기존 역할의 계약은 유지하며 codec API 부분집합에는 아래의 명시적인 기능 계약을 사용합니다. Provider 패키지 선언은 provider 실행을 활성화하지 않습니다.
 
 이 명세와 함께 [설치 안내](extensions.md), [신뢰·수명 계약](extensions-design.md), [codec 동작](api-codecs.md), [사용량 의미](usage-accounting.md)를 읽으십시오. 네이티브 플러그인은 호스트 사용자 권한으로 실행하는 신뢰된 프로그램입니다. 제한된 IPC 인터페이스와 비워진 상속 환경은 OS 샌드박스가 아닙니다.
 
@@ -52,9 +52,51 @@
 ]
 ```
 
-Observer는 숫자 HTTP 메타데이터만 봅니다. Recorder는 별도로 설정한 전달 모드에 따라 사용량 이벤트를 봅니다. Codec은 이미 승인된 요청과 공급자 응답을 기존 Responses, Messages, Chat Completions, Gemini Interactions API에 맞게 변환합니다. Codec 선택은 API enum, 경로, 자격증명 출처 또는 전송 방식을 추가하지 않습니다. 단일 API만 구현한 codec은 현행 시작 선언을 충족할 수 없습니다.
+Observer는 숫자 HTTP 메타데이터만 봅니다. Recorder는 별도로 설정한 전달 모드에 따라 사용량 이벤트를 봅니다. Codec은 이미 승인된 요청과 공급자 응답을 기존 Responses, Messages, Chat Completions, Gemini Interactions API에 맞게 변환합니다. Codec 선택은 API enum, 경로, 자격증명 출처 또는 전송 방식을 추가하지 않습니다. 단일 API만 구현한 codec은 기존 시작 선언을 충족할 수 없으며 아래 codec v3가 필요합니다.
 
-[패키지 스키마](../../schemas/gateway-extension-package-v1.schema.json)는 현행 역할 조합을 나열합니다. 알 수 없는 역할이나 필드는 오류입니다. 기능 협상이나 선택적 권한 축소는 없습니다. 정확히 지원하는 호스트 릴리스와 시험한 OS·아키텍처를 산출물과 함께 게시하십시오. 이 정보는 릴리스 문서에 기록하며 추가 manifest 필드로 넣지 않습니다. 향후 비호환 wire 변경에는 별도로 지원되는 프로토콜 식별자가 필요합니다.
+[기존 패키지 스키마](../../schemas/gateway-extension-package-v1.schema.json)는 현행 역할 조합을 나열합니다. 알 수 없는 역할이나 필드는 오류입니다. 암묵적 기능 협상이나 선택적 권한 축소는 없습니다. 정확히 지원하는 호스트 릴리스와 시험한 OS·아키텍처를 산출물과 함께 게시하십시오. 이 정보는 릴리스 문서에 기록하며 추가 manifest 필드로 넣지 않습니다. 향후 비호환 wire 변경에는 별도로 지원되는 프로토콜 식별자가 필요합니다.
+
+<a id="versioned-capability-declarations"></a>
+
+## 버전이 명시된 기능 선언
+
+[패키지 v2](../../schemas/gateway-extension-package-v2.schema.json)는 필수 `capabilities` 객체를 추가하며 `gateway-api-codec/v3` 또는 `gateway-provider/v1`만 허용합니다. 기존 패키지 v1은 위 네 역할로 제한되며 기능 선언 필드를 허용하지 않습니다. 패키지 버전 변경이나 manifest 수정으로 기존 실행 파일의 프로토콜이 업그레이드되지는 않습니다.
+
+기능 선언은 `gateway-plugin-capabilities/v1`을 사용하며 정확히 `apis`, `features`, `requires`, `schema`를 포함합니다. 모든 배열은 ASCII 사전순으로 정렬한 고유 문자열을 포함합니다. Codec API는 `chat_completions`, `gemini_interactions`, `messages`, `responses` 중 비어 있지 않은 부분집합입니다. 기능은 `editing`, `json`, `managed_continuation`, `streaming`의 부분집합이며 `json`이 필수입니다. Codec 요구사항은 정확히 `codec_ipc_v3`와 `responses_output_validation`입니다. 이 선언은 기존 `read_model_payload`, `transform_model_protocol` 권한 및 `request-memory/v1` 상태 계약과 별개입니다.
+
+[Codec v3 스키마](../../schemas/gateway-api-codec-v3.schema.json)는 v2 작업과 편집 정책의 의미를 유지하면서 기존 ready 필드를 전체 기능 객체로 대체합니다. Native replay 버전 1은 이 계약에 포함되므로 `capabilities` 옆에 기존 `apis`나 `replay_versions` 필드를 추가하지 마십시오. Ready 선언은 검사한 manifest와 일부만 겹치는 것이 아니라 정확히 일치해야 합니다. 다음 예제는 Messages만 지원합니다.
+
+```json
+{
+  "protocol": "gateway-api-codec/v3",
+  "sequence": 0,
+  "value": {
+    "result": "ready",
+    "capabilities": {
+      "schema": "gateway-plugin-capabilities/v1",
+      "apis": [
+        "messages"
+      ],
+      "features": [
+        "editing",
+        "json",
+        "managed_continuation",
+        "streaming"
+      ],
+      "requires": [
+        "codec_ipc_v3",
+        "responses_output_validation"
+      ]
+    }
+  }
+}
+```
+
+선택한 모델 API는 `apis`에 포함되어야 합니다. 요청한 각 기능은 준비 전에 선언되어야 합니다. 스트리밍에는 `streaming`, 관리형 실행에는 `managed_continuation`, 편집에는 `editing`이 필요합니다. 이 검사는 경로 기능 프로파일과 권한 검사에 추가되며, 선언이 호스트 승인을 넓힐 수 없습니다. 오프라인 inspect/install은 handshake를 실행하지 않습니다. 미지원 요구사항이나 시작 선언 불일치는 명시적인 오류이며, 기능 축소나 암묵적 프로토콜 선택은 없습니다.
+
+Provider 패키지는 `gateway-provider/v1`, 동일한 payload 권한, `provider-request-memory/v1`, 빈 `apis`, 정확히 `provider_ipc_v1`과 `responses_output_validation`인 요구사항을 선언합니다. 추가로 `[a-z][a-z0-9._-]{0,63}/v[1-9][0-9]{0,5}`에 맞는 `provider_protocol`이 필수입니다. Codec 패키지는 null을 포함해 해당 필드를 금지합니다. Provider 선언은 검사·설치·목록 조회가 가능하지만 provider 활성화와 런타임 실행은 사용할 수 없습니다. 선언한 provider 기능은 호스트의 provider 지원 구현 증거가 아닙니다. Codec v3를 통해 provider 역할 메시지나 새로운 공급자 라우팅을 허용하지 않습니다.
+
+[기능 선언 벡터](../../schemas/plugin-capabilities-vectors.json)는 유효한 선언, 정렬, 누락·미지원 요구사항, 기존 규격 재해석 금지 및 v3 ready 형식을 다룹니다. 정확한 manifest/ready 일치, 경로 포함 여부와 기능 제한에는 런타임 시험도 필요하며, 스키마 유효성만으로 호환성을 입증하지 못합니다.
 
 <a id="package-bytes-and-execution"></a>
 
@@ -113,7 +155,7 @@ Ready는 3초 이내에 도착해야 합니다. 관측 쓰기와 확인 응답�
 {"protocol":"gateway-api-codec/v1","sequence":0,"value":{"result":"ready","apis":["responses","messages","chat_completions","gemini_interactions"],"replay_versions":[1]}}
 ```
 
-Ready는 정확히 위 API 배열 순서와 replay 버전 배열을 선언해야 합니다. 모든 envelope에서 선택된 프로토콜을 사용하십시오. 요청은 순서 번호 하나부터 하나씩 증가하고, 각 응답은 해당 요청의 번호를 그대로 반환합니다. Codec framing에는 JSON 필드 순서·공백의 canonical 형식을 요구하지 않습니다. 중복 키와 알 수 없는 필드는 거절합니다. 부호 없는 정수는 정확한 64비트 값을 사용하며 호스트가 보낸 크기·색인 필드는 설정한 크기 제한에 맞아야 합니다. 문자열에는 암묵적인 식별자나 callback 주소가 없습니다.
+기존 codec v1/v2 ready는 정확히 위 API 배열 순서와 replay 버전 배열을 선언해야 합니다. 모든 envelope에서 선택된 프로토콜을 사용하십시오. 요청은 순서 번호 하나부터 하나씩 증가하고, 각 응답은 해당 요청의 번호를 그대로 반환합니다. Codec framing에는 JSON 필드 순서·공백의 canonical 형식을 요구하지 않습니다. 중복 키와 알 수 없는 필드는 거절합니다. 부호 없는 정수는 정확한 64비트 값을 사용하며 호스트가 보낸 크기·색인 필드는 설정한 크기 제한에 맞아야 합니다. 문자열에는 암묵적인 식별자나 callback 주소가 없습니다.
 
 ```text
 ready(sequence=0)
@@ -133,7 +175,7 @@ ready(sequence=0)
 
 ## Codec 중첩 타입과 불변 조건
 
-선택적 nullable 필드는 각 스키마에 따라 누락 또는 `null`을 허용합니다. 호스트 직렬화는 명시적으로 생략하는 확장 필드 외에는 보통 null을 표시합니다. Codec v1은 `null`을 포함하여 `editing` 필드 자체를 금지합니다. Codec v2는 이를 허용하며, null이 아닌 정책은 [편집 계약](editing-design.md)을 충족해야 합니다. 해당 `version`은 하나로 IPC 버전 둘과 별개입니다. Codec은 도구 이름으로 편집 정책을 추론하면 안 됩니다.
+선택적 nullable 필드는 각 스키마에 따라 누락 또는 `null`을 허용합니다. 호스트 직렬화는 명시적으로 생략하는 확장 필드 외에는 보통 null을 표시합니다. Codec v1은 `null`을 포함하여 `editing` 필드 자체를 금지합니다. Codec v2와 v3는 이를 허용하며, null이 아닌 정책은 [편집 계약](editing-design.md)을 충족해야 합니다. 해당 `version`은 하나로 IPC 버전 둘 및 셋과 별개입니다. Codec은 도구 이름으로 편집 정책을 추론하면 안 됩니다.
 
 스키마는 지원 기능과 bridge 이름을 나열합니다. Bridge는 해당 기능과 일치해야 합니다. Instruction envelope는 명령 계층과 해당 API, custom-tool JSON은 custom tools, tool namespaces는 namespaced tools, code-mode text parts는 structured tool output, patch·registered grammar bridge는 custom grammar에 연결됩니다. Registered grammar는 Responses의 native custom tools를 요구합니다. Provider parallel permission은 명시적 DeepSeek reasoning 계약의 Chat Completions를 요구합니다. 미지원 조합은 승인 과정에서 실패하며 플러그인이 이를 넓힐 수 없습니다.
 

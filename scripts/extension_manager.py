@@ -22,9 +22,16 @@ import uuid
 
 CODEC_PROTOCOL = 'gateway-api-codec/v1'
 EDITING_CODEC_PROTOCOL = 'gateway-api-codec/v2'
-CODEC_PROTOCOLS = (CODEC_PROTOCOL, EDITING_CODEC_PROTOCOL)
+SUBSET_CODEC_PROTOCOL = 'gateway-api-codec/v3'
+LEGACY_CODEC_PROTOCOLS = (CODEC_PROTOCOL, EDITING_CODEC_PROTOCOL)
+CODEC_PROTOCOLS = (*LEGACY_CODEC_PROTOCOLS, SUBSET_CODEC_PROTOCOL)
+PROVIDER_PROTOCOL = 'gateway-provider/v1'
+CAPABILITIES_SCHEMA = 'gateway-plugin-capabilities/v1'
+CAPABILITY_APIS = ('chat_completions', 'gemini_interactions', 'messages', 'responses')
+CAPABILITY_FEATURES = ('editing', 'json', 'managed_continuation', 'streaming')
 CODEC_PERMISSIONS = ['read_model_payload', 'transform_model_protocol']
 PACKAGE_SCHEMA = 'gateway-extension-package/v1'
+CAPABILITY_PACKAGE_SCHEMA = 'gateway-extension-package/v2'
 LOCK_SCHEMA = 'gateway-extension-lock/v1'
 PROTOCOL = 'gateway-observer/v1'
 PERMISSIONS = ['observe_http_metadata', 'write_private_state']
@@ -127,18 +134,58 @@ def decode_json(raw):
     return json.loads(raw, object_pairs_hook=pairs, parse_constant=lambda _: (_ for _ in ()).throw(ExtensionError('Invalid JSON number')))
 
 
+def validate_capabilities(value, protocol):
+    require(isinstance(value, dict) and set(value) == {'schema', 'apis', 'features', 'requires'},
+            'Invalid capability declaration fields')
+    require(value['schema'] == CAPABILITIES_SCHEMA, 'Unsupported capability schema')
+    for name in ('apis', 'features', 'requires'):
+        entries = value[name]
+        require(isinstance(entries, list) and all(isinstance(entry, str) for entry in entries),
+                'Capability declarations must contain strings')
+        require(entries == sorted(set(entries)), 'Capability declarations must be sorted and unique')
+    require(bool(value['features']) and 'json' in value['features']
+            and all(feature in CAPABILITY_FEATURES for feature in value['features']),
+            'Unsupported capability feature')
+    if protocol == SUBSET_CODEC_PROTOCOL:
+        require(bool(value['apis']) and all(api in CAPABILITY_APIS for api in value['apis']),
+                'Unsupported codec API declaration')
+        require(value['requires'] == ['codec_ipc_v3', 'responses_output_validation'],
+                'Unsupported required codec host contracts')
+    else:
+        require(protocol == PROVIDER_PROTOCOL and value['apis'] == [], 'Unsupported provider API declaration')
+        require(value['requires'] == ['provider_ipc_v1', 'responses_output_validation'],
+                'Unsupported required provider host contracts')
+
+
 def validate_package(raw, *, expected_target=None):
     package = decode_json(raw)
-    require(isinstance(package, dict) and set(package) == {
-        'schema', 'id', 'version', 'target', 'protocol', 'permissions', 'state_schema', 'files'
-    }, 'Invalid package manifest fields')
-    require(package['schema'] == PACKAGE_SCHEMA and package['protocol'] in (PROTOCOL, RECORDER_PROTOCOL, *CODEC_PROTOCOLS), 'Unsupported package protocol')
+    require(isinstance(package, dict), 'Invalid package manifest')
+    fields = {'schema', 'id', 'version', 'target', 'protocol', 'permissions', 'state_schema', 'files'}
+    schema = package.get('schema')
+    protocol = package.get('protocol')
+    if schema == PACKAGE_SCHEMA:
+        require(set(package) == fields, 'Invalid package manifest fields')
+        require(protocol in (PROTOCOL, RECORDER_PROTOCOL, *LEGACY_CODEC_PROTOCOLS),
+                'Unsupported package protocol')
+    else:
+        require(schema == CAPABILITY_PACKAGE_SCHEMA and protocol in (SUBSET_CODEC_PROTOCOL, PROVIDER_PROTOCOL),
+                'Unsupported package protocol')
+        extra = {'capabilities', 'provider_protocol'} if protocol == PROVIDER_PROTOCOL else {'capabilities'}
+        require(set(package) == fields | extra, 'Invalid capability package fields')
+        validate_capabilities(package['capabilities'], protocol)
+        if protocol == PROVIDER_PROTOCOL:
+            require(isinstance(package['provider_protocol'], str)
+                    and re.fullmatch(r'[a-z][a-z0-9._-]{0,63}/v[1-9][0-9]{0,5}', package['provider_protocol']) is not None,
+                    'Invalid provider protocol identity')
     require(identifier(package['id']) and version(package['version']), 'Invalid package identity')
     selected_target = target() if expected_target is None else expected_target
     require(selected_target in TARGETS, 'Unsupported package target')
     require(package['target'] == selected_target, 'Package target does not match selected target')
-    require(package['permissions'] == (PERMISSIONS if package['protocol'] == PROTOCOL else CODEC_PERMISSIONS if package['protocol'] in CODEC_PROTOCOLS else RECORDER_PERMISSIONS), 'Unsupported package permissions')
-    require(package['state_schema'] == ('observer-state/v1' if package['protocol'] == PROTOCOL else 'request-memory/v1' if package['protocol'] in CODEC_PROTOCOLS else 'usage-store/v1'), 'Unsupported observer state schema')
+    payload_role = protocol in (*CODEC_PROTOCOLS, PROVIDER_PROTOCOL)
+    require(package['permissions'] == (PERMISSIONS if protocol == PROTOCOL else CODEC_PERMISSIONS if payload_role else RECORDER_PERMISSIONS), 'Unsupported package permissions')
+    state = ('observer-state/v1' if protocol == PROTOCOL else 'provider-request-memory/v1' if protocol == PROVIDER_PROTOCOL
+             else 'request-memory/v1' if protocol in CODEC_PROTOCOLS else 'usage-store/v1')
+    require(package['state_schema'] == state, 'Unsupported package state schema')
     entries = package['files']
     require(isinstance(entries, dict) and 2 <= len(entries) <= 8
             and {'extension', 'LICENSE.txt'} <= entries.keys(), 'Executable and license evidence are required')
@@ -367,6 +414,7 @@ def enable(root, package_id, package_version, sha, grants, recorder=None, *, con
         directory = installed_dir(root, package_id, package_version, sha)
         package, _ = inspect_package(directory, sha, private=True)
         require((package['id'], package['version']) == (package_id, package_version), 'Installed identity mismatch')
+        require(package['protocol'] != PROVIDER_PROTOCOL, 'Provider runtime activation is not available')
         require(sorted(grants) == package['permissions'], 'Package grants mismatch')
         lock = read_lock(root)
         entries = [entry for entry in lock['extensions'] if entry['id'] != package_id]
@@ -406,7 +454,7 @@ def disable(root, package_id, *, condition=None):
         return guarded_result(root, commit_lock(root, lock), condition)
 
 
-def package_binary(binary, license_file, output, package_id, package_version, role="http_metadata_observer", codec_protocol=CODEC_PROTOCOL, *, package_target=None):
+def package_binary(binary, license_file, output, package_id, package_version, role="http_metadata_observer", codec_protocol=CODEC_PROTOCOL, *, package_target=None, capabilities=None, provider_protocol=None):
     """Build a flat local package from explicitly supplied bytes; never execute them."""
     host = target()
     selected_target = host if package_target is None else package_target
@@ -418,15 +466,25 @@ def package_binary(binary, license_file, output, package_id, package_version, ro
     license_bytes = read_file(license_file, MAX_NOTICE)
     output = no_links(output)
     require(not output.exists(), 'Package output already exists')
-    require(role in ('http_metadata_observer', 'usage_recorder', 'api_codec'), 'Unsupported role')
+    require(role in ('http_metadata_observer', 'usage_recorder', 'api_codec', 'provider'), 'Unsupported role')
     require(codec_protocol in CODEC_PROTOCOLS and (role == 'api_codec' or codec_protocol == CODEC_PROTOCOL), 'Unsupported codec protocol selection')
     recorder = role == 'usage_recorder'
     codec = role == 'api_codec'
+    provider = role == 'provider'
+    versioned = provider or (codec and codec_protocol == SUBSET_CODEC_PROTOCOL)
+    require(versioned or (capabilities is None and provider_protocol is None), 'Legacy packages cannot declare capabilities')
+    require(provider or provider_protocol is None, 'Only providers declare provider protocol identity')
     manifest = {'schema': PACKAGE_SCHEMA, 'id': package_id, 'version': package_version,
-                'target': selected_target, 'protocol': codec_protocol if codec else RECORDER_PROTOCOL if recorder else PROTOCOL, 'permissions': CODEC_PERMISSIONS if codec else RECORDER_PERMISSIONS if recorder else PERMISSIONS,
-                'state_schema': 'request-memory/v1' if codec else 'usage-store/v1' if recorder else 'observer-state/v1',
+                'target': selected_target, 'protocol': PROVIDER_PROTOCOL if provider else codec_protocol if codec else RECORDER_PROTOCOL if recorder else PROTOCOL, 'permissions': CODEC_PERMISSIONS if codec or provider else RECORDER_PERMISSIONS if recorder else PERMISSIONS,
+                'state_schema': 'provider-request-memory/v1' if provider else 'request-memory/v1' if codec else 'usage-store/v1' if recorder else 'observer-state/v1',
                 'files': {'extension': digest(binary_bytes), 'LICENSE.txt': digest(license_bytes)}}
+    if versioned:
+        manifest['schema'] = CAPABILITY_PACKAGE_SCHEMA
+        manifest['capabilities'] = capabilities
+    if provider:
+        manifest['provider_protocol'] = provider_protocol
     raw = canonical(manifest)
+    validate_package(raw, expected_target=selected_target)
     output.mkdir(mode=0o700)
     write_new(output / 'extension', binary_bytes, 0o500)
     write_new(output / 'LICENSE.txt', license_bytes, 0o400)
@@ -443,8 +501,10 @@ def main(argv=None):
         build.add_argument('--' + name, type=Path, required=True)
     build.add_argument('--id', required=True)
     build.add_argument('--version', required=True)
-    build.add_argument('--role', choices=['http_metadata_observer', 'usage_recorder', 'api_codec'], default='http_metadata_observer')
+    build.add_argument('--role', choices=['http_metadata_observer', 'usage_recorder', 'api_codec', 'provider'], default='http_metadata_observer')
     build.add_argument('--codec-protocol', choices=CODEC_PROTOCOLS, default=CODEC_PROTOCOL)
+    build.add_argument('--capabilities', type=Path, help='Explicit capability JSON for codec v3 or provider packages')
+    build.add_argument('--provider-protocol', help='Provider protocol identity for a provider package')
     build.add_argument('--target', choices=TARGETS, help='Artifact target; defaults to this host. Does not verify executable compatibility.')
     inspect = commands.add_parser('inspect')
     inspect.add_argument('--package', type=Path, required=True)
@@ -478,7 +538,8 @@ def main(argv=None):
                         'Both inventory preconditions are required')
                 condition = {'generation': args.expected_generation, 'inventory_sha256': args.expected_inventory_sha256}
         if args.command == 'package':
-            result = {'package_sha256': package_binary(args.binary, args.license_file, args.output, args.id, args.version, args.role, args.codec_protocol, package_target=args.target)}
+            capabilities = decode_json(read_file(args.capabilities, MAX_JSON)) if args.capabilities is not None else None
+            result = {'package_sha256': package_binary(args.binary, args.license_file, args.output, args.id, args.version, args.role, args.codec_protocol, package_target=args.target, capabilities=capabilities, provider_protocol=args.provider_protocol)}
         elif args.command == 'inspect':
             package, _ = inspect_package(args.package, args.expected_sha256, expected_target=args.target)
             result = {'package': package, 'executed': False}

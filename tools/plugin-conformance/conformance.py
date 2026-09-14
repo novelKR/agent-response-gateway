@@ -19,7 +19,7 @@ import subprocess
 import tempfile
 import time
 
-VERSION = '1.0.0'
+VERSION = '1.1.0'
 FRAME_LIMIT = 4096
 ROLES = {
     'gateway-observer/v1': (['observe_http_metadata', 'write_private_state'], 'observer-state/v1'),
@@ -27,6 +27,12 @@ ROLES = {
     'gateway-api-codec/v1': (['read_model_payload', 'transform_model_protocol'], 'request-memory/v1'),
     'gateway-api-codec/v2': (['read_model_payload', 'transform_model_protocol'], 'request-memory/v1'),
 }
+V2_ROLES = {
+    'gateway-api-codec/v3': (['read_model_payload', 'transform_model_protocol'], 'request-memory/v1'),
+    'gateway-provider/v1': (['read_model_payload', 'transform_model_protocol'], 'provider-request-memory/v1'),
+}
+APIS = {'chat_completions', 'gemini_interactions', 'messages', 'responses'}
+FEATURES = {'editing', 'json', 'managed_continuation', 'streaming'}
 TARGETS = {'linux-x64', 'linux-arm64', 'macos-x64', 'macos-arm64'}
 
 
@@ -90,20 +96,48 @@ def read_regular(path, limit):
         return raw
 
 
+def validate_capabilities(value, protocol):
+    require(isinstance(value, dict) and set(value) == {'schema', 'apis', 'features', 'requires'}, 'capability_fields')
+    require(value['schema'] == 'gateway-plugin-capabilities/v1', 'capability_schema')
+    for name in ('apis', 'features', 'requires'):
+        entries = value[name]
+        require(isinstance(entries, list) and all(isinstance(entry, str) for entry in entries), 'capability_list')
+        require(entries == sorted(set(entries)), 'capability_order')
+    require(bool(value['features']) and 'json' in value['features']
+            and set(value['features']) <= FEATURES, 'capability_features')
+    if protocol == 'gateway-api-codec/v3':
+        require(bool(value['apis']) and set(value['apis']) <= APIS, 'capability_apis')
+        required = ['codec_ipc_v3', 'responses_output_validation']
+    else:
+        require(value['apis'] == [], 'capability_apis')
+        required = ['provider_ipc_v1', 'responses_output_validation']
+    require(value['requires'] == required, 'host_contract')
+
+
 def inspect_package(directory, expected):
     require(matches(r'[a-f0-9]{64}', expected), 'invalid_expected_digest')
     raw = read_regular(directory / 'extension.json', 65536)
     require(digest(raw) == expected, 'manifest_digest')
     value = decode(raw)
-    require(isinstance(value, dict) and set(value) == {
-        'schema', 'id', 'version', 'target', 'protocol', 'permissions', 'state_schema', 'files'
-    }, 'manifest_fields')
-    require(value['schema'] == 'gateway-extension-package/v1', 'package_schema')
-    require(isinstance(value['protocol'], str) and value['protocol'] in ROLES, 'unsupported_role')
+    require(isinstance(value, dict), 'manifest_fields')
+    require(value.get('schema') in ('gateway-extension-package/v1', 'gateway-extension-package/v2'), 'package_schema')
+    fields = {'schema', 'id', 'version', 'target', 'protocol', 'permissions', 'state_schema', 'files'}
+    roles = ROLES
+    if value['schema'] == 'gateway-extension-package/v2':
+        roles = V2_ROLES
+        fields.add('capabilities')
+        if value.get('protocol') == 'gateway-provider/v1':
+            fields.add('provider_protocol')
+    require(set(value) == fields, 'manifest_fields')
+    require(isinstance(value['protocol'], str) and value['protocol'] in roles, 'unsupported_role')
+    if roles is V2_ROLES:
+        validate_capabilities(value['capabilities'], value['protocol'])
+        if value['protocol'] == 'gateway-provider/v1':
+            require(matches(r'[a-z][a-z0-9._-]{0,63}/v[1-9][0-9]{0,5}', value['provider_protocol']), 'provider_protocol')
     require(matches(r'[a-z][a-z0-9-]{0,63}', value['id']) and matches(
         r'(0|[1-9][0-9]{0,5})\.(0|[1-9][0-9]{0,5})\.(0|[1-9][0-9]{0,5})', value['version']), 'package_identity')
     require(isinstance(value['target'], str) and value['target'] in TARGETS, 'package_target')
-    permissions, state_schema = ROLES[value['protocol']]
+    permissions, state_schema = roles[value['protocol']]
     require(value['permissions'] == permissions and value['state_schema'] == state_schema, 'role_contract')
     files = value['files']
     require(isinstance(files, dict) and 2 <= len(files) <= 8 and {'extension', 'LICENSE.txt'} <= files.keys(), 'package_files')
@@ -205,6 +239,8 @@ def run(directory, expected, execute=False, state_root=None):
         phase = 'role.execution'
         if not execute:
             checks.append(check(phase, 'not-run', 'execution_not_requested'))
+        elif value['protocol'] == 'gateway-provider/v1':
+            checks.append(check(phase, 'not-run', 'provider_runtime_unavailable'))
         elif value['protocol'] not in RUNNERS:
             checks.append(check(phase, 'not-run', 'role_runner_unavailable'))
         else:

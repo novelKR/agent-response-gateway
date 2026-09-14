@@ -348,11 +348,10 @@ impl Config {
             && (!self.editing_policies.contains_key(id)
                 || model.capability_profile.is_none()
                 || model.auth.is_none()
-                || model.api_codec.as_ref().is_some_and(|id| {
-                    self.codecs
-                        .get(id)
-                        .is_none_or(|b| b.protocol != crate::codecs::contract::EDITING_PROTOCOL)
-                })
+                || model
+                    .api_codec
+                    .as_ref()
+                    .is_some_and(|id| self.codecs.get(id).is_none_or(|b| !b.supports("editing")))
                 || (self.editing_policies.get(id).is_some_and(|p| {
                     p.representation != crate::editing::Representation::PatchText
                 }) && !model
@@ -398,6 +397,14 @@ impl Config {
                     ContinuationMode::Stateless
                 })
                 == ContinuationMode::Managed;
+        if let Some(binding) = model.api_codec.as_ref().and_then(|id| self.codecs.get(id))
+            && (!binding.supports_api(model.api)
+                || (managed && !binding.supports("managed_continuation")))
+        {
+            return Err(ConfigError(
+                "Selected codec does not support the route requirements".into(),
+            ));
+        }
         if managed && (self.continuation.is_none() || model.api == ApiProtocol::Responses) {
             return Err(ConfigError(
                 "Managed continuation requires storage and a supported adapter".into(),

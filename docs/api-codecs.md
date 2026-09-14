@@ -90,6 +90,33 @@ package identity, executable hash, protocol, replay version and grants. Package
 identity also participates in the route adapter identity. Hosts must understand
 the schema and compare inspected/readiness digests before starting their agent.
 
+A separately implemented codec can opt into `gateway-api-codec/v3` with
+`gateway-extension-package/v2` and a reviewed capability JSON file. The file
+contains the `capabilities` object described in the [authoring specification](plugin-authoring.md),
+not a ready envelope. For example:
+
+```sh
+python3 -B scripts/extension_manager.py package \
+  --binary /absolute/path/subset-codec \
+  --license-file /absolute/path/LICENSE --output /absolute/path/subset-package \
+  --id subset-codec --version 1.0.0 --role api_codec \
+  --codec-protocol gateway-api-codec/v3 --capabilities /absolute/path/capabilities.json
+```
+
+Its nonempty API subset and required host features are validated without execution
+at installation. Startup ready must exactly repeat the manifest declaration.
+An undeclared selected model API, streaming, editing or managed operation is an
+error before preparation; no feature or permission is silently broadened.
+Existing v1/v2 executables retain their original ready contract and cannot become
+v3 through a manifest-only edit.
+
+Selecting v3 uses `gateway-embedded-manifest/v8`, `gateway-ready/v8`,
+`gateway-extended-manifest/v8` and `gateway-extended-ready/v8`. Its package
+projection uses `gateway-extension-configuration/v3` and binds exact capabilities.
+Legacy-only selections retain their existing schemas. Provider v1 package
+declarations may be installed, but provider activation/runtime remains unavailable;
+codec v3 does not add new supplier API contracts.
+
 ## IPC lifecycle and validation
 
 The portable Rust wire types are provided by the standalone
@@ -105,8 +132,9 @@ Each frame is a four-byte unsigned big-endian length followed by UTF-8 JSON.
 Frames are bounded to 128 MiB, while request/response and event accumulation still
 obey configured gateway limits. Duplicate keys, unknown fields and unsupported
 versions fail. Replies echo `protocol` and the exact request `sequence`.
-The initial ready reply uses sequence zero and declares all four supported APIs
-and native replay version one. Later sequences increase by one.
+Legacy codec v1/v2 ready uses sequence zero and declares all four supported APIs
+and native replay version one. Codec v3 repeats its complete package capability
+declaration at sequence zero; it does not use the legacy ready fields. Later sequences increase by one.
 
 The [typed contract](../src/codecs/contract.rs) defines `Request.operation` and
 `Reply.value`. The first operation is `prepare`; the next selects either `json`

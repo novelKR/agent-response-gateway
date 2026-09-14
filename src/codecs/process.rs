@@ -2,6 +2,45 @@
 use super::{Binding, conversion::*};
 use crate::ir::IrError;
 
+#[cfg(any(unix, test))]
+fn validate_ready(binding: &Binding, value: serde_json::Value) -> Result<(), IrError> {
+    if binding.protocol == gateway_plugin_contract::CAPABILITIES_PROTOCOL {
+        let reply: gateway_plugin_contract::CapabilitiesReply =
+            serde_json::from_value(value).map_err(|_| IrError::UnsupportedVersion)?;
+        let gateway_plugin_contract::CapabilitiesResult::Ready { capabilities } = reply.value;
+        if reply.protocol != binding.protocol
+            || reply.sequence != 0
+            || !capabilities.validate_for(&binding.protocol)
+            || binding.capabilities.as_ref() != Some(&capabilities)
+        {
+            return Err(IrError::UnsupportedVersion);
+        }
+    } else {
+        let reply = decode_reply(value)?;
+        if reply.protocol != binding.protocol
+            || reply.sequence != 0
+            || binding.capabilities.is_some()
+        {
+            return Err(IrError::UnsupportedVersion);
+        }
+        match reply.value {
+            ResultValue::Ready {
+                apis,
+                replay_versions,
+            } if apis
+                == [
+                    crate::ir::ApiProtocol::Responses,
+                    crate::ir::ApiProtocol::Messages,
+                    crate::ir::ApiProtocol::ChatCompletions,
+                    crate::ir::ApiProtocol::GeminiInteractions,
+                ]
+                && replay_versions == [1] => {}
+            _ => return Err(IrError::UnsupportedVersion),
+        }
+    }
+    Ok(())
+}
+
 #[cfg(unix)]
 mod native {
     use super::*;
@@ -66,28 +105,13 @@ mod native {
                 failed: false,
                 protocol: binding.protocol.clone(),
             };
-            let reply = tokio::time::timeout(Duration::from_secs(3), session.read())
+            let value = tokio::time::timeout(Duration::from_secs(3), session.read_frame())
                 .await
                 .map_err(|_| IrError::InvalidEventOrder)??;
-            match reply {
-                ResultValue::Ready {
-                    apis,
-                    replay_versions,
-                } if apis
-                    == vec![
-                        crate::ir::ApiProtocol::Responses,
-                        crate::ir::ApiProtocol::Messages,
-                        crate::ir::ApiProtocol::ChatCompletions,
-                        crate::ir::ApiProtocol::GeminiInteractions,
-                    ]
-                    && replay_versions == [1] =>
-                {
-                    Ok(session)
-                }
-                _ => Err(IrError::UnsupportedVersion),
-            }
+            super::validate_ready(binding, value)?;
+            Ok(session)
         }
-        async fn read(&mut self) -> Result<ResultValue, IrError> {
+        async fn read_frame(&mut self) -> Result<serde_json::Value, IrError> {
             let length = self
                 .socket
                 .read_u32()
@@ -101,7 +125,10 @@ mod native {
                 .read_exact(&mut bytes)
                 .await
                 .map_err(|_| IrError::InvalidEventOrder)?;
-            let reply = decode_reply(crate::adapters::json::decode(&bytes)?)?;
+            crate::adapters::json::decode(&bytes)
+        }
+        async fn read(&mut self) -> Result<ResultValue, IrError> {
+            let reply = decode_reply(self.read_frame().await?)?;
             if reply.protocol != self.protocol || reply.sequence != self.sequence {
                 return Err(IrError::UnsupportedVersion);
             }
@@ -210,5 +237,114 @@ impl Session {
     }
     pub(crate) async fn call(&mut self, _: Operation) -> Result<ResultValue, IrError> {
         Err(IrError::UnsupportedFeature)
+    }
+}
+
+#[cfg(test)]
+mod capability_tests {
+    use super::*;
+    use gateway_plugin_contract::{
+        CAPABILITIES_PROTOCOL, Capabilities, EDITING_PROTOCOL, PROTOCOL,
+    };
+    use serde_json::json;
+
+    fn binding(protocol: &str) -> Binding {
+        Binding {
+            protocol: protocol.into(),
+            capabilities: (protocol == CAPABILITIES_PROTOCOL).then(|| {
+                serde_json::from_value::<Capabilities>(json!({
+                    "schema":"gateway-plugin-capabilities/v1", "apis":["responses"],
+                    "features":["json"], "requires":["codec_ipc_v3","responses_output_validation"]
+                }))
+                .unwrap()
+            }),
+            id: "synthetic".into(),
+            version: "1.0.0".into(),
+            package_sha256: "a".repeat(64),
+            executable_sha256: "b".repeat(64),
+            executable: "/nonexistent".into(),
+            directory: "/nonexistent".into(),
+            #[cfg(unix)]
+            owner: 0,
+        }
+    }
+
+    #[test]
+    fn ready_requires_exact_declared_capabilities_and_protocol() {
+        let binding = binding(CAPABILITIES_PROTOCOL);
+        let ready = json!({"protocol":CAPABILITIES_PROTOCOL,"sequence":0,"value":{
+            "result":"ready","capabilities":binding.capabilities}});
+        assert!(validate_ready(&binding, ready.clone()).is_ok());
+        for (pointer, value) in [
+            ("/sequence", json!(1)),
+            ("/protocol", json!(EDITING_PROTOCOL)),
+            ("/value/capabilities/apis", json!(["messages"])),
+            ("/value/capabilities/features", json!(["json", "streaming"])),
+            ("/value/capabilities/requires", json!(["codec_ipc_v3"])),
+        ] {
+            let mut invalid = ready.clone();
+            *invalid.pointer_mut(pointer).unwrap() = value;
+            assert!(validate_ready(&binding, invalid).is_err(), "{pointer}");
+        }
+        let mut invalid = ready;
+        invalid["value"]["capabilities"]["extra"] = json!(true);
+        assert!(validate_ready(&binding, invalid).is_err());
+    }
+
+    #[tokio::test]
+    async fn unsupported_request_features_fail_before_executable_access() {
+        use crate::ir::{
+            capability::plan_translation,
+            continuity::{ContinuityBinding, VerifiedProviderHistory},
+            responses,
+        };
+        let mut request =
+            responses::decode(json!({"model":"synthetic","input":"test"}), None).unwrap();
+        let route: Route = serde_json::from_value(json!({"api":"responses","model":"synthetic","profile_id":"fixture","profile_version":"1","reasoning_contract":null,"support":{},"context_window":8192,"max_output_tokens":2048})).unwrap();
+        let plan = plan_translation(
+            &request,
+            &ContinuityBinding {
+                route: route.snapshot().unwrap(),
+                scope: "test".into(),
+            },
+        )
+        .unwrap();
+        let history = VerifiedProviderHistory::default();
+        for scenario in ["streaming", "managed_continuation", "wrong_api"] {
+            let mut binding = binding(CAPABILITIES_PROTOCOL);
+            request.generation.stream = Some(scenario == "streaming");
+            if scenario == "wrong_api" {
+                binding.capabilities.as_mut().unwrap().apis = vec!["messages".into()];
+            }
+            let result = super::super::execution::PreparedCodec::prepare(
+                &binding,
+                &request,
+                &plan,
+                &history,
+                (scenario == "managed_continuation").then_some(false),
+                65536,
+                gateway_usage_contract::Profile::ResponsesV1,
+            )
+            .await;
+            assert!(
+                matches!(result, Err(IrError::UnsupportedFeature)),
+                "{scenario}"
+            );
+        }
+    }
+
+    #[test]
+    fn legacy_ready_never_accepts_subsets_or_capability_metadata() {
+        for protocol in [PROTOCOL, EDITING_PROTOCOL] {
+            let mut binding = binding(protocol);
+            let ready = json!({"protocol":protocol,"sequence":0,"value":{"result":"ready",
+                "apis":["responses","messages","chat_completions","gemini_interactions"],"replay_versions":[1]}});
+            assert!(validate_ready(&binding, ready.clone()).is_ok());
+            let mut subset = ready.clone();
+            subset["value"]["apis"] = json!(["responses"]);
+            assert!(validate_ready(&binding, subset).is_err());
+            binding.capabilities = self::binding(CAPABILITIES_PROTOCOL).capabilities;
+            assert!(validate_ready(&binding, ready).is_err());
+        }
     }
 }

@@ -41,8 +41,14 @@ inventory를 명시적으로 실패시킵니다. 검사는 설치 패키지 128�
 
 신뢰된 runtime 소유자는 instance·관측 시각·구성/실행 digest·정확한 패키지 선택을 담은
 `EffectiveSelection`을 제공할 수 있습니다. 해당 관측이 없으면 실제 적용 상태는 알 수 없습니다.
-이 항목은 실행 구성에 포함됨을 의미하며 codec 프로세스의 상주 실행을 뜻하지 않습니다. Codec v2는
+이 항목은 실행 구성에 포함됨을 의미하며 codec 프로세스의 상주 실행을 뜻하지 않습니다. Codec v2/v3는
 계속 요청별로 실행됩니다. 선택 변경은 제공된 runtime 관측을 갱신하거나 재시작을 주장하지 않습니다.
+
+Native inventory에는 codec v3와 provider v1의 패키지 v2 기능 선언이 포함됩니다.
+정적 검증과 설치는 ready를 실행하지 않습니다. Provider 패키지는 설치·검사할 수 있지만
+provider 런타임을 사용할 수 없는 동안 실행을 위한 활성화·선택은 명시적으로 실패합니다.
+Codec v3 선택에는 호환되는 선언 API·기능과 정확한 런타임 handshake가 필요하며,
+설치됨·선택됨·관측된 실제 적용 상태는 계속 구분합니다.
 
 | 작업 | Native extension | Profile pack |
 |---|---|---|
