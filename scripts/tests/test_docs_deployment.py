@@ -12,8 +12,14 @@ import docs_deployment as docs
 class DocsDeploymentTests(unittest.TestCase):
     def test_only_documentation_impact_or_manual_main_run_selects_deployment(self):
         env=dict(GITHUB_REF='refs/heads/main',GITHUB_EVENT_NAME='push',GITHUB_SHA='a'*40)
-        with patch.object(docs.validation,'make_plan',return_value={'jobs':['rust','publication']}):self.assertFalse(docs.needed(ROOT,{'before':'b'*40},env))
-        with patch.object(docs.validation,'make_plan',return_value={'jobs':['docs','publication']}):self.assertTrue(docs.needed(ROOT,{'before':'b'*40},env))
+        for path in ['src/lib.rs','scripts/usage_smoke.py','scripts/release_provenance.py']:
+            with patch.object(docs.validation,'changes',return_value=([path],'b'*40,'a'*40)):
+                self.assertFalse(docs.needed(ROOT,{'before':'b'*40},env))
+        for path in ['docs/github-workflow.md','CONTRIBUTING.md','licensing/README.md','docs-site/package-lock.json','scripts/check_public_boundary.py','.github/workflows/docs-deploy.yml']:
+            with patch.object(docs.validation,'changes',return_value=([path],'b'*40,'a'*40)):
+                self.assertTrue(docs.needed(ROOT,{'before':'b'*40},env))
+        with patch.object(docs.validation,'changes',side_effect=docs.validation.ValidationError('missing')):
+            self.assertTrue(docs.needed(ROOT,{'before':'b'*40},env))
         env['GITHUB_EVENT_NAME']='workflow_dispatch';self.assertTrue(docs.needed(ROOT,{},env))
         env['GITHUB_REF']='refs/pull/1/merge'
         with self.assertRaises(ValueError):docs.needed(ROOT,{},env)
