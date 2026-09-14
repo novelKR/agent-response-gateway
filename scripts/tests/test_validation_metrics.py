@@ -8,7 +8,7 @@ import validation_metrics as metrics
 
 class MetricsTests(unittest.TestCase):
     def run_data(self):
-        return dict(databaseId=123,headSha='a'*40,event='push',url='https://example.invalid/run',status='waiting',conclusion='',createdAt='2026-01-01T00:00:00Z',jobs=[
+        return dict(databaseId=123,attempt=1,headSha='a'*40,event='push',url='https://example.invalid/run',status='waiting',conclusion='',createdAt='2026-01-01T00:00:00Z',jobs=[
             dict(name='ci-required',status='completed',conclusion='success',startedAt='2026-01-01T00:00:10Z',completedAt='2026-01-01T00:00:15Z',steps=[]),
             dict(name='docs-pages / deploy',status='waiting',conclusion='',startedAt='0001-01-01T00:00:00Z',completedAt=None,steps=[]),
             dict(name='unneeded',status='completed',conclusion='skipped',startedAt='2026-01-01T00:00:15Z',completedAt='2026-01-01T00:00:15Z',steps=[])])
@@ -27,3 +27,11 @@ class MetricsTests(unittest.TestCase):
         report=metrics.summarize(run)
         self.assertIsNone(report['completed_job_seconds_sum'])
         self.assertIsNone(report['required_gate_seconds'])
+
+    def test_cli_steps_without_status_and_rerun_are_preserved(self):
+        run=self.run_data();run['attempt']=2
+        run['jobs'][0]['steps']=[dict(name='Prepare pinned tools',conclusion='success',startedAt='2026-01-01T00:00:10Z',completedAt='2026-01-01T00:00:13Z')]
+        report=metrics.summarize(run)
+        self.assertEqual(report['attempt'],2)
+        self.assertTrue(report['rerun'])
+        self.assertEqual(report['jobs'][0]['steps'][0]['seconds'],3)
