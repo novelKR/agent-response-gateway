@@ -2,6 +2,7 @@ import {createServer} from 'vite';
 import vue from '@vitejs/plugin-vue';
 import {fileURLToPath} from 'node:url';
 import {join} from 'node:path';
+import {createFixtureProxy} from './fixture-proxy.mjs';
 const site=fileURLToPath(new URL('../',import.meta.url));
 export function validPort(value) {
   const port=Number(value);
@@ -14,21 +15,27 @@ export function requestBoundary(request,authority,upgrade=false) {
   const origin=request.headers.origin;
   return count('origin')<=1 && (!upgrade&&!origin || origin==='http://'+authority);
 }
-export async function startDemoServer({port=43142}={}) {
+export async function startDemoServer({port=43142,fixture}={}) {
   if(process.versions.node!=='24.21.0')throw new Error('Use Node 24.21.0');
   port=validPort(port);
   const authority='127.0.0.1:'+port;
+  const proxy=fixture?createFixtureProxy(fixture):null;
   const server=await createServer({
     root:join(site,'devdemo'),configFile:false,envFile:false,envPrefix:[],publicDir:false,appType:'mpa',
     cacheDir:join(site,'node_modules/.vite/devdemo-'+port),clearScreen:false,
     plugins:[{name:'devdemo-boundary',configureServer(server){
       server.middlewares.use((request,response,next)=>{
         if(!requestBoundary(request,authority)){response.writeHead(403).end();return;}
-        if(!['GET','HEAD'].includes(request.method)){response.writeHead(405).end();return;}
         response.setHeader('Cache-Control','no-store');
         response.setHeader('Referrer-Policy','no-referrer');
         response.setHeader('X-Content-Type-Options','nosniff');
         response.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws://"+authority+"; img-src 'self' data:; frame-src 'self'; frame-ancestors 'self'; base-uri 'none'; form-action 'self'");
+        if(proxy&&request.url.startsWith('/management/')){proxy(request,response);return;}
+        if(!['GET','HEAD'].includes(request.method)){response.writeHead(405).end();return;}
+        if(request.url.split('?')[0]==='/__devdemo/config'){
+          response.setHeader('Content-Type','application/json');
+          response.end(request.method==='HEAD'?undefined:JSON.stringify({schema:'gateway-devdemo/v1',mode:fixture?'fixture':'synthetic',preset:fixture?.preset??null}));return;
+        }
         if(request.url.startsWith('/management/')||request.url.startsWith('/__devdemo/')){response.writeHead(404).end();return;}
         next();
       });

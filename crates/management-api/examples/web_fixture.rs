@@ -7,7 +7,7 @@ use axum::{
     response::{IntoResponse, Response},
     routing::get,
 };
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use gateway_management::{
     Action, Actor, Backend, Digest, Effect, Error, FailureCode, Grant, Id, Identity, Journal,
     Operation, PreparedOperation, Reader, Request, Snapshot,
@@ -21,10 +21,23 @@ use std::{collections::BTreeMap, io::Read, path::PathBuf, sync::Arc, time::Syste
 const READ: &str = "synthetic-browser-read-key-01234567890123456789";
 #[derive(Parser)]
 struct Options {
+    #[arg(
+        long,
+        required_unless_present = "api_only",
+        conflicts_with = "api_only"
+    )]
+    assets: Option<PathBuf>,
     #[arg(long)]
-    assets: PathBuf,
+    api_only: bool,
+    #[arg(long, value_enum, default_value = "all")]
+    preset: Preset,
     #[arg(long, default_value_t = 0)]
     port: u16,
+}
+#[derive(Clone, Copy, ValueEnum)]
+enum Preset {
+    All,
+    Usage,
 }
 fn id(value: &str) -> Id {
     Id::new(value).unwrap()
@@ -148,10 +161,8 @@ async fn asset(State(state): State<Arc<Assets>>, request: HttpRequest) -> Respon
     };
     Response::builder().header(header::CONTENT_TYPE,kind).header(header::CACHE_CONTROL,"no-store").header("x-content-type-options","nosniff").header("referrer-policy","no-referrer").header("content-security-policy","default-src 'self'; connect-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'").body(Body::from(bytes.clone())).unwrap()
 }
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let options = Options::parse();
-    let root = options.assets.canonicalize()?;
+fn load_assets(root: PathBuf) -> Result<BTreeMap<String, Vec<u8>>, Box<dyn std::error::Error>> {
+    let root = root.canonicalize()?;
     let manifest_bytes = std::fs::read(root.join("web-manifest.json"))?;
     let manifest: Value = serde_json::from_slice(&manifest_bytes)?;
     if manifest["schema"] != "gateway-management-web/v1" || manifest["read_only"] != true {
@@ -180,6 +191,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         files.insert(name.clone(), bytes);
     }
     files.insert("web-manifest.json".into(), manifest_bytes);
+    Ok(files)
+}
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let options = Options::parse();
+    let files = options.assets.map(load_assets).transpose()?;
     let base = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../.local/web-fixtures");
     std::fs::create_dir_all(&base)?;
     let directory = tempfile::tempdir_in(base.canonicalize()?)?;
@@ -218,13 +235,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             credential: id("fixture-read"),
         },
         kind: CredentialKind::ReadOnly,
-        grants: actions()
-            .into_iter()
-            .map(|action| Grant {
-                action,
-                target: id("gateway"),
-            })
-            .collect(),
+        grants: match options.preset {
+            Preset::All => actions(),
+            Preset::Usage => vec![Action::ReadUsage],
+        }
+        .into_iter()
+        .map(|action| Grant {
+            action,
+            target: id("gateway"),
+        })
+        .collect(),
     }])?;
     let listener =
         tokio::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, options.port)).await?;
@@ -239,21 +259,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         true,
     )
     .map_err(|_| "fixture API setup failed")?;
-    let assets = Arc::new(Assets {
-        authority: bound.to_string(),
-        files,
-    });
-    let static_routes = Router::new()
-        .route("/dashboard/", get(asset))
-        .route("/dashboard/{*path}", get(asset))
-        .with_state(assets);
+    let static_routes = if let Some(files) = files {
+        let assets = Arc::new(Assets {
+            authority: bound.to_string(),
+            files,
+        });
+        Router::new()
+            .route("/dashboard/", get(asset))
+            .route("/dashboard/{*path}", get(asset))
+            .with_state(assets)
+    } else {
+        Router::new()
+    };
     let (send, receive) = tokio::sync::oneshot::channel::<()>();
     std::thread::spawn(move || {
         let mut buffer = [0u8; 1];
         let _ = std::io::stdin().read(&mut buffer);
         let _ = send.send(());
     });
-    println!("http://{bound}/dashboard/");
+    if options.api_only {
+        println!("http://{bound}");
+    } else {
+        println!("http://{bound}/dashboard/");
+    }
     axum::serve(listener, service.router().merge(static_routes))
         .with_graceful_shutdown(async {
             let _ = receive.await;

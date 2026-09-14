@@ -13,7 +13,8 @@
     "build": "node scripts/build.mjs",
     "preview": "node scripts/preview.mjs",
     "test": "node --test tests/*.test.mjs",
-    "devdemo": "node scripts/devdemo.mjs"
+    "devdemo": "node scripts/devdemo.mjs",
+    "devdemo:fixture": "node scripts/devdemo-fixture.mjs"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "5.2.4",
