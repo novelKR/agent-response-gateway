@@ -31,7 +31,8 @@
 
 [Issues](https://github.com/novelKR/agent-response-gateway/issues)에서 버그 제보,
 재현 절차와 API 의견을 받는다. 큰 변경은 PR을 열기 전에 논의한다.
-각 변경은 목적을 좁히고 관련 테스트와 문서를 함께 제출한다.
+각 변경은 목적을 좁히고 관련 테스트와 문서를
+함께 제출한다.
 
 저장소 지침을 읽는다. `python3.14 -B scripts/validation.py plan --worktree`로
 선택된 검사를 확인하고 `python3.14 -B scripts/validation.py run --worktree`로

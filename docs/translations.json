@@ -28,8 +28,8 @@
       "order": 0,
       "source": "CONTRIBUTING.md",
       "translation": "CONTRIBUTING.ko.md",
-      "source_sha256": "d6a818b0096167a674809f11fd405460ff8bb409020bad489c49d7b4fbe823ea",
-      "translation_sha256": "da2b83e7cf616b50507322b641cce6531336efb462a54529b7c609d760428dac",
+      "source_sha256": "91220a6696c3fedf97fa8e653acbd74830ccecad39bc7ed30ee2a7c092ab54f6",
+      "translation_sha256": "2102d85456a825cb53f9c7e28e29d8b88d7876af1138c5d3abba9dd9da0a13db",
       "anchors": [
         "contribution-policy",
         "rights-required-for-code-contributions",

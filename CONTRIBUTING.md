@@ -31,7 +31,8 @@ Keep private agreements and consent records out of public issues and source file
 
 Use [Issues](https://github.com/novelKR/agent-response-gateway/issues) for bug reports,
 reproduction steps and API feedback. Discuss substantial changes before opening a
-pull request. Keep each change focused and include relevant tests and documentation.
+pull request. Keep each change focused and include relevant tests
+and documentation.
 
 Read the repository instructions. Inspect the selected checks with
 `python3.14 -B scripts/validation.py plan --worktree`, then execute them with
