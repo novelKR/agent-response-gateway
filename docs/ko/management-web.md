@@ -72,6 +72,22 @@ node management-web/scripts/check-output.mjs
 어느 쪽도 Vite 개발 서버를 실행하지 않으며 기존
 [개발 서버 제약](documentation.md#web-notices-and-development-server-constraints)을 유지합니다.
 
+패키지 조립에서는 커밋된 소스를 새 디렉터리에 한 번 빌드하고 검증한 바이트를
+네이티브 대상 간 공유합니다. 이 내보내기 빌드는 Python 3.11+, Node 24.21.0,
+npm 11.19.0이 필요하며 Cargo는 필요하지 않습니다. 커밋하지 않은 수정 대신 HEAD를
+사용합니다. 일반 로컬 개발은 위 명령을 계속 사용합니다.
+
+```sh
+python3 -B scripts/web_assets.py .local/web-assets
+python3 -B scripts/optional_package.py build --base .local/package-candidate --output .local/optional-candidate --web-assets .local/web-assets
+```
+
+소비자는 내보낸 소스에 대해 소스 커밋, HTTP·상태 계약, 전체 자산 목록, 자산 해시와
+검토한 정확한 고지를 검증합니다. `--web-assets`를 사용하면 네이티브 조립은 Web을
+재빌드하지 않고 Node도 요구하지 않습니다. 옵션을 생략하면 기존 독립 로컬 패키지
+빌드를 유지합니다. 전체 CI는 Windows Web 빌드 호환성도 검사합니다. 공유 CI 입력은
+릴리스 attestation이 아닙니다.
+
 Web manifest는 HTTP·상태 계약 버전, 소스 커밋, dirty tree 여부, 조회 전용 범위와
 파일별 SHA-256을 기록합니다. 변경하지 않은 프로젝트 라이선스, 정확한 배포 패키지 목록,
 원본 고지를 함께 제공합니다. `node management-web/scripts/check-output.mjs COMMIT`은

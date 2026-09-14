@@ -28,6 +28,10 @@ class ActionsRuntimeTests(unittest.TestCase):
             for path in (ROOT / '.github/workflows').glob('*.yml')
         }
 
+    def test_windows_web_preserves_original_notice_bytes_before_checkout(self):
+        block = self.workflows['ci.yml'].split('  web-windows:\n', 1)[1].split('\n  usage-recorder:', 1)[0]
+        self.assertLess(block.index('git config --global core.autocrlf false'), block.index('uses: actions/checkout@'))
+
     def test_replaced_node20_actions_cannot_return_or_float(self):
         found = set()
         for name, text in self.workflows.items():

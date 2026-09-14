@@ -1,0 +1,113 @@
+{
+  "schema": "gateway-conformance-suites/v1",
+  "groups": {
+    "editing": [
+      {
+        "name": "Verify structured editing with pinned Codex",
+        "run": "python3 -B tests/codex/editing_fixture.py --gateway-bin target/debug/agent-response-gateway"
+      },
+      {
+        "name": "Verify independent operation bundles",
+        "run": "python3 -B tests/codex/editing_fixture.py --gateway-bin target/debug/agent-response-gateway --operations"
+      },
+      {
+        "name": "Verify host-owned Rust router file execution",
+        "run": "python3 -B tests/codex/editing_fixture.py --gateway-bin target/debug/agent-response-gateway --embedded-host-bin target/debug/examples/embedded_editing --operations"
+      },
+      {
+        "name": "Verify native Code Mode editing",
+        "run": "python3 -B tests/codex/editing_fixture.py --gateway-bin target/debug/agent-response-gateway --code-mode"
+      },
+      {
+        "name": "Verify pinned direct and Code Mode editing contracts",
+        "run": "python3 -B tests/codex/editing_contract.py --gateway-bin target/debug/agent-response-gateway"
+      }
+    ],
+    "protocol-continuity": [
+      {
+        "name": "Run every synthetic Codex scenario",
+        "run": "python3 -B tests/codex/conformance.py | tee .local/conformance-results.jsonl"
+      },
+      {
+        "name": "Verify checked Responses tool compatibility",
+        "run": "python3 -B tests/codex/conformance.py --api responses_checked\npython3 -B tests/codex/conformance.py --api responses_checked --responses-native-custom"
+      },
+      {
+        "name": "Verify imported profiles and tool policies with Codex",
+        "run": "python3 -B tests/codex/conformance.py --api responses_checked --api messages --api chat_completions --api gemini_interactions --profile-packs\npython3 -B tests/codex/conformance.py --api responses_checked --responses-native-custom --profile-packs"
+      },
+      {
+        "name": "Verify host-owned continuity with the pinned Codex",
+        "run": "python3 -B tests/codex/continuity.py | tee .local/continuity-results.jsonl"
+      },
+      {
+        "name": "Verify opaque replay prerequisite",
+        "run": "python3 -B tests/codex/opaque_continuation.py"
+      },
+      {
+        "name": "Verify Interactions protocol and durable HTTP failures",
+        "run": "python3 -B tests/codex/conformance.py --api gemini_interactions\npython3 -B tests/codex/interactions_http.py\npython3 -B tests/codex/interactions_continuity.py --resume-only"
+      },
+      {
+        "name": "Require Interactions compaction and recovery acceptance",
+        "run": "python3 -B tests/codex/interactions_continuity.py"
+      }
+    ],
+    "managed-reasoning": [
+      {
+        "name": "Require managed Claude reasoning display and recovery",
+        "run": "python3 -B tests/codex/reasoning_continuity.py\npython3 -B tests/codex/reasoning_continuity.py --manual\npython3 -B tests/codex/reasoning_continuity.py --opaque-only\npython3 -B tests/codex/reasoning_continuity.py --manual --opaque-only\npython3 -B tests/codex/reasoning_continuity.py --http-only\npython3 -B tests/codex/reasoning_continuity.py --manual --http-only"
+      },
+      {
+        "name": "Require managed Chat reasoning display and recovery",
+        "run": "python3 -B tests/codex/reasoning_chat_continuity.py\npython3 -B tests/codex/reasoning_chat_continuity.py --router\npython3 -B tests/codex/reasoning_chat_continuity.py --opaque-only\npython3 -B tests/codex/reasoning_chat_continuity.py --router --opaque-only\npython3 -B tests/codex/reasoning_chat_continuity.py --http-only\npython3 -B tests/codex/reasoning_chat_continuity.py --router --http-only"
+      },
+      {
+        "name": "Require all managed reasoning tool and cancellation scenarios",
+        "run": "python3 -B tests/codex/reasoning_conformance.py"
+      }
+    ],
+    "legacy-migration": [
+      {
+        "name": "Resume and repair mixed legacy and current replay with Codex",
+        "run": "python3 -B tests/codex/interactions_continuity.py --legacy-gateway-bin target/legacy/debug/agent-response-gateway"
+      }
+    ],
+    "codec-protocol": [
+      {
+        "name": "Verify external codec behavior with Codex and synthetic providers",
+        "run": "python3 -B tests/codex/conformance.py --api responses_checked --api messages --api chat_completions --api gemini_interactions --codec-bin target/debug/examples/api_codec\npython3 -B tests/codex/conformance.py --api responses_checked --responses-native-custom --profile-packs --codec-bin target/debug/examples/api_codec\npython3 -B tests/codex/reasoning_conformance.py --profile-packs --codec-bin target/debug/examples/api_codec"
+      }
+    ],
+    "codec-editing-accounting": [
+      {
+        "name": "Build editing codec and verify structured editing integration",
+        "run": "python3 -B tests/codex/editing_fixture.py --gateway-bin target/debug/agent-response-gateway --codec-bin target/debug/examples/api_codec_editing --profile-packs\npython3 -B scripts/managed_usage_smoke.py --gateway-bin target/debug/agent-response-gateway --recorder-bin target/debug/gateway-usage-recorder --editing --codec-bin target/debug/examples/api_codec_editing --profile-packs"
+      },
+      {
+        "name": "Verify opt-in patch envelope normalization",
+        "run": "python3 -B tests/codex/editing_fixture.py --gateway-bin target/debug/agent-response-gateway --normalize-envelope --codec-bin target/debug/examples/api_codec_editing --profile-packs"
+      },
+      {
+        "name": "Verify external operation bundles and durable restart",
+        "run": "python3 -B tests/codex/editing_fixture.py --gateway-bin target/debug/agent-response-gateway --operations --code-mode --codec-bin target/debug/examples/api_codec_editing --profile-packs\npython3 -B scripts/managed_usage_smoke.py --gateway-bin target/debug/agent-response-gateway --recorder-bin target/debug/gateway-usage-recorder --operations --code-mode --codec-bin target/debug/examples/api_codec_editing --profile-packs"
+      },
+      {
+        "name": "Verify explicit Code Mode editing and recorder barriers",
+        "run": "python3 -B tests/codex/editing_fixture.py --gateway-bin target/debug/agent-response-gateway --code-mode --codec-bin target/debug/examples/api_codec_editing --profile-packs\npython3 -B scripts/managed_usage_smoke.py --gateway-bin target/debug/agent-response-gateway --recorder-bin target/debug/gateway-usage-recorder --code-mode --codec-bin target/debug/examples/api_codec_editing --profile-packs"
+      },
+      {
+        "name": "Verify external codec durable accounting and recovery",
+        "run": "python3 -B scripts/managed_usage_smoke.py --gateway-bin target/debug/agent-response-gateway --recorder-bin target/debug/gateway-usage-recorder --compatibility-policy --profile-packs --codec-bin target/debug/examples/api_codec"
+      }
+    ]
+  },
+  "setup": {
+    "legacy-migration": [
+      {
+        "name": "Build the immutable Gemini v1 writer",
+        "run": "git fetch --no-tags origin 7bb42c064a4e0aa26a17c821f8fe1c2e35d4175e\nmkdir -p .local/legacy-source\ngit archive 7bb42c064a4e0aa26a17c821f8fe1c2e35d4175e | tar -x -C .local/legacy-source\ncargo build --locked --manifest-path .local/legacy-source/Cargo.toml --target-dir target/legacy\n"
+      }
+    ]
+  }
+}

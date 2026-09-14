@@ -83,6 +83,22 @@ plugin is shared only during builds. Neither application runs Vite's development
 server; the existing [development-server constraints](documentation.md#web-notices-and-development-server-constraints)
 continue to apply.
 
+For package assembly, build committed source once into a new directory and share
+those verified bytes across native targets. This export build requires Python
+3.11+, Node 24.21.0 and npm 11.19.0; it does not require Cargo. It uses HEAD,
+not uncommitted edits. Ordinary local development continues to use the commands above.
+
+```sh
+python3 -B scripts/web_assets.py .local/web-assets
+python3 -B scripts/optional_package.py build --base .local/package-candidate --output .local/optional-candidate --web-assets .local/web-assets
+```
+
+Consumers verify source commit, HTTP/state contracts, complete asset inventory,
+asset hashes and the exact reviewed notices against their source export. With
+`--web-assets`, native assembly does not rebuild Web or require Node. Omitting
+that option retains the independent local package build. Web build compatibility
+on Windows remains part of full CI. Shared CI inputs are not release attestations.
+
 The Web manifest records HTTP/state contract versions, source commit, dirty-tree
 status, read-only scope and each asset SHA-256. The unchanged project license,
 exact shipped package inventory and original notices accompany the output.
