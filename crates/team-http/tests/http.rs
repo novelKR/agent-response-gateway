@@ -23,6 +23,9 @@ use std::{
     time::{Duration, SystemTime},
 };
 use tokio::task::JoinHandle;
+// Keep immediate lease-reopen assertions separate from concurrent child spawning.
+// A forked child can temporarily retain another test thread's file locks until exec.
+static PROCESS_SPAWN_AND_REOPEN: Mutex<()> = Mutex::new(());
 const LOCAL: &str = "synthetic-gateway-local-key-01234567890123456789";
 const PROVIDER: &str = "synthetic-provider-key-not-a-team-key";
 fn id(value: &str) -> Id {
@@ -912,7 +915,10 @@ impl ManagedProcess {
                 std::env::var_os("SYSTEMROOT").expect("Windows requires registered SYSTEMROOT"),
             );
         }
-        let mut child = OwnedChild(command.spawn().unwrap());
+        let mut child = {
+            let _spawn_guard = PROCESS_SPAWN_AND_REOPEN.lock().unwrap();
+            OwnedChild(command.spawn().unwrap())
+        };
         let stdout = child.0.stdout.take().unwrap();
         let (send, receive) = std::sync::mpsc::channel();
         let reader = std::thread::spawn(move || {
@@ -1315,6 +1321,7 @@ async fn recorder_failures_mismatched_routes_and_duplicate_attempts_stay_unobser
 }
 #[test]
 fn ledger_reopen_backup_and_session_retry_preserve_unconfirmed_evidence() {
+    let _reopen_guard = PROCESS_SPAWN_AND_REOPEN.lock().unwrap();
     let accounts = Accounts::new();
     let principal = accounts
         .auth
