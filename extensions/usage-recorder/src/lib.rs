@@ -264,7 +264,12 @@ PRAGMA user_version=1;COMMIT;")?;
             event.profile,
             &event.configuration_sha256,
         ))?;
-        let tx = self.connection.transaction()?;
+        // Reserve the writer before reading deduplication state. The export worker
+        // writes through a separate WAL connection; a deferred read-to-write upgrade
+        // can fail with SQLITE_BUSY_SNAPSHOT instead of waiting for that writer.
+        let tx = self
+            .connection
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
         let prior:Option<String>=tx.query_row("SELECT sha256 FROM (SELECT producer_id,event_id,attempt_id,revision,sha256 FROM usage_events UNION ALL SELECT producer_id,event_id,attempt_id,revision,sha256 FROM usage_tombstones) WHERE producer_id=?1 AND (event_id=?2 OR (attempt_id=?3 AND revision=?4))",params![event.producer_id,event.event_id,event.attempt_id,revision],|r|r.get(0)).optional()?;
         if let Some(old) = prior {
             return Ok(if old == sha {
