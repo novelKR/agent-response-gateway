@@ -36,3 +36,11 @@ class NativeSelectionTests(unittest.TestCase):
         with self.assertRaises(validation.ValidationError):ci_rust.selected_commands(ROOT,plan,'b'*40)
         plan['policy_sha256']='0'*64
         with self.assertRaises(validation.ValidationError):ci_rust.selected_commands(ROOT,plan,'a'*40)
+
+
+class NativeFixtureOrderingTests(unittest.TestCase):
+    def test_gateway_fixture_is_built_before_scoped_tests_without_cached_binaries(self):
+        workflow=(ROOT/'.github/workflows/ci.yml').read_text()
+        build=workflow.index('      - run: cargo +1.98.0 build -p agent-response-gateway --locked')
+        tests=workflow.index('      - name: Check selected native packages and consumers')
+        self.assertLess(build,tests)
