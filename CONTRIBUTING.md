@@ -33,9 +33,12 @@ Use [Issues](https://github.com/novelKR/agent-response-gateway/issues) for bug r
 reproduction steps and API feedback. Discuss substantial changes before opening a
 pull request. Keep each change focused and include relevant tests and documentation.
 
-Read the repository instructions and run `cargo fmt --check`,
-`cargo clippy --all-targets --locked -- -D warnings` and `cargo test --locked`.
-Default tests use synthetic inputs and mock providers, without real API keys.
+Read the repository instructions. Inspect the selected checks with
+`python3.14 -B scripts/validation.py plan --worktree`, then execute them with
+`python3.14 -B scripts/validation.py run --worktree`. Use `--staged` before
+submission and `--profile full` for full local validation. Prepare only the
+reported tools; the runner does not install dependencies. Default tests use
+synthetic inputs and mock providers, without real API keys.
 
 Dependency changes must include the lockfile and required license records under
 [license management](licensing/README.md). Use Python 3.11 or later for script checks.

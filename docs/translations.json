@@ -28,8 +28,8 @@
       "order": 0,
       "source": "CONTRIBUTING.md",
       "translation": "CONTRIBUTING.ko.md",
-      "source_sha256": "a7897c8da1fd6074b6488580f291b26fd46e8ea4c95152bc926ac52178c254b5",
-      "translation_sha256": "83c345235b401aef5e7c9156eb3a377535db9eecc2974a2c9d99f77ec356888e",
+      "source_sha256": "d6a818b0096167a674809f11fd405460ff8bb409020bad489c49d7b4fbe823ea",
+      "translation_sha256": "da2b83e7cf616b50507322b641cce6531336efb462a54529b7c609d760428dac",
       "anchors": [
         "contribution-policy",
         "rights-required-for-code-contributions",
@@ -208,8 +208,8 @@
       "order": 4,
       "source": "docs/documentation.md",
       "translation": "docs/ko/documentation.md",
-      "source_sha256": "97c1a1399d88c6c5bf92f295b36b5d766ae25d2be442672854c68fb550b5e938",
-      "translation_sha256": "b95a1a5c269c437870149705a7ae543067009004d95c6fdf759bd13e7336aa6b",
+      "source_sha256": "633da7da052ad84959542860d99211e8cabf42c54d2830feba83b45e98b77da8",
+      "translation_sha256": "057323d5dd6fb0445f6bf50f36f67fdbf04ca3c43ef948fbba393b14aaefd76a",
       "anchors": [
         "documentation-site-development",
         "independent-local-history",
@@ -286,8 +286,8 @@
       "order": 3,
       "source": "docs/github-workflow.md",
       "translation": "docs/ko/github-workflow.md",
-      "source_sha256": "eb4f045ed04e400d0ae993834280b920a4b6312c33342350f9a8f6dee42aa6a3",
-      "translation_sha256": "05a87704e6ebb4b8c9d927109780333ddc0d034cfa44b65b59e4a05dd6d8bc13",
+      "source_sha256": "c5bccab0672e3d919cbbdb5a657cc10eb94353ed51890e3952c70ea992b4d25c",
+      "translation_sha256": "c34a00619d15097867efd42af6a97c15f58727ddca7d8d64ad341d9b0b80d677",
       "anchors": [
         "branches-commits-and-reviews",
         "github-delivery-workflow",
@@ -806,8 +806,8 @@
         "설치와-승인-및-활성화",
         "요구사항과-지원-범위"
       ],
-      "source_sha256": "d1a189d4dbbad09d6dcb2c5483a045f199f47491dc3e293010ce8dc4b5fa8af9",
-      "translation_sha256": "9da543bd3fe420a96d41fd56368741f5a35a56e77111cf0c3e269d03d0e01927"
+      "source_sha256": "e4de602de9f3e524991935745d636ede54b3a7dd3347a764d690efc82d6fd3cd",
+      "translation_sha256": "7aaee84b6ad6c94a9575b0cd080ca143235663b0044efbd03471b061e8c2d2fc"
     },
     {
       "id": "interactions-design",

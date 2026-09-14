@@ -22,14 +22,21 @@ configuration, tests, and documentation before editing. Preserve unrelated work.
 - Use Rust 1.98.0, edition 2024, UTF-8 text, and the committed Cargo lockfile.
 - Keep build artifacts under `target/` and local test state under `.local/` or
   another ignored project-local directory.
-- Run `cargo fmt --check`,
-  `cargo clippy --all-targets --locked -- -D warnings`, and `cargo test --locked`.
+- Use `python3.14 -B scripts/validation.py plan --worktree` to inspect the local
+  validation scope, then `python3.14 -B scripts/validation.py run --worktree`.
+  Use `--staged` for submission checks and `--profile full` for an explicit full
+  local check. Local success is not hosted CI or release qualification.
+- Local iteration requires checks for the changed area and its consumers, not
+  unrelated development tools. CI/policy/dependency changes require full checks.
+  Rust checks include format, Clippy with warnings denied, and locked tests for
+  selected packages and consumers. Preserve the supported feature combinations.
 - Use no paid/live provider calls in the default tests. A passing mock test is
   not Codex conformance, hosted CI completion, or consumer operational acceptance.
 - Update the documented support matrix and integration boundaries when behavior
   changes. Unsupported protocol features must remain explicit errors.
-- Run `python3 -B -m unittest discover -s scripts/tests -v` and the publication
-  boundary checks described in `docs/documentation.md` before committing.
+- Before committing, run selected checks and the changed-file publication check.
+  Full Python discovery and full-history publication checks remain required for
+  full validation and CI. Missing selected tools are errors, never silent skips.
 - For documentation site changes, use Node 24.21.0 and npm 11.19.0 under
   `docs-site/`. Run `npm ci --prefix docs-site --ignore-scripts`,
   `npm test --prefix docs-site`, `npm run build --prefix docs-site` and
@@ -43,7 +50,8 @@ configuration, tests, and documentation before editing. Preserve unrelated work.
 - Run `python3.14 -B scripts/check_docs.py` for maintained documentation. Review
   both language editions before recording their hashes; preserve existing anchors,
   technical literals and canonical legal originals. CI must never stamp a review.
-- Use Python 3.11+ for script checks. Follow `licensing/README.md` to prepare
+- Use Python 3.11+ for script checks. For dependency/license changes or full
+  validation, follow `licensing/README.md` to prepare
   the pinned development-only cargo-deny and exact crate sources, then run
   `python3 -B scripts/license_audit.py check`. Keep license records and original
   notices consistent with Cargo.lock; refresh creates a reviewable diff, not

@@ -32,8 +32,30 @@ PR을 승인하지 않는다.
 
 ## 필수 검사
 
-필수 작업은 `targets`, `format`, `rust`, `publication`, `licenses`,
-`codex-conformance`, `docs`, `package-smoke`다. 두 네이티브 행렬은
+로컬 반복과 제출은 명시적인 영향 계획을 사용한다. 계획기는 선택 검사, 도구,
+패키지 소비자와 범위 확대 이유를 보고한다. Cargo 의존성을 해석하지 않고 Git과
+manifest를 읽는다. 알 수 없는 경로, 확인할 수 없는 revision, 의존성 및 검증
+정책 변경은 전체 범위를 선택한다. `--base BASE --head HEAD`는 커밋 범위를
+나타내며 이름 변경과 삭제는 영향을 받는 양쪽 경로를 포함한다. 범위 계획을
+무관한 로컬 작업 트리에서 실행하지 않는다. 전체 로컬 프로필은 릴리스 자격이 아니다.
+
+```sh
+python3.14 -B scripts/validation.py plan --worktree
+python3.14 -B scripts/validation.py run --worktree
+python3.14 -B scripts/validation.py run --staged
+python3.14 -B scripts/validation.py plan --profile full --base BASE --head HEAD
+```
+
+실행 전 보고된 도구와 잠긴 npm 의존성을 준비한다. 웹 표현만 검사할 때에는 Cargo나
+crate 라이선스 도구가 필요하지 않다. 로컬 결과는 `.local/validation/`에 기록한다.
+전체 Python discovery에는 분리된 실제 SPDX 통합 테스트가 포함된다. 현재 CI는
+선택 예정 영향 계획을 shadow 모드로 기록하고 기존 전체 검사 집합을 계속 요구한다.
+영향 계획은 선택한 테스트의 실행 증거가 아니다. 검증 정책의 `force_full`은 범위를
+확대하는 방향으로만 작동한다.
+
+필수 작업은 `validation-plan`, `targets`, `format`, `rust`,
+`publication`, `licenses`, `codex-conformance`, `api-codecs`, `usage-recorder`,
+`management-web`, `docs`, `package-smoke`다. 두 네이티브 행렬은
 [공통 대상 정의](../../scripts/release_targets.py)의 플랫폼 4종을 모두 사용한다.
 `ci-required`는 명시한 필수 선행 작업 전체가 성공해야 통과한다.
 누락·추가·건너뜀·취소·실패 작업은 집계를 차단한다.
