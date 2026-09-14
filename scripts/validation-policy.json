@@ -1,7 +1,7 @@
 {
   "schema": "gateway-validation-policy/v1",
   "force_full": false,
-  "activation": "shadow",
+  "activation": "affected",
   "jobs": [
     "targets",
     "format",
@@ -320,7 +320,9 @@
         "management-web/src/api.mjs",
         "management-web/scripts/*fixture*",
         "management-web/scripts/api-fixture.mjs",
-        "management-web/tests/*fixture*"
+        "management-web/tests/*fixture*",
+        "management-web/src/App.vue",
+        "management-web/src/main.js"
       ],
       "ci": [
         "management-web"
@@ -406,7 +408,6 @@
       ],
       "ci": [
         "format",
-        "rust",
         "usage-recorder",
         "package-smoke"
       ],
@@ -529,5 +530,18 @@
       "full": true
     }
   ],
-  "affected_stages": []
+  "affected_stages": [
+    "pr"
+  ],
+  "ci_rust_packages": [
+    "agent-response-gateway",
+    "gateway-management",
+    "gateway-management-runtime",
+    "gateway-management-extensions",
+    "gateway-management-api",
+    "gateway-team-access",
+    "gateway-team-http",
+    "gateway-management-embedded",
+    "gateway-management-app"
+  ]
 }

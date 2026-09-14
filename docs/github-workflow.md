@@ -51,18 +51,36 @@ python3.14 -B scripts/validation.py plan --profile full --base BASE --head HEAD
 Prepare reported tools and locked npm dependencies before execution. Web-only
 presentation checks require no Cargo or crate-license tooling. Local results are
 written under `.local/validation/`. Full Python discovery includes the separate
-real SPDX integration tests. CI currently records the prospective impact plan
-in shadow mode and still requires the complete existing check set; an impact
-plan is not evidence that any selected test ran. `force_full` in the validation
-policy only expands coverage.
+real SPDX integration tests. PR CI executes the selected impact plan; main, manual
+full checks and release qualification retain full execution. An impact plan is not
+evidence that a test ran: inspect its execution set and the required-check result.
+`force_full` in the validation policy only expands coverage.
 
-The required jobs are `validation-plan`, `conformance-prepare`, `web-windows`, `targets`, `format`, `rust`,
+The registered job families are `validation-plan`, `conformance-prepare`, `web-windows`, `targets`, `format`, `rust`,
 `publication`, `licenses`, `codex-conformance`, `api-codecs`, `usage-recorder`,
 `management-web`, `docs` and `package-smoke`. Both native matrices use all four
 platforms from the [common target definition](../scripts/release_targets.py).
-`ci-required` succeeds only when the complete, explicitly named prerequisite set succeeds.
-Missing, extra, skipped, cancelled and failed jobs block it. No path filter silently omits a required check.
+`ci-required` requires the planner and every selected job to succeed. Only jobs
+explicitly outside the plan may be skipped. Missing, extra, unexpectedly skipped,
+cancelled or failed results block it. The required workflow itself is never omitted
+by a path filter.
 Register a required check in branch protection after its first successful run.
+
+Native Rust checks select changed packages and their consumers within the existing
+supported platform set. Full checks preserve the original package/feature matrix.
+The recorder retains its separate database and upgrade checks. Web styles and
+independent presentation components need no Rust fixture; the API client and the
+application container that owns authentication keep the real API fixture.
+
+Inspect observed Actions timing without equating job-seconds with billing:
+
+```sh
+python3.14 -B scripts/validation_metrics.py RUN_ID --output .local/validation/run.json
+```
+
+The report distinguishes required-gate latency, completed job durations, pending
+work and deployment waits. It preserves per-step observations; differing queue,
+cache and concurrency conditions are not a controlled performance comparison.
 
 Native conformance runs as four isolated groups: editing, protocol/continuity,
 managed reasoning and legacy migration. External codecs use protocol and

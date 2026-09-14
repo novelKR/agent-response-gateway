@@ -28,6 +28,10 @@ class ImpactTests(unittest.TestCase):
     def test_web_parser_includes_actual_api_fixture(self):
         self.assertIn('web-api', self.plan(['management-web/src/api.mjs'])['checks'])
 
+    def test_authentication_container_keeps_api_fixture_but_pure_view_does_not(self):
+        self.assertIn('web-api', self.plan(['management-web/src/App.vue'])['checks'])
+        self.assertNotIn('cargo', self.plan(['management-web/src/JsonView.vue'])['tools'])
+
     def test_docs_do_not_select_product_packaging(self):
         self.assertEqual(self.plan(['docs/management.md'])['jobs'], ['docs', 'publication'])
 
