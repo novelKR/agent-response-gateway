@@ -381,7 +381,8 @@
         "examples/**",
         "crates/usage-contract/**",
         "config*.toml",
-        "schemas/**"
+        "schemas/**",
+        "crates/plugin-contract/**"
       ],
       "ci": [
         "format",
@@ -590,6 +591,7 @@
     "gateway-team-access",
     "gateway-team-http",
     "gateway-management-embedded",
-    "gateway-management-app"
+    "gateway-management-app",
+    "gateway-plugin-contract"
   ]
 }

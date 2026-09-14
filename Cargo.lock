@@ -11,6 +11,7 @@ dependencies = [
  "bytes",
  "clap",
  "futures-util",
+ "gateway-plugin-contract",
  "gateway-usage-contract",
  "reqwest",
  "ring",
@@ -646,6 +647,14 @@ dependencies = [
  "tempfile",
  "tokio",
  "uuid",
+]
+
+[[package]]
+name = "gateway-plugin-contract"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

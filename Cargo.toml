@@ -1,6 +1,6 @@
 [workspace]
 exclude = [".local/legacy-source"]
-members = ["crates/usage-contract", "extensions/usage-recorder", "crates/management", "crates/management-runtime", "crates/management-extensions", "crates/management-api", "crates/team-access", "crates/team-http", "crates/management-embedded", "crates/management-app"]
+members = ["crates/plugin-contract", "crates/usage-contract", "extensions/usage-recorder", "crates/management", "crates/management-runtime", "crates/management-extensions", "crates/management-api", "crates/team-access", "crates/team-http", "crates/management-embedded", "crates/management-app"]
 default-members = ["."]
 resolver = "3"
 
@@ -15,6 +15,7 @@ publish = false
 exclude = ["/.private/**", "/docs-site/node_modules/**", "/docs-site/.temp/**", "/docs-site/.vitepress/.cache/**", "/docs-site/.vitepress/.temp/**"]
 
 [dependencies]
+gateway-plugin-contract = { path = "crates/plugin-contract" }
 gateway-usage-contract = { path = "crates/usage-contract" }
 async-stream = "0.3"
 axum = "0.8"
