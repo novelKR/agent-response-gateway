@@ -204,6 +204,7 @@ pub(crate) fn decode_request(value: Value) -> Result<Request, IrError> {
         serde_json::from_value(value).map_err(|_| IrError::UnsupportedVersion)?;
     transcode(&wire)
 }
+#[cfg(any(unix, test))]
 pub(crate) fn decode_reply(value: Value) -> Result<Reply, IrError> {
     let wire: gateway_plugin_contract::Reply =
         serde_json::from_value(value).map_err(|_| IrError::UnsupportedVersion)?;
@@ -213,6 +214,7 @@ fn transcode<S: Serialize, D: serde::de::DeserializeOwned>(value: &S) -> Result<
     let value = serde_json::to_value(value).map_err(|_| IrError::InvalidEventOrder)?;
     serde_json::from_value(value).map_err(|_| IrError::UnsupportedVersion)
 }
+#[cfg(any(unix, test))]
 pub(crate) fn encode_request(value: &Request) -> Result<Vec<u8>, IrError> {
     let wire: gateway_plugin_contract::Request = transcode(value)?;
     serde_json::to_vec(&wire).map_err(|_| IrError::InvalidEventOrder)
