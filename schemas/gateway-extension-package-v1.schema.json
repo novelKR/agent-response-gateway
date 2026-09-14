@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Gateway native extension package v1",
+  "description": "Structural wire validation only. The authoring specification defines byte identity, state transitions, semantic validation and host compatibility.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "id",
+    "version",
+    "target",
+    "protocol",
+    "permissions",
+    "state_schema",
+    "files"
+  ],
+  "properties": {
+    "schema": {
+      "const": "gateway-extension-package/v1"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,63}(?![\\s\\S])"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]{0,5})\\.(0|[1-9][0-9]{0,5})\\.(0|[1-9][0-9]{0,5})(?![\\s\\S])"
+    },
+    "target": {
+      "enum": [
+        "linux-x64",
+        "linux-arm64",
+        "macos-x64",
+        "macos-arm64"
+      ]
+    },
+    "protocol": {
+      "type": "string"
+    },
+    "permissions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "state_schema": {
+      "type": "string"
+    },
+    "files": {
+      "type": "object",
+      "minProperties": 2,
+      "maxProperties": 8,
+      "required": [
+        "extension",
+        "LICENSE.txt"
+      ],
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}(?![\\s\\S])",
+        "not": {
+          "const": "extension.json"
+        }
+      },
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^[0-9a-f]{64}(?![\\s\\S])"
+      }
+    }
+  },
+  "oneOf": [
+    {
+      "properties": {
+        "protocol": {
+          "const": "gateway-observer/v1"
+        },
+        "permissions": {
+          "const": [
+            "observe_http_metadata",
+            "write_private_state"
+          ]
+        },
+        "state_schema": {
+          "const": "observer-state/v1"
+        }
+      }
+    },
+    {
+      "properties": {
+        "protocol": {
+          "const": "gateway-usage-recorder/v1"
+        },
+        "permissions": {
+          "const": [
+            "export_usage",
+            "observe_usage",
+            "write_usage_store"
+          ]
+        },
+        "state_schema": {
+          "const": "usage-store/v1"
+        }
+      }
+    },
+    {
+      "properties": {
+        "protocol": {
+          "const": "gateway-api-codec/v1"
+        },
+        "permissions": {
+          "const": [
+            "read_model_payload",
+            "transform_model_protocol"
+          ]
+        },
+        "state_schema": {
+          "const": "request-memory/v1"
+        }
+      }
+    },
+    {
+      "properties": {
+        "protocol": {
+          "const": "gateway-api-codec/v2"
+        },
+        "permissions": {
+          "const": [
+            "read_model_payload",
+            "transform_model_protocol"
+          ]
+        },
+        "state_schema": {
+          "const": "request-memory/v1"
+        }
+      }
+    }
+  ]
+}

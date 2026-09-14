@@ -30,37 +30,37 @@
   "properties": {
     "producer_id": {
       "type": "string",
-      "pattern": "^[A-Za-z0-9_/.:\\-]{1,200}$"
+      "pattern": "^[A-Za-z0-9_/.:\\-]{1,200}(?![\\s\\S])"
     },
     "request_id": {
       "type": "string",
-      "pattern": "^[A-Za-z0-9_/.:\\-]{1,200}$"
+      "pattern": "^[A-Za-z0-9_/.:\\-]{1,200}(?![\\s\\S])"
     },
     "attempt_id": {
       "type": "string",
-      "pattern": "^[A-Za-z0-9_/.:\\-]{1,200}$"
+      "pattern": "^[A-Za-z0-9_/.:\\-]{1,200}(?![\\s\\S])"
     },
     "event_id": {
       "type": "string",
-      "pattern": "^[A-Za-z0-9_/.:\\-]{1,200}$"
+      "pattern": "^[A-Za-z0-9_/.:\\-]{1,200}(?![\\s\\S])"
     },
     "provider": {
       "type": "string",
-      "pattern": "^[A-Za-z0-9_/.:\\-]{1,200}$"
+      "pattern": "^[A-Za-z0-9_/.:\\-]{1,200}(?![\\s\\S])"
     },
     "model_alias": {
       "type": "string",
-      "pattern": "^[A-Za-z0-9_/.:\\-]{1,200}$"
+      "pattern": "^[A-Za-z0-9_/.:\\-]{1,200}(?![\\s\\S])"
     },
     "upstream_model": {
       "type": "string",
-      "pattern": "^[A-Za-z0-9_/.:\\-]{1,200}$"
+      "pattern": "^[A-Za-z0-9_/.:\\-]{1,200}(?![\\s\\S])"
     },
     "reported_model": {
       "anyOf": [
         {
           "type": "string",
-          "pattern": "^[A-Za-z0-9_/.:\\-]{1,200}$"
+          "pattern": "^[A-Za-z0-9_/.:\\-]{1,200}(?![\\s\\S])"
         },
         {
           "type": "null"
@@ -71,7 +71,7 @@
       "anyOf": [
         {
           "type": "string",
-          "pattern": "^[A-Za-z0-9_/.:\\-]{1,200}$"
+          "pattern": "^[A-Za-z0-9_/.:\\-]{1,200}(?![\\s\\S])"
         },
         {
           "type": "null"
@@ -82,7 +82,7 @@
       "anyOf": [
         {
           "type": "string",
-          "pattern": "^[A-Za-z0-9_/.:\\-]{1,200}$"
+          "pattern": "^[A-Za-z0-9_/.:\\-]{1,200}(?![\\s\\S])"
         },
         {
           "type": "null"
@@ -125,7 +125,7 @@
     },
     "configuration_sha256": {
       "type": "string",
-      "pattern": "^[0-9a-f]{64}$"
+      "pattern": "^[0-9a-f]{64}(?![\\s\\S])"
     },
     "finality": {
       "enum": [

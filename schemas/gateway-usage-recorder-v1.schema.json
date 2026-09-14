@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Gateway usage recorder v1 messages",
+  "description": "Structural wire validation only. The authoring specification defines byte identity, state transitions, semantic validation and host compatibility.",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "protocol",
+        "producer_id"
+      ],
+      "properties": {
+        "type": {
+          "const": "ready"
+        },
+        "protocol": {
+          "const": "gateway-usage-recorder/v1"
+        },
+        "producer_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_/.:\\-]{1,200}(?![\\s\\S])"
+        }
+      }
+    },
+    {
+      "$ref": "gateway-usage-event-v1.schema.json"
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "event_id",
+        "sha256"
+      ],
+      "properties": {
+        "type": {
+          "const": "committed"
+        },
+        "event_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_/.:\\-]{1,200}(?![\\s\\S])"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}(?![\\s\\S])"
+        }
+      }
+    }
+  ]
+}
