@@ -806,8 +806,8 @@
         "설치와-승인-및-활성화",
         "요구사항과-지원-범위"
       ],
-      "source_sha256": "e4de602de9f3e524991935745d636ede54b3a7dd3347a764d690efc82d6fd3cd",
-      "translation_sha256": "7aaee84b6ad6c94a9575b0cd080ca143235663b0044efbd03471b061e8c2d2fc"
+      "source_sha256": "af7430b2d577392543be62e9399af66648c6a4ab0f7a85a44346f4a0ec41aa7f",
+      "translation_sha256": "4a89d9c0cc719394ac4b8808be607e6a737631497036e030f9eeb86ed458c844"
     },
     {
       "id": "interactions-design",

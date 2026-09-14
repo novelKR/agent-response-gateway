@@ -34,6 +34,7 @@ MAX_JSON = 65536
 MAX_BINARY = 128 * 1024 * 1024
 MAX_NOTICE = 256 * 1024
 MAX_EXTENSIONS = 4
+TARGETS = ('linux-x64', 'linux-arm64', 'macos-x64', 'macos-arm64')
 
 
 class ExtensionError(ValueError):
@@ -126,14 +127,16 @@ def decode_json(raw):
     return json.loads(raw, object_pairs_hook=pairs, parse_constant=lambda _: (_ for _ in ()).throw(ExtensionError('Invalid JSON number')))
 
 
-def validate_package(raw):
+def validate_package(raw, *, expected_target=None):
     package = decode_json(raw)
     require(isinstance(package, dict) and set(package) == {
         'schema', 'id', 'version', 'target', 'protocol', 'permissions', 'state_schema', 'files'
     }, 'Invalid package manifest fields')
     require(package['schema'] == PACKAGE_SCHEMA and package['protocol'] in (PROTOCOL, RECORDER_PROTOCOL, *CODEC_PROTOCOLS), 'Unsupported package protocol')
     require(identifier(package['id']) and version(package['version']), 'Invalid package identity')
-    require(package['target'] == target(), 'Package target does not match this host')
+    selected_target = target() if expected_target is None else expected_target
+    require(selected_target in TARGETS, 'Unsupported package target')
+    require(package['target'] == selected_target, 'Package target does not match selected target')
     require(package['permissions'] == (PERMISSIONS if package['protocol'] == PROTOCOL else CODEC_PERMISSIONS if package['protocol'] in CODEC_PROTOCOLS else RECORDER_PERMISSIONS), 'Unsupported package permissions')
     require(package['state_schema'] == ('observer-state/v1' if package['protocol'] == PROTOCOL else 'request-memory/v1' if package['protocol'] in CODEC_PROTOCOLS else 'usage-store/v1'), 'Unsupported observer state schema')
     entries = package['files']
@@ -146,14 +149,14 @@ def validate_package(raw):
     return package
 
 
-def inspect_package(directory, expected, *, private=False):
+def inspect_package(directory, expected, *, private=False, expected_target=None):
     require(hex_digest(expected), 'An exact trusted manifest SHA-256 is required')
     directory = no_links(directory)
     if private:
         private_dir(directory)
     raw = read_file(directory / 'extension.json', MAX_JSON, private=private)
     require(digest(raw) == expected, 'Package manifest digest mismatch')
-    package = validate_package(raw)
+    package = validate_package(raw, expected_target=expected_target)
     require({p.name for p in directory.iterdir()} == {'extension.json', *package['files']}, 'Package contains missing or unlisted files')
     contents = {'extension.json': raw}
     for name, expected_file in package['files'].items():
@@ -403,9 +406,11 @@ def disable(root, package_id, *, condition=None):
         return guarded_result(root, commit_lock(root, lock), condition)
 
 
-def package_binary(binary, license_file, output, package_id, package_version, role="http_metadata_observer", codec_protocol=CODEC_PROTOCOL):
+def package_binary(binary, license_file, output, package_id, package_version, role="http_metadata_observer", codec_protocol=CODEC_PROTOCOL, *, package_target=None):
     """Build a flat local package from explicitly supplied bytes; never execute them."""
     host = target()
+    selected_target = host if package_target is None else package_target
+    require(selected_target in TARGETS, 'Unsupported package target')
     require(identifier(package_id) and version(package_version), 'Invalid package identity')
     # Cargo may hard-link its explicit build output. Copy those bytes, never that inode.
     # Package inspection, installation and runtime verification still reject hard links.
@@ -418,7 +423,7 @@ def package_binary(binary, license_file, output, package_id, package_version, ro
     recorder = role == 'usage_recorder'
     codec = role == 'api_codec'
     manifest = {'schema': PACKAGE_SCHEMA, 'id': package_id, 'version': package_version,
-                'target': host, 'protocol': codec_protocol if codec else RECORDER_PROTOCOL if recorder else PROTOCOL, 'permissions': CODEC_PERMISSIONS if codec else RECORDER_PERMISSIONS if recorder else PERMISSIONS,
+                'target': selected_target, 'protocol': codec_protocol if codec else RECORDER_PROTOCOL if recorder else PROTOCOL, 'permissions': CODEC_PERMISSIONS if codec else RECORDER_PERMISSIONS if recorder else PERMISSIONS,
                 'state_schema': 'request-memory/v1' if codec else 'usage-store/v1' if recorder else 'observer-state/v1',
                 'files': {'extension': digest(binary_bytes), 'LICENSE.txt': digest(license_bytes)}}
     raw = canonical(manifest)
@@ -440,9 +445,11 @@ def main(argv=None):
     build.add_argument('--version', required=True)
     build.add_argument('--role', choices=['http_metadata_observer', 'usage_recorder', 'api_codec'], default='http_metadata_observer')
     build.add_argument('--codec-protocol', choices=CODEC_PROTOCOLS, default=CODEC_PROTOCOL)
+    build.add_argument('--target', choices=TARGETS, help='Artifact target; defaults to this host. Does not verify executable compatibility.')
     inspect = commands.add_parser('inspect')
     inspect.add_argument('--package', type=Path, required=True)
     inspect.add_argument('--expected-sha256', required=True)
+    inspect.add_argument('--target', choices=TARGETS, help='Expected artifact target for static inspection only; defaults to this host.')
     for command in ('install', 'enable', 'disable', 'status', 'inventory'):
         sub = commands.add_parser(command)
         sub.add_argument('--store', type=Path, required=True)
@@ -471,9 +478,9 @@ def main(argv=None):
                         'Both inventory preconditions are required')
                 condition = {'generation': args.expected_generation, 'inventory_sha256': args.expected_inventory_sha256}
         if args.command == 'package':
-            result = {'package_sha256': package_binary(args.binary, args.license_file, args.output, args.id, args.version, args.role, args.codec_protocol)}
+            result = {'package_sha256': package_binary(args.binary, args.license_file, args.output, args.id, args.version, args.role, args.codec_protocol, package_target=args.target)}
         elif args.command == 'inspect':
-            package, _ = inspect_package(args.package, args.expected_sha256)
+            package, _ = inspect_package(args.package, args.expected_sha256, expected_target=args.target)
             result = {'package': package, 'executed': False}
         elif args.command == 'install':
             package = install(args.store, args.package, args.expected_sha256, condition=condition)
