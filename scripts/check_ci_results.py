@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 import re
 
-REQUIRED_JOBS = {'validation-plan', 'targets', 'format', 'rust', 'publication', 'licenses',
+REQUIRED_JOBS = {'validation-plan', 'conformance-prepare', 'web-windows', 'targets', 'format', 'rust', 'publication', 'licenses',
                  'codex-conformance', 'package-smoke', 'docs', 'usage-recorder', 'api-codecs', 'management-web'}
 
 

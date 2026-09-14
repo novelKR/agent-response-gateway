@@ -9,6 +9,7 @@ import tarfile
 import tempfile
 
 import check_public_boundary
+import web_assets
 import release_package as package
 from release_targets import TARGETS
 
@@ -96,7 +97,7 @@ def inventory(metadata, built):
     return sorted(result,key=lambda v:(v['name'],v['version']))
 
 
-def build(root, base_directory, output):
+def build(root, base_directory, output, web_directory=None):
     base=package.verify_candidate(base_directory)
     target,commit=base['target'],base['source_commit']
     require(package.run(['git','rev-parse','HEAD'],root).decode().strip()==commit,'base source does not match the selected checkout')
@@ -109,7 +110,7 @@ def build(root, base_directory, output):
             members=archive.getmembers();source_files={m.name.removeprefix('agent-response-gateway/'):sha(archive.extractfile(m).read()) for m in members if m.isfile()}
             archive.extractall(temporary,filter='data')
         source=temporary/'agent-response-gateway'
-        for name in ['optional_package.py','management_smoke.py']:
+        for name in ['optional_package.py','management_smoke.py','web_assets.py']:
             require(read(root/'scripts'/name)==read(source/'scripts'/name),'packaging recipe is not the committed source')
         receipt=temporary/'source-receipt.json';package.write_new(receipt,encoded({'schema':'gateway-source-export/v1','source_commit':commit,'files':source_files}))
         env,sysroot=package.clean_environment(root/'target/release-candidate'/target,source)
@@ -135,26 +136,27 @@ def build(root, base_directory, output):
         raw=package.run(command+['-p','gateway-management-app','--features','team','--bin','gateway-team-manager'],source,env,logs/'team-cargo.log')
         team=dict(common);team['gateway-management/bin/gateway-team-manager'+suffix]=(read(release/('gateway-team-manager'+suffix)),0o755)
         team_inventory=inventory(metadata,package.compiled_packages(raw))
-        print('optional-package: verify and build static Web from exact exported source',flush=True)
-        empty_npm=temporary/'npmrc';package.write_new(empty_npm,b'');node_env={**env,'NPM_CONFIG_USERCONFIG':str(empty_npm)}
-        npm_path=shutil.which('npm.cmd' if suffix else 'npm',path=node_env['PATH'])
-        require(npm_path is not None,'pinned npm executable is missing')
-        # Invoke the installed npm CLI with Node directly: Windows .cmd quoting and
-        # implicit command-shell behavior are not part of the source-build recipe.
-        npm_script=Path(npm_path).parent/'node_modules/npm/bin/npm-cli.js' if suffix else Path(npm_path).resolve()
-        require(npm_script.is_file(),'installed npm CLI entry point is missing')
-        npm=['node',npm_script]
-        print('optional-package: verify pinned npm version',flush=True)
-        require(package.run(npm+['--version'],source,node_env).decode().strip()=='11.19.0','pinned npm is required')
-        print('optional-package: install locked Web dependencies',flush=True)
-        package.run(npm+['ci','--prefix','management-web','--ignore-scripts'],source,node_env,logs/'web-install.log')
-        print('optional-package: build Web against source receipt',flush=True)
-        package.run(npm+['run','build','--prefix','management-web','--','--source-receipt',receipt],source,node_env,logs/'web-build.log')
-        print('optional-package: verify Web output',flush=True)
-        package.run(['node','management-web/scripts/check-output.mjs',commit],source,node_env,logs/'web-check.log')
-        web={};web_root=source/'.local/management-web/dist'
-        for file in web_root.rglob('*'):
-            if file.is_file():web['gateway-management/web/'+file.relative_to(web_root).as_posix()]=(read(file),0o644)
+        if web_directory is None:
+            print('optional-package: verify and build static Web from exact exported source',flush=True)
+            empty_npm=temporary/'npmrc';package.write_new(empty_npm,b'');node_env={**env,'NPM_CONFIG_USERCONFIG':str(empty_npm)}
+            npm_path=shutil.which('npm.cmd' if suffix else 'npm',path=node_env['PATH'])
+            require(npm_path is not None,'pinned npm executable is missing')
+            # Invoke the installed npm CLI with Node directly: Windows .cmd quoting and
+            # implicit command-shell behavior are not part of the source-build recipe.
+            npm_script=Path(npm_path).parent/'node_modules/npm/bin/npm-cli.js' if suffix else Path(npm_path).resolve()
+            require(npm_script.is_file(),'installed npm CLI entry point is missing')
+            npm=['node',npm_script]
+            print('optional-package: verify pinned npm version',flush=True)
+            require(package.run(npm+['--version'],source,node_env).decode().strip()=='11.19.0','pinned npm is required')
+            print('optional-package: install locked Web dependencies',flush=True)
+            package.run(npm+['ci','--prefix','management-web','--ignore-scripts'],source,node_env,logs/'web-install.log')
+            print('optional-package: build Web against source receipt',flush=True)
+            package.run(npm+['run','build','--prefix','management-web','--','--source-receipt',receipt],source,node_env,logs/'web-build.log')
+            print('optional-package: verify Web output',flush=True)
+            package.run(['node','management-web/scripts/check-output.mjs',commit],source,node_env,logs/'web-check.log')
+            web_directory=source/'.local/management-web/dist'
+        verified_web=web_assets.verify(source,web_directory,commit)
+        web={'gateway-management/web/'+name:(raw,0o644) for name,raw in verified_web.items()}
         payloads={'management':management,'web':web,'team':team};output.mkdir(parents=True)
         names={};version=base['version']
         for kind,files in payloads.items():
@@ -182,7 +184,7 @@ def build(root, base_directory, output):
         value={'schema':SCHEMA,'source_commit':commit,'target':target,'version':version,'source_archive':base['source_archive'],
                'cargo_lock_sha256':sha(read(source/'Cargo.lock')),'modules':names,'module_contracts':CONTRACTS,
                'compilation':{'management':management_inventory,'team':team_inventory},
-               'packaging_tools':{n:sha(read(source/'scripts'/n)) for n in ['optional_package.py','management_smoke.py','release_package.py']},
+               'packaging_tools':{n:sha(read(source/'scripts'/n)) for n in ['optional_package.py','management_smoke.py','release_package.py','web_assets.py']},
                'build':{'profile':'release','locked':True,'offline_rust':True,'node':'24.21.0','npm':'11.19.0','rustc':base['rustc']},
                'validation':{'extracted_combinations':[c[0] for c in combinations],'provider_calls':'synthetic_only','deployment':'not_performed','consumer_acceptance':'not_performed'},
                'assets':{p.name:sha(read(p)) for p in output.iterdir()}}
@@ -193,11 +195,11 @@ def build(root, base_directory, output):
 
 if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__);commands=parser.add_subparsers(dest='command',required=True)
-    create=commands.add_parser('build');create.add_argument('--base',required=True,type=Path);create.add_argument('--output',required=True,type=Path)
+    create=commands.add_parser('build');create.add_argument('--base',required=True,type=Path);create.add_argument('--output',required=True,type=Path);create.add_argument('--web-assets',type=Path)
     check=commands.add_parser('verify');check.add_argument('directory',type=Path);check.add_argument('--commit');check.add_argument('--target')
     args=parser.parse_args()
     try:
-        result=build(ROOT,args.base.resolve(),args.output.resolve()) if args.command=='build' else verify(args.directory.resolve(),args.commit,args.target)
+        result=build(ROOT,args.base.resolve(),args.output.resolve(),args.web_assets.resolve() if args.web_assets else None) if args.command=='build' else verify(args.directory.resolve(),args.commit,args.target)
         print('optional-package: verified '+result['source_commit']+' '+result['target'])
     except (package.PackageError,check_public_boundary.BoundaryError,OSError,ValueError,KeyError,TypeError) as error:
         # PackageError messages are fixed diagnostics; arbitrary OS/input text stays private.

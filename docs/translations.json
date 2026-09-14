@@ -286,8 +286,8 @@
       "order": 3,
       "source": "docs/github-workflow.md",
       "translation": "docs/ko/github-workflow.md",
-      "source_sha256": "c5bccab0672e3d919cbbdb5a657cc10eb94353ed51890e3952c70ea992b4d25c",
-      "translation_sha256": "c34a00619d15097867efd42af6a97c15f58727ddca7d8d64ad341d9b0b80d677",
+      "source_sha256": "7d1d71d2a95a15a62231bfa1f44bfc250b2a2c533ce2282b1090db7f337a783a",
+      "translation_sha256": "ffa6cb4a2401c437e800ea52e44412a7c458a1527ad96483d3d2c29e06874d22",
       "anchors": [
         "branches-commits-and-reviews",
         "github-delivery-workflow",
@@ -1091,8 +1091,8 @@
         "화면-표현과-공통-테마",
         "화면과-관측-의미"
       ],
-      "source_sha256": "142c75133f3d3155cf38750b707c669a461175f7330b80c2c29021dceb4a92cd",
-      "translation_sha256": "e6fe98c0fdce3de2009d587cbe37e085032cf4c33305c953a8a5e95327ff201e"
+      "source_sha256": "4a4f37494797d8ca534d599d539aeaa018ea922af1e9ebfb98d536387a21844c",
+      "translation_sha256": "0837fbad020a0107849761e44abfe887b8305a5cae2a6f8d47b14c78bb6545d2"
     },
     {
       "id": "team-access",

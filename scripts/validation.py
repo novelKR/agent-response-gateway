@@ -144,6 +144,8 @@ def make_plan(root, profile='affected', scope='worktree', base=None, head=None, 
     local = set(policy['checks']) if full else {'boundary'} | {c for r in matched for c in r['local']}
     if 'package-smoke' in jobs:
         jobs |= {'targets', 'management-web'}
+    if {'codex-conformance', 'api-codecs'} & jobs:
+        jobs.add('conformance-prepare')
     if 'rust' in jobs:
         jobs.add('targets')
     if profile == 'full' or policy['force_full']:

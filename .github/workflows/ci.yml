@@ -22,6 +22,8 @@ jobs:
   validation-plan:
     outputs:
       plan: ${{ steps.plan.outputs.plan }}
+      conformance-prepare: ${{ steps.plan.outputs.conformance-prepare }}
+      web-windows: ${{ steps.plan.outputs.web-windows }}
       targets: ${{ steps.plan.outputs.targets }}
       format: ${{ steps.plan.outputs.format }}
       rust: ${{ steps.plan.outputs.rust }}
@@ -175,13 +177,15 @@ jobs:
         with:
           path: |
             .local/cargo-home/registry
-            .local/tools
             target/license-tools
           key: licenses-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'licensing/policy.json') }}
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .local/tools
+          key: license-tool-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'licensing/policy.json') }}
       - name: Prepare pinned license tool and locked sources
         run: |
-          cargo +1.98.0 install cargo-deny --version "$(python3 -c 'import json; print(json.load(open("licensing/policy.json"))["cargo_deny_version"])')" --locked --root .local/tools --target-dir target/license-tools
-          cargo +1.98.0 fetch --locked
+          python -B scripts/prepare_tools.py
       - run: python3 -B -m unittest discover -s scripts/tests -v
       - run: python3 -B scripts/license_audit.py check
       - name: Reproduce and inspect notice bundles
@@ -192,11 +196,14 @@ jobs:
           python3 -B scripts/archive_notices.py .local/release/licenses-a .local/release/license-notices.tar
           python3 -B scripts/check_public_boundary.py --archive .local/release/license-notices.tar
 
-  api-codecs:
+  conformance-prepare:
     needs: validation-plan
-    if: ${{ needs.validation-plan.outputs.api-codecs == 'true' }}
+    if: ${{ needs.validation-plan.outputs.conformance-prepare == 'true' }}
     runs-on: macos-15
     timeout-minutes: 25
+    outputs:
+      native-sha256: ${{ steps.seal-native.outputs.sha256 }}
+      codec-sha256: ${{ steps.seal-codec.outputs.sha256 }}
     env:
       CARGO_HOME: ${{ github.workspace }}/.local/cargo-home
       CARGO_TARGET_DIR: ${{ github.workspace }}/target
@@ -212,137 +219,130 @@ jobs:
         with:
           path: |
             .local/cargo-home/registry
-            .local/codex-runtime
             target
-          key: conformance-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'tests/codex/runtime-lock.json') }}
-      - run: python3 -B scripts/codex_runtime.py prepare
-      - run: python3 -B scripts/codex_runtime.py verify
-      - run: python3 -B scripts/codex_runtime.py schema --profile experimental
-      - run: cargo +1.98.0 build --workspace --locked
-      - run: cargo +1.98.0 build --locked --example api_codec
-      - name: Verify external codec behavior with Codex and synthetic providers
-        run: |
-          python3 -B tests/codex/conformance.py --api responses_checked --api messages --api chat_completions --api gemini_interactions --codec-bin target/debug/examples/api_codec
-          python3 -B tests/codex/conformance.py --api responses_checked --responses-native-custom --profile-packs --codec-bin target/debug/examples/api_codec
-          python3 -B tests/codex/reasoning_conformance.py --profile-packs --codec-bin target/debug/examples/api_codec
-      - name: Build editing codec and verify structured editing integration
-        run: |
-          cargo +1.98.0 build --locked --example api_codec_editing
-          python3 -B tests/codex/editing_fixture.py --gateway-bin target/debug/agent-response-gateway --codec-bin target/debug/examples/api_codec_editing --profile-packs
-          python3 -B scripts/managed_usage_smoke.py --gateway-bin target/debug/agent-response-gateway --recorder-bin target/debug/gateway-usage-recorder --editing --codec-bin target/debug/examples/api_codec_editing --profile-packs
-      - name: Verify opt-in patch envelope normalization
-        run: python3 -B tests/codex/editing_fixture.py --gateway-bin target/debug/agent-response-gateway --normalize-envelope --codec-bin target/debug/examples/api_codec_editing --profile-packs
-      - name: Verify external operation bundles and durable restart
-        run: |
-          python3 -B tests/codex/editing_fixture.py --gateway-bin target/debug/agent-response-gateway --operations --code-mode --codec-bin target/debug/examples/api_codec_editing --profile-packs
-          python3 -B scripts/managed_usage_smoke.py --gateway-bin target/debug/agent-response-gateway --recorder-bin target/debug/gateway-usage-recorder --operations --code-mode --codec-bin target/debug/examples/api_codec_editing --profile-packs
-      - name: Verify explicit Code Mode editing and recorder barriers
-        run: |
-          python3 -B tests/codex/editing_fixture.py --gateway-bin target/debug/agent-response-gateway --code-mode --codec-bin target/debug/examples/api_codec_editing --profile-packs
-          python3 -B scripts/managed_usage_smoke.py --gateway-bin target/debug/agent-response-gateway --recorder-bin target/debug/gateway-usage-recorder --code-mode --codec-bin target/debug/examples/api_codec_editing --profile-packs
-      - name: Verify external codec durable accounting and recovery
-        run: python3 -B scripts/managed_usage_smoke.py --gateway-bin target/debug/agent-response-gateway --recorder-bin target/debug/gateway-usage-recorder --compatibility-policy --profile-packs --codec-bin target/debug/examples/api_codec
-
-  codex-conformance:
-    needs: validation-plan
-    if: ${{ needs.validation-plan.outputs.codex-conformance == 'true' }}
-    runs-on: macos-15
-    timeout-minutes: 30
-    env:
-      CARGO_HOME: ${{ github.workspace }}/.local/cargo-home
-      CARGO_TARGET_DIR: ${{ github.workspace }}/target
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        with:
-          python-version: '3.14'
-      - run: rustup toolchain install 1.98.0 --profile minimal
+          key: conformance-build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock') }}
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: |
-            .local/cargo-home/registry
-            .local/codex-runtime
-            target
-          key: conformance-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'tests/codex/runtime-lock.json') }}
+          path: .local/codex-runtime
+          key: codex-runtime-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'tests/codex/runtime-lock.json') }}
       - run: python3 -B scripts/codex_runtime.py prepare
       - run: python3 -B scripts/codex_runtime.py verify
       - run: python3 -B scripts/codex_runtime.py schema --profile experimental
-      - run: cargo +1.98.0 build --locked
-      - name: Verify structured editing with pinned Codex
-        run: python3 -B tests/codex/editing_fixture.py --gateway-bin target/debug/agent-response-gateway
-      - name: Verify independent operation bundles
-        run: python3 -B tests/codex/editing_fixture.py --gateway-bin target/debug/agent-response-gateway --operations
-      - name: Verify host-owned Rust router file execution
+      - name: Prepare the existing native and codec feature combination
         run: |
-          cargo +1.98.0 build --locked --example embedded_editing
-          python3 -B tests/codex/editing_fixture.py --gateway-bin target/debug/agent-response-gateway --embedded-host-bin target/debug/examples/embedded_editing --operations
-      - name: Verify native Code Mode editing
-        run: python3 -B tests/codex/editing_fixture.py --gateway-bin target/debug/agent-response-gateway --code-mode
-      - name: Verify pinned direct and Code Mode editing contracts
-        run: python3 -B tests/codex/editing_contract.py --gateway-bin target/debug/agent-response-gateway
-      - name: Run every synthetic Codex scenario
-        shell: bash
-        run: python3 -B tests/codex/conformance.py | tee .local/conformance-results.jsonl
-      - name: Verify checked Responses tool compatibility
-        run: |
-          python3 -B tests/codex/conformance.py --api responses_checked
-          python3 -B tests/codex/conformance.py --api responses_checked --responses-native-custom
-      - name: Verify imported profiles and tool policies with Codex
-        run: |
-          python3 -B tests/codex/conformance.py --api responses_checked --api messages --api chat_completions --api gemini_interactions --profile-packs
-          python3 -B tests/codex/conformance.py --api responses_checked --responses-native-custom --profile-packs
-      - name: Verify host-owned continuity with the pinned Codex
-        shell: bash
-        run: python3 -B tests/codex/continuity.py | tee .local/continuity-results.jsonl
-      - name: Verify opaque replay prerequisite
-        run: python3 -B tests/codex/opaque_continuation.py
-      - name: Verify Interactions protocol and durable HTTP failures
-        run: |
-          python3 -B tests/codex/conformance.py --api gemini_interactions
-          python3 -B tests/codex/interactions_http.py
-          python3 -B tests/codex/interactions_continuity.py --resume-only
-      - name: Require Interactions compaction and recovery acceptance
-        run: python3 -B tests/codex/interactions_continuity.py
-      - name: Require managed Claude reasoning display and recovery
-        run: |
-          python3 -B tests/codex/reasoning_continuity.py
-          python3 -B tests/codex/reasoning_continuity.py --manual
-          python3 -B tests/codex/reasoning_continuity.py --opaque-only
-          python3 -B tests/codex/reasoning_continuity.py --manual --opaque-only
-          python3 -B tests/codex/reasoning_continuity.py --http-only
-          python3 -B tests/codex/reasoning_continuity.py --manual --http-only
-      - name: Require managed Chat reasoning display and recovery
-        run: |
-          python3 -B tests/codex/reasoning_chat_continuity.py
-          python3 -B tests/codex/reasoning_chat_continuity.py --router
-          python3 -B tests/codex/reasoning_chat_continuity.py --opaque-only
-          python3 -B tests/codex/reasoning_chat_continuity.py --router --opaque-only
-          python3 -B tests/codex/reasoning_chat_continuity.py --http-only
-          python3 -B tests/codex/reasoning_chat_continuity.py --router --http-only
-      - name: Require all managed reasoning tool and cancellation scenarios
-        run: python3 -B tests/codex/reasoning_conformance.py
-      - name: Build the immutable Gemini v1 writer
-        run: |
+          cargo +1.98.0 build --locked --target-dir target/conformance-native
+          cargo +1.98.0 build --locked --target-dir target/conformance-native --example embedded_editing
+          cargo +1.98.0 build --workspace --locked
+          cargo +1.98.0 build --locked --example api_codec --example api_codec_editing
           git fetch --no-tags origin 7bb42c064a4e0aa26a17c821f8fe1c2e35d4175e
           mkdir -p .local/legacy-source
           git archive 7bb42c064a4e0aa26a17c821f8fe1c2e35d4175e | tar -x -C .local/legacy-source
-          cargo build --locked --manifest-path .local/legacy-source/Cargo.toml --target-dir target/legacy
-      - name: Resume and repair mixed legacy and current replay with Codex
-        run: python3 -B tests/codex/interactions_continuity.py --legacy-gateway-bin target/legacy/debug/agent-response-gateway
-      - name: Report payload-free outcomes
+          cargo +1.98.0 build --locked --manifest-path .local/legacy-source/Cargo.toml --target-dir target/legacy
+      - id: seal-native
+        run: python3 -B scripts/prepared_inputs.py pack .local/prepared/native.tar.gz --variant native
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          archive: true
+          name: conformance-prepared-native
+          path: .local/prepared/native.tar.gz
+          if-no-files-found: error
+          retention-days: 3
+      - id: seal-codec
+        run: python3 -B scripts/prepared_inputs.py pack .local/prepared/codec.tar.gz --variant codec
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          archive: true
+          name: conformance-prepared-codec
+          path: .local/prepared/codec.tar.gz
+          if-no-files-found: error
+          retention-days: 3
+
+  api-codecs:
+    needs: [validation-plan, conformance-prepare]
+    if: ${{ needs.validation-plan.outputs.api-codecs == 'true' }}
+    name: api-codecs (${{ matrix.group }})
+    strategy:
+      fail-fast: false
+      matrix:
+        group: ["codec-protocol", "codec-editing-accounting"]
+    runs-on: macos-15
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.14'
+      - run: rustup toolchain install 1.98.0 --profile minimal
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          skip-decompress: false
+          digest-mismatch: error
+          name: conformance-prepared-codec
+          path: .local/prepared
+      - name: Verify the exact same-run prepared inputs
+        env:
+          PREPARED_SHA: ${{ needs.conformance-prepare.outputs.codec-sha256 }}
+        run: python3 -B scripts/prepared_inputs.py unpack .local/prepared/codec.tar.gz --variant codec --sha256 "$PREPARED_SHA"
+      - run: python3 -B scripts/codex_runtime.py verify
+      - name: Run the complete selected scenario group
+        env:
+          SUITE: ${{ matrix.group }}
+        run: python3 -B scripts/conformance_suite.py "$SUITE"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: ${{ always() }}
-        run: |
-          if test -f .local/conformance-results.jsonl; then
-            cat .local/conformance-results.jsonl >> "$GITHUB_STEP_SUMMARY"
-          fi
-          if test -f .local/continuity-results.jsonl; then
-            cat .local/continuity-results.jsonl >> "$GITHUB_STEP_SUMMARY"
-          fi
+        with:
+          archive: true
+          name: conformance-results-${{ matrix.group }}
+          path: .local/conformance-groups/${{ matrix.group }}/results.json
+          if-no-files-found: error
+          retention-days: 14
+
+  codex-conformance:
+    needs: [validation-plan, conformance-prepare]
+    if: ${{ needs.validation-plan.outputs.codex-conformance == 'true' }}
+    name: codex-conformance (${{ matrix.group }})
+    strategy:
+      fail-fast: false
+      matrix:
+        group: ["editing", "protocol-continuity", "managed-reasoning", "legacy-migration"]
+    runs-on: macos-15
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.14'
+      - run: rustup toolchain install 1.98.0 --profile minimal
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          skip-decompress: false
+          digest-mismatch: error
+          name: conformance-prepared-native
+          path: .local/prepared
+      - name: Verify the exact same-run prepared inputs
+        env:
+          PREPARED_SHA: ${{ needs.conformance-prepare.outputs.native-sha256 }}
+        run: python3 -B scripts/prepared_inputs.py unpack .local/prepared/native.tar.gz --variant native --sha256 "$PREPARED_SHA"
+      - run: python3 -B scripts/codex_runtime.py verify
+      - name: Run the complete selected scenario group
+        env:
+          SUITE: ${{ matrix.group }}
+        run: python3 -B scripts/conformance_suite.py "$SUITE"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: ${{ always() }}
+        with:
+          archive: true
+          name: conformance-results-${{ matrix.group }}
+          path: .local/conformance-groups/${{ matrix.group }}/results.json
+          if-no-files-found: error
+          retention-days: 14
 
   package-smoke:
-    needs: [validation-plan, targets]
+    needs: [validation-plan, targets, management-web]
     if: ${{ needs.validation-plan.outputs.package-smoke == 'true' }}
     name: package-smoke (${{ matrix.target }})
     strategy:
@@ -364,25 +364,28 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.14'
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          node-version: '24.21.0'
-          cache: npm
-          cache-dependency-path: management-web/package-lock.json
+          skip-decompress: false
+          digest-mismatch: error
+          name: management-web
+          path: .local/management-web/dist
       - run: rustup toolchain install 1.98.0 --profile minimal
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             .local/cargo-home/registry
-            .local/tools
             target/license-tools
             target/release-candidate
           key: package-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'licensing/policy.json', 'scripts/release_package.py') }}
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .local/tools
+          key: license-tool-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'licensing/policy.json') }}
       - name: Prepare locked build sources and pinned notice tool
         shell: bash
         run: |
-          cargo +1.98.0 install cargo-deny --version "$(python -c 'import json; print(json.load(open("licensing/policy.json"))["cargo_deny_version"])')" --locked --root .local/tools --target-dir target/license-tools
-          cargo +1.98.0 fetch --locked
+          python -B scripts/prepare_tools.py
       - run: python -B -m unittest discover -s scripts/tests -p 'test_release_package.py' -v
       - name: Build committed source and verify candidate
         env:
@@ -394,7 +397,7 @@ jobs:
         env:
           PACKAGE_TARGET: ${{ matrix.target }}
         run: |
-          python -B scripts/optional_package.py build --base .local/package-candidate --output .local/optional-candidate
+          python -B scripts/optional_package.py build --base .local/package-candidate --output .local/optional-candidate --web-assets .local/management-web/dist
           python -B scripts/optional_package.py verify .local/optional-candidate --commit "$GITHUB_SHA" --target "$PACKAGE_TARGET"
       - name: Retain verified optional modules separately
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -470,6 +473,9 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.14'
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '24.21.0'
@@ -477,7 +483,7 @@ jobs:
           cache-dependency-path: management-web/package-lock.json
       - run: rustup toolchain install 1.98.0 --profile minimal
       - run: npm ci --prefix management-web --ignore-scripts
-      - run: npm run build --prefix management-web
+      - run: python3 -B scripts/web_assets.py .local/management-web/dist
       - run: node management-web/scripts/check-output.mjs "$GITHUB_SHA"
       - run: cargo +1.98.0 build -p gateway-management-api --example web_fixture --locked
       - name: Verify production Web and synthetic/API DevDemo modes
@@ -490,6 +496,22 @@ jobs:
           path: .local/management-web/dist/
           if-no-files-found: error
           retention-days: 14
+
+  web-windows:
+    needs: validation-plan
+    if: ${{ needs.validation-plan.outputs.web-windows == 'true' }}
+    runs-on: windows-2025
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24.21.0'
+      - run: npm ci --prefix management-web --ignore-scripts
+      - run: npm run build --prefix management-web
+      - run: node management-web/scripts/check-output.mjs "$GITHUB_SHA"
 
   usage-recorder:
     needs: validation-plan
@@ -530,7 +552,7 @@ jobs:
 
   ci-required:
     if: ${{ always() }}
-    needs: [validation-plan, targets, format, rust, publication, licenses, codex-conformance, package-smoke, docs, usage-recorder, api-codecs, management-web]
+    needs: [validation-plan, conformance-prepare, web-windows, targets, format, rust, publication, licenses, codex-conformance, package-smoke, docs, usage-recorder, api-codecs, management-web]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:

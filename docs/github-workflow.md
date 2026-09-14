@@ -56,13 +56,27 @@ in shadow mode and still requires the complete existing check set; an impact
 plan is not evidence that any selected test ran. `force_full` in the validation
 policy only expands coverage.
 
-The required jobs are `validation-plan`, `targets`, `format`, `rust`,
+The required jobs are `validation-plan`, `conformance-prepare`, `web-windows`, `targets`, `format`, `rust`,
 `publication`, `licenses`, `codex-conformance`, `api-codecs`, `usage-recorder`,
 `management-web`, `docs` and `package-smoke`. Both native matrices use all four
 platforms from the [common target definition](../scripts/release_targets.py).
 `ci-required` succeeds only when the complete, explicitly named prerequisite set succeeds.
 Missing, extra, skipped, cancelled and failed jobs block it. No path filter silently omits a required check.
 Register a required check in branch protection after its first successful run.
+
+Native conformance runs as four isolated groups: editing, protocol/continuity,
+managed reasoning and legacy migration. External codecs use protocol and
+editing/accounting groups. Every original scenario recipe remains registered
+exactly once. A preparation job builds the same default-feature native inputs
+and verifies the pinned runtime; consumers verify source, run/attempt, platform,
+toolchain, input locks and every file hash before installing shared executables.
+The prepared archive is retained for three days, group results for 14 days.
+Prepared inputs are not cached test success or release signatures.
+
+The Web producer builds the exact source export once. Native package jobs consume
+its checked assets, while a separate Windows job retains Web build compatibility.
+License-tool caches are separate from dependency/build caches. Restored tool
+versions are verified before use; a mismatch fails instead of reinstalling silently.
 
 The license job verifies locked evidence, runs all script tests and reproduces
 notice bundles with the pinned development tool. Codex conformance runs the actual

@@ -53,7 +53,7 @@ crate 라이선스 도구가 필요하지 않다. 로컬 결과는 `.local/valid
 영향 계획은 선택한 테스트의 실행 증거가 아니다. 검증 정책의 `force_full`은 범위를
 확대하는 방향으로만 작동한다.
 
-필수 작업은 `validation-plan`, `targets`, `format`, `rust`,
+필수 작업은 `validation-plan`, `conformance-prepare`, `web-windows`, `targets`, `format`, `rust`,
 `publication`, `licenses`, `codex-conformance`, `api-codecs`, `usage-recorder`,
 `management-web`, `docs`, `package-smoke`다. 두 네이티브 행렬은
 [공통 대상 정의](../../scripts/release_targets.py)의 플랫폼 4종을 모두 사용한다.
@@ -61,6 +61,19 @@ crate 라이선스 도구가 필요하지 않다. 로컬 결과는 `.local/valid
 누락·추가·건너뜀·취소·실패 작업은 집계를 차단한다.
 경로 필터로 필수 검사를 조용히 생략하지 않는다. 첫 성공 실행 이후 해당
 검사를 브랜치 보호에 등록한다.
+
+네이티브 적합성 검사는 editing, protocol/continuity, managed reasoning,
+legacy migration의 독립 그룹 네 개로 실행한다. 외부 codec은 protocol과
+editing/accounting 그룹을 사용한다. 기존 시나리오 명령은 각각 정확히 한 번
+등록된다. 준비 작업이 같은 기본 feature 네이티브 입력을 빌드하고 고정 runtime을
+검증한다. 소비자는 공유 실행 파일을 설치하기 전에 소스, run/attempt, 플랫폼,
+도구 체계, 입력 lock과 모든 파일 해시를 검증한다. 준비 archive는 3일,
+그룹 결과는 14일 보관한다. 준비 입력은 캐시된 테스트 성공이나 릴리스 서명이 아니다.
+
+Web 생산 작업은 정확한 소스 내보내기를 한 번 빌드한다. 네이티브 패키지 작업은
+검사한 자산을 소비하며 별도 Windows 작업이 Web 빌드 호환성을 유지한다.
+라이선스 도구 캐시는 의존성·빌드 캐시와 분리한다. 복원한 도구 버전을 사용 전에
+검증하며 불일치하면 조용히 재설치하지 않고 실패한다.
 
 라이선스 작업은 잠금 증거와 모든 스크립트 테스트를 검사하고 고정 개발 도구로
 고지 묶음을 재현한다. Codex conformance는 실제 고정 실행 파일, 게이트웨이와
