@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import { createClient, modulesOf, observed, inventoryRows } from './api.mjs';
+import JsonView from './JsonView.vue';
 import { messages } from './i18n.mjs';
 import { createTheme, themeChoices } from './theme.mjs';
 const props = defineProps({
@@ -41,7 +42,6 @@ const usageGroups = computed(() => Array.isArray(usage.value?.groups) ? usage.va
 const format = value => value === null || value === undefined ? '—' : typeof value === 'number' && !Number.isSafeInteger(value) ? t('unknown') : String(value);
 const short = value => value ? String(value).slice(0,12) : '—';
 const time = value => Number.isSafeInteger(value) && value > 0 ? new Intl.DateTimeFormat(language.value, { dateStyle:'medium', timeStyle:'medium' }).format(value) : t('noObservation');
-const pretty = value => value ? JSON.stringify(value,null,2) : t('noObservation');
 const statusClass = value => ['succeeded','running','verified'].includes(value) ? 'good' : ['uncertain','pending','unowned'].includes(value) ? 'warn' : ['failed','invalid'].includes(value) ? 'bad' : 'neutral';
 function changeLanguage() { document.documentElement.lang=language.value; try { preferenceStorage?.setItem('gateway-view-language',language.value); } catch {} }
 function clearViews() { state.value=null; capabilities.value=null; usage.value=null; operations.value=[]; selectedOperation.value=null; cursor.value=0; hasMore.value=false; viewErrors.value={}; viewTimes.value={}; }
@@ -274,7 +274,7 @@ defineExpose({
 </div>
 <p v-if="runtime?.external_change" class="notice warn">{{ t('externalChange') }}</p>
 <p class="small-muted">{{ t('lastObserved') }}: {{ time(runtimeModule?.observation?.observed_at_ms) }}</p>
-<pre class="json-view">{{ pretty(runtime) }}</pre>
+<JsonView :value="runtime" :empty-text="t('noObservation')" />
 </article>
 </template>
         <template v-if="page==='configuration'">
@@ -286,14 +286,14 @@ defineExpose({
 <h2>{{ t('current') }}</h2>
 <span class="tag neutral">{{ runtime?.running ? t('effective') : t('noObservation') }}</span>
 </div>
-<pre class="json-view">{{ pretty(runtime?.running_manifest) }}</pre>
+<JsonView :value="runtime?.running_manifest" :empty-text="t('noObservation')" />
 </article>
 <article class="panel">
 <div class="panel-title">
 <h2>{{ t('desired') }}</h2>
 <span class="tag" :class="runtime?.restart_required ? 'warn' : 'neutral'">{{ runtime?.selected || '—' }}</span>
 </div>
-<pre class="json-view">{{ pretty(runtime?.desired) }}</pre>
+<JsonView :value="runtime?.desired" :empty-text="t('noObservation')" />
 </article>
 </div>
 <article class="panel">
@@ -396,7 +396,7 @@ defineExpose({
 <div v-for="item in usage.requests" :key="item.record.admission.id" class="panel">
 <h3>{{ item.record.admission.route }} · {{ short(item.record.admission.id) }}</h3>
 <p>{{ item.record.admission.subject }} · {{ t(item.usage.state) }}</p>
-<details><summary>{{ t('details') }}</summary><pre class="json-view">{{ pretty(item) }}</pre></details>
+<details><summary>{{ t('details') }}</summary><JsonView :value="item" :empty-text="t('noObservation')" /></details>
 </div>
 <p v-if="!usage.requests.length" class="empty">{{ t('noTeamUsage') }}</p>
 <button v-if="usage.next_after" :disabled="busy" @click="moreUsage">{{ t('more') }}</button>
@@ -465,7 +465,7 @@ defineExpose({
 </ol>
 <details>
 <summary>{{ t('metadata') }}</summary>
-<pre class="json-view">{{ pretty(selectedOperation.operation) }}</pre>
+<JsonView :value="selectedOperation.operation" :empty-text="t('noObservation')" />
 </details>
 </section>
 </div>

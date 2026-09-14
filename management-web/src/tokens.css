@@ -1,5 +1,11 @@
 :root {
   color-scheme:light;
+  --json-key:#315da0;
+  --json-string:#28634b;
+  --json-number:#875020;
+  --json-boolean:#75408d;
+  --json-null:#655078;
+  --json-punctuation:#536174;
   --canvas:#f5f6f8;
   --surface:#fff;
   --surface-muted:#f4f6f7;
@@ -49,6 +55,12 @@
 }
 :root[data-theme="dark"] {
   color-scheme:dark;
+  --json-key:#a7c9ff;
+  --json-string:#a3dbb7;
+  --json-number:#f0c08c;
+  --json-boolean:#dab5f3;
+  --json-null:#c5b7d9;
+  --json-punctuation:#b7c5d9;
   --canvas:#101720;
   --surface:#192330;
   --surface-muted:#222f3e;

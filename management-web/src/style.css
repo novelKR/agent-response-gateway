@@ -832,3 +832,11 @@ h1 {
 
 .theme-choice { margin-top:12px; }
 @media(max-width:700px) { .theme-choice { margin-top:6px; } .brand { max-width:calc(100% - 95px); } }
+
+.json-view code { font:inherit; }
+.json-key { color:var(--json-key); }
+.json-string { color:var(--json-string); }
+.json-number { color:var(--json-number); }
+.json-boolean { color:var(--json-boolean); }
+.json-null { color:var(--json-null); }
+.json-punctuation { color:var(--json-punctuation); }
