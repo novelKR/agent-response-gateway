@@ -1,7 +1,7 @@
 //! Standalone recorder. The model gateway does not link this crate or database drivers.
 pub mod export;
 pub mod query;
-use gateway_usage_contract::{EventKind, ReceiptStatus, RecorderConfig, UsageEvent, digest};
+use gateway_usage_contract::{EventKind, ReceiptStatus, RecordedEvent, RecorderConfig, digest};
 use rusqlite::{Connection, OptionalExtension, params};
 use std::{
     fs::{self, File, OpenOptions},
@@ -79,6 +79,9 @@ pub fn config(path: &Path) -> Result<RecorderConfig> {
         match d {
             gateway_usage_contract::Destination::Http {
                 url, bearer_file, ..
+            }
+            | gateway_usage_contract::Destination::HttpV2 {
+                url, bearer_file, ..
             } => {
                 let url = reqwest::Url::parse(url)?;
                 let local = url
@@ -129,6 +132,12 @@ pub struct Store {
 }
 impl Store {
     pub fn open(directory: &Path, create: bool, writer: bool) -> Result<Self> {
+        Self::open_version(directory, create, writer, 1)
+    }
+    pub fn open_v2(directory: &Path, create: bool, writer: bool) -> Result<Self> {
+        Self::open_version(directory, create, writer, 2)
+    }
+    fn open_version(directory: &Path, create: bool, writer: bool, requested: i64) -> Result<Self> {
         private_path(directory, true)?;
         let lock = if writer {
             let path = directory.join(".writer.lock");
@@ -187,14 +196,14 @@ CREATE TABLE usage_tombstones(producer_id TEXT NOT NULL,event_id TEXT NOT NULL,a
 CREATE VIEW usage_current AS SELECT e.* FROM usage_events e WHERE e.revision=(SELECT MAX(x.revision) FROM usage_events x WHERE x.producer_id=e.producer_id AND x.attempt_id=e.attempt_id);
 CREATE TABLE destinations(id TEXT PRIMARY KEY,sha256 TEXT NOT NULL);
 CREATE TABLE usage_outbox(producer_id TEXT NOT NULL,event_id TEXT NOT NULL,destination TEXT NOT NULL,state TEXT NOT NULL DEFAULT 'pending',attempts INTEGER NOT NULL DEFAULT 0,next_at_ms INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(producer_id,event_id,destination));
-PRAGMA user_version=1;COMMIT;")?;
+PRAGMA user_version=1;COMMIT;".replace("user_version=1",if requested==2{"user_version=2"}else{"user_version=1"}).as_str())?;
             connection.execute(
                 "INSERT INTO metadata VALUES('producer_id',?1)",
                 [uuid::Uuid::new_v4().to_string()],
             )?;
         }
         let version: i64 = connection.pragma_query_value(None, "user_version", |r| r.get(0))?;
-        if version != STORAGE_VERSION {
+        if !matches!(version, 1 | 2) || writer && version != requested {
             return Err("unsupported_storage_schema".into());
         }
         Ok(Self {
@@ -202,6 +211,31 @@ PRAGMA user_version=1;COMMIT;")?;
             directory: directory.into(),
             _lock: lock,
         })
+    }
+    pub fn open_current(directory: &Path, writer: bool) -> Result<Self> {
+        let version = Self::open(directory, false, false)?.storage_version()?;
+        if version == 2 {
+            Self::open_v2(directory, false, writer)
+        } else {
+            Self::open(directory, false, writer)
+        }
+    }
+    pub fn storage_version(&self) -> Result<i64> {
+        Ok(self
+            .connection
+            .pragma_query_value(None, "user_version", |r| r.get(0))?)
+    }
+    pub fn upgrade_v2(&mut self, backup: &Path) -> Result<()> {
+        if self.storage_version()? != 1 {
+            return Err("unsupported_storage_schema".into());
+        }
+        self.backup(backup)?;
+        let tx = self
+            .connection
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        tx.pragma_update(None, "user_version", 2)?;
+        tx.commit()?;
+        Ok(())
     }
     pub fn producer(&self) -> Result<String> {
         Ok(self.connection.query_row(
@@ -248,25 +282,34 @@ PRAGMA user_version=1;COMMIT;")?;
         tx.commit()?;
         Ok(())
     }
-    pub fn record(&mut self, event: &UsageEvent, c: &RecorderConfig) -> Result<ReceiptStatus> {
-        let bytes = event.bytes()?;
+    pub fn record<E: Clone + Into<RecordedEvent>>(
+        &mut self,
+        event: &E,
+        c: &RecorderConfig,
+    ) -> Result<ReceiptStatus> {
+        let recorded: RecordedEvent = event.clone().into();
+        if recorded.is_v2() && self.storage_version()? != 2 {
+            return Err("usage_v2_requires_storage_v2".into());
+        }
+        let bytes = recorded.bytes()?;
+        let identity = String::from_utf8(recorded.identity_bytes()?)?;
+        let event = recorded.view();
         let sha = digest(&bytes);
         let payload = String::from_utf8(bytes)?;
         let revision = i64::try_from(event.revision)?;
         let start = i64::try_from(event.started_at_ms)?;
         let observed = i64::try_from(event.observed_at_ms)?;
-        let identity = serde_json::to_string(&(
-            &event.request_id,
-            event.started_at_ms,
-            &event.provider,
-            &event.model_alias,
-            &event.upstream_model,
-            event.profile,
-            &event.configuration_sha256,
-        ))?;
-        let tx = self.connection.transaction()?;
-        let prior:Option<String>=tx.query_row("SELECT sha256 FROM (SELECT producer_id,event_id,attempt_id,revision,sha256 FROM usage_events UNION ALL SELECT producer_id,event_id,attempt_id,revision,sha256 FROM usage_tombstones) WHERE producer_id=?1 AND (event_id=?2 OR (attempt_id=?3 AND revision=?4))",params![event.producer_id,event.event_id,event.attempt_id,revision],|r|r.get(0)).optional()?;
-        if let Some(old) = prior {
+        // Reserve the writer before reading deduplication state (WAL export contention).
+        let tx = self
+            .connection
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        let prior:Option<(String,Option<String>)>=tx.query_row("SELECT sha256,payload FROM (SELECT producer_id,event_id,attempt_id,revision,sha256,payload FROM usage_events UNION ALL SELECT producer_id,event_id,attempt_id,revision,sha256,NULL AS payload FROM usage_tombstones) WHERE producer_id=?1 AND (event_id=?2 OR (attempt_id=?3 AND revision=?4))",params![event.producer_id,event.event_id,event.attempt_id,revision],|r|Ok((r.get(0)?,r.get(1)?))).optional()?;
+        if let Some((old, payload)) = prior {
+            // Live rows must still contain their committed bytes. Retention tombstones
+            // deliberately keep only identity/hash and retain their original ACK semantics.
+            if let Some(payload) = payload {
+                RecordedEvent::from_stored_bytes(payload.as_bytes(), &old)?;
+            }
             return Ok(if old == sha {
                 ReceiptStatus::Duplicate
             } else {

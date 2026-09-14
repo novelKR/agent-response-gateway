@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Gateway usage HTTP batch v2",
+  "description": "Structural schema only; exact event-byte hashes, bounded transport bytes and complete matching receipt identity must also be checked.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "events"
+  ],
+  "properties": {
+    "schema": {
+      "const": "gateway-usage-batch/v2"
+    },
+    "events": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "items": {
+        "oneOf": [
+          {
+            "$ref": "gateway-usage-event-v1.schema.json"
+          },
+          {
+            "$ref": "gateway-usage-event-v2.schema.json"
+          }
+        ]
+      }
+    }
+  }
+}

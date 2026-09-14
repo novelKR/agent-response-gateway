@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Gateway usage HTTP batch receipt v2",
+  "description": "Structural schema only; exact event-byte hashes, bounded transport bytes and complete matching receipt identity must also be checked.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "receipts"
+  ],
+  "properties": {
+    "schema": {
+      "const": "gateway-usage-batch-receipt/v2"
+    },
+    "receipts": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "producer_id",
+          "event_id",
+          "sha256",
+          "status"
+        ],
+        "properties": {
+          "producer_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_/.:\\-]{1,200}(?![\\s\\S])"
+          },
+          "event_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_/.:\\-]{1,200}(?![\\s\\S])"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}(?![\\s\\S])"
+          },
+          "status": {
+            "enum": [
+              "committed",
+              "duplicate",
+              "conflict",
+              "rejected"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

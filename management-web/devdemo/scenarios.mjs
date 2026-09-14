@@ -48,11 +48,11 @@ export function scenarioData(id) {
   }
   const grants=id==='team'?['read_usage']:id==='embedded'?['read_state']:['read_state','read_usage','read_operations'];
   const groups=id==='empty'?[]:[
-    {date:'2026-01-02',model_alias:'synthetic-model',provider:'synthetic',calls:4,final:2,partial:1,unobserved:1,unfinished:1,token_sums:{input_tokens:1250,output_tokens:null}},
-    {date:'2026-01-01',model_alias:'synthetic-large',provider:'synthetic',calls:1,final:1,partial:0,unobserved:0,unfinished:0,token_sums:{input_tokens:'__devdemo_large_integer__',output_tokens:0}},
+    {date:'2026-01-02',model_alias:'synthetic-model',provider:'synthetic',interpretation:{kind:'builtin_parser',profile:'responses/v1'},calls:4,final:2,partial:1,unobserved:1,unfinished:1,token_sums:{input_tokens:1250,output_tokens:null}},
+    {date:'2026-01-01',model_alias:'synthetic-large',provider:'synthetic',interpretation:{kind:'trusted_provider_plugin',protocol:'gateway-provider/v1',provider_protocol:'synthetic-provider/v1',package_id:'synthetic-provider',package_version:'1.0.0',package_sha256:'a'.repeat(64),executable_sha256:'b'.repeat(64)},calls:1,final:1,partial:0,unobserved:0,unfinished:0,token_sums:{input_tokens:'__devdemo_large_integer__',output_tokens:0}},
   ];
-  const own={schema:'gateway-team-usage/v1',scope:'own_subject',from_ms:baseTime-86400000,to_ms:baseTime,next_after:null,requests:[{record:{admission:{id:'synthetic-team-request',subject:'synthetic-alice',route:'synthetic-model',at_ms:baseTime-3000},headers:{gateway_request:'synthetic-request-id',status:200},finished:{transport:'eof',at_ms:baseTime-2000}},usage:{state:'unobserved',attempts:[]},transport_observation:'recorded'}]};
-  return {capabilities:{target:'gateway',features:[{id:'synthetic-view-host',version:'fixture/v1',installed:true,enabled:true,operations:grants}],supported_operations:grants,allowed_operations:grants,read_sessions:true,unsupported_operations:['package_remove']},state:{schema:'gateway-management-state/v1',modules},usage:id==='team'?own:{schema:'synthetic-usage/v1',groups},operations:id==='empty'?[]:Array.from({length:id==='long'?55:3},(_,i)=>operation(i))};
+  const own={schema:'gateway-team-http/v1',scope:'own_subject',from_ms:baseTime-86400000,to_ms:baseTime,next_after:null,requests:[{record:{admission:{id:'synthetic-team-request',subject:'synthetic-alice',route:'synthetic-model',at_ms:baseTime-3000},headers:{gateway_request:'synthetic-request-id',status:200},finished:{transport:'eof',at_ms:baseTime-2000}},usage:{state:'unobserved',attempts:[]},transport_observation:'recorded'}]};
+  return {capabilities:{target:'gateway',features:[{id:'synthetic-view-host',version:'fixture/v1',installed:true,enabled:true,operations:grants}],supported_operations:grants,allowed_operations:grants,read_sessions:true,unsupported_operations:['package_remove']},state:{schema:'gateway-management-state/v1',modules},usage:id==='team'?own:{schema:'gateway-management-usage/v2',groups},operations:id==='empty'?[]:Array.from({length:id==='long'?55:3},(_,i)=>operation(i))};
 }
 
 // An in-memory HTTP-shaped transport: the shared production parser still consumes it.

@@ -55,7 +55,9 @@ digest는 유지됩니다. 내부 표현으로 바꾸기 전에 인증하고 aut
 
 명시적으로 구성한 managed provider 경로가 있으면 manifest 버전은
 `gateway-embedded-manifest/v10`, readiness는 `gateway-ready/v10`, 확장 manifest/readiness는
-`gateway-extended-manifest/v10` / `gateway-extended-ready/v10`입니다. Replay 선언은 다음과 같습니다.
+`gateway-extended-manifest/v10` / `gateway-extended-ready/v10`입니다. Recorder v2도 선택하면 외부 계약은
+`gateway-extended-manifest/v11` / `gateway-extended-ready/v11`이 되며 중첩 gateway
+manifest는 v10을 유지합니다. Replay 선언은 다음과 같습니다.
 
 ```json
 {"read":[1,2,3],"write_builtin":2,"write_provider":3}

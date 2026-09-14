@@ -366,6 +366,12 @@ impl ManagedDispatch {
             Ok(Self::Builtin(Box::new(p)))
         }
     }
+    pub(crate) fn provider_observation(&self) -> Option<&ProviderObservation> {
+        match self {
+            Self::Provider(p) => Some(p.observation()),
+            _ => None,
+        }
+    }
     pub(crate) fn usage_profile(&self) -> Option<gateway_usage_contract::Profile> {
         match self {
             Self::Builtin(p) => Some(p.usage_profile()),
@@ -418,6 +424,13 @@ pub(crate) enum Managed<'a> {
     Provider(Box<ProviderStream<'a>>, Vec<Value>),
 }
 impl Managed<'_> {
+    pub(crate) fn provider_observation(&self) -> Option<&ProviderObservation> {
+        match self {
+            Self::Provider(s, _) => Some(s.observation()),
+            _ => None,
+        }
+    }
+
     pub(crate) async fn event(&mut self, event: SseEvent) -> Result<(), IrError> {
         match self {
             Self::Builtin(s) => s.event(event),

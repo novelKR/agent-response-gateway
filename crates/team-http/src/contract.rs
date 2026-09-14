@@ -254,3 +254,44 @@ pub(crate) fn now() -> Result<u64> {
 pub(crate) fn new_id() -> Id {
     Id::new(uuid::Uuid::new_v4().to_string()).expect("generated UUID")
 }
+
+/// Validate the usage-specific nested contract without changing team/admin transport.
+/// V1-only reports retain their original shape; V2 events require an exact declaration.
+pub fn validate_usage_report(value: &Value) -> Result<()> {
+    if value["schema"] != SCHEMA {
+        return Err(Error::UnsupportedSchema);
+    }
+    let rows = value["requests"].as_array().ok_or(Error::InvalidInput)?;
+    let mut versioned = false;
+    for row in rows {
+        if row["usage"]["state"] == "observed" {
+            let events = row["usage"]["attempts"]
+                .as_array()
+                .ok_or(Error::InvalidInput)?;
+            if events.is_empty() || events.len() > 16 {
+                return Err(Error::InvalidInput);
+            }
+            for raw in events {
+                let event: gateway_usage_contract::RecordedEvent =
+                    serde_json::from_value(raw.clone()).map_err(|_| Error::UnsupportedSchema)?;
+                if !event.validate() {
+                    return Err(Error::InvalidInput);
+                }
+                versioned |= event.is_v2();
+            }
+        }
+    }
+    if versioned {
+        if value.get("usage_event_schemas")
+            != Some(&serde_json::json!([
+                gateway_usage_contract::SCHEMA,
+                gateway_usage_contract::SCHEMA_V2
+            ]))
+        {
+            return Err(Error::UnsupportedSchema);
+        }
+    } else if value.get("usage_event_schemas").is_some() {
+        return Err(Error::UnsupportedSchema);
+    }
+    Ok(())
+}

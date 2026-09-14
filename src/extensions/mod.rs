@@ -155,6 +155,13 @@ impl Package {
                         .map(String::as_str)
                         .eq(RECORDER_PERMISSIONS)
                     && self.state_schema == "usage-store/v1")
+                || (self.protocol == "gateway-usage-recorder/v2"
+                    && self
+                        .permissions
+                        .iter()
+                        .map(String::as_str)
+                        .eq(RECORDER_PERMISSIONS)
+                    && self.state_schema == "usage-store/v2")
                 || (crate::codecs::contract::supported_protocol(&self.protocol)
                     && self
                         .permissions
@@ -339,7 +346,12 @@ impl ExtensionPlan {
         }
         let recorders = packages
             .iter()
-            .filter(|p| p.protocol == gateway_usage_contract::PROTOCOL)
+            .filter(|p| {
+                matches!(
+                    p.protocol.as_str(),
+                    gateway_usage_contract::PROTOCOL | "gateway-usage-recorder/v2"
+                )
+            })
             .count();
         if recorders != usize::from(activation.recorder.is_some()) {
             return Err(invalid());
@@ -358,7 +370,9 @@ impl ExtensionPlan {
                 return Err(invalid());
             }
         }
-        if activation.recorder.is_some()
+        if packages
+            .iter()
+            .any(|p| p.protocol == gateway_usage_contract::PROTOCOL)
             && packages
                 .iter()
                 .any(|p| p.protocol == gateway_plugin_contract::PROVIDER_PROTOCOL)
@@ -367,7 +381,7 @@ impl ExtensionPlan {
                 "Provider plugins require a compatible usage recorder contract".into(),
             ));
         }
-        let configuration = json!({"schema":if packages.iter().any(|p| p.protocol == gateway_plugin_contract::PROVIDER_PROTOCOL) {"gateway-extension-configuration/v4"} else if packages.iter().any(|p| p.capabilities.is_some()) {"gateway-extension-configuration/v3"} else if activation.recorder.is_some() {"gateway-extension-configuration/v2"} else {"gateway-extension-configuration/v1"}, "store":root,
+        let configuration = json!({"schema":if packages.iter().any(|p| p.protocol == "gateway-usage-recorder/v2") {"gateway-extension-configuration/v5"} else if packages.iter().any(|p| p.protocol == gateway_plugin_contract::PROVIDER_PROTOCOL) {"gateway-extension-configuration/v4"} else if packages.iter().any(|p| p.capabilities.is_some()) {"gateway-extension-configuration/v3"} else if activation.recorder.is_some() {"gateway-extension-configuration/v2"} else {"gateway-extension-configuration/v1"}, "store":root,
             "activation":activation, "packages":packages});
         let configuration_sha256 = hash(&canonical(&configuration)?);
         Ok(Self {
@@ -464,6 +478,12 @@ impl ExtensionPlan {
         if self
             .packages
             .iter()
+            .any(|p| p.protocol == "gateway-usage-recorder/v2")
+        {
+            "gateway-extended-manifest/v11"
+        } else if self
+            .packages
+            .iter()
             .any(|p| p.protocol == gateway_plugin_contract::PROVIDER_PROTOCOL)
         {
             "gateway-extended-manifest/v9"
@@ -477,6 +497,12 @@ impl ExtensionPlan {
     }
     pub fn ready_schema(&self) -> &'static str {
         if self
+            .packages
+            .iter()
+            .any(|p| p.protocol == "gateway-usage-recorder/v2")
+        {
+            "gateway-extended-ready/v11"
+        } else if self
             .packages
             .iter()
             .any(|p| p.protocol == gateway_plugin_contract::PROVIDER_PROTOCOL)
@@ -510,7 +536,16 @@ impl ExtensionPlan {
         let managed = base_manifest["configuration"].get("continuation").is_some();
         let mut configuration = json!({"gateway":base_manifest,"extensions":self.configuration});
         if self.activation.recorder.is_some() {
-            configuration["usage_contract"] = json!("gateway-usage-event/v1");
+            if self
+                .packages
+                .iter()
+                .any(|p| p.protocol == "gateway-usage-recorder/v2")
+            {
+                configuration["usage_event_schemas"] =
+                    json!(["gateway-usage-event/v1", "gateway-usage-event/v2"]);
+            } else {
+                configuration["usage_contract"] = json!("gateway-usage-event/v1");
+            }
             configuration["usage_profiles"] = if managed {
                 json!([
                     "responses/v1",
@@ -525,7 +560,7 @@ impl ExtensionPlan {
         }
         let execution_sha256 = hash(&canonical(&configuration)?);
         Ok(
-            json!({"schema":if base_manifest["schema"] == "gateway-embedded-manifest/v10" { "gateway-extended-manifest/v10" } else if self.packages.iter().any(|p| p.protocol == gateway_plugin_contract::PROVIDER_PROTOCOL) { "gateway-extended-manifest/v9" } else if self.packages.iter().any(|p| p.capabilities.is_some()) { "gateway-extended-manifest/v8" } else if editing { "gateway-extended-manifest/v7" } else if codecs { "gateway-extended-manifest/v6" } else if profile_packs { "gateway-extended-manifest/v5" } else if compatibility { "gateway-extended-manifest/v4" } else if managed { "gateway-extended-manifest/v3" } else { self.manifest_schema() }, "configuration":configuration,
+            json!({"schema":if self.packages.iter().any(|p| p.protocol == "gateway-usage-recorder/v2") { "gateway-extended-manifest/v11" } else if base_manifest["schema"] == "gateway-embedded-manifest/v10" { "gateway-extended-manifest/v10" } else if self.packages.iter().any(|p| p.protocol == gateway_plugin_contract::PROVIDER_PROTOCOL) { "gateway-extended-manifest/v9" } else if self.packages.iter().any(|p| p.capabilities.is_some()) { "gateway-extended-manifest/v8" } else if editing { "gateway-extended-manifest/v7" } else if codecs { "gateway-extended-manifest/v6" } else if profile_packs { "gateway-extended-manifest/v5" } else if compatibility { "gateway-extended-manifest/v4" } else if managed { "gateway-extended-manifest/v3" } else { self.manifest_schema() }, "configuration":configuration,
             "execution_sha256":execution_sha256}),
         )
     }

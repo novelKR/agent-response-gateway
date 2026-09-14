@@ -194,3 +194,26 @@ fn published_package_vectors_match_native_validation() {
         );
     }
 }
+
+#[test]
+fn recorder_v2_package_requires_exact_event_capabilities() {
+    let mut value = package();
+    value["protocol"] = json!("gateway-usage-recorder/v2");
+    value["state_schema"] = json!("usage-store/v2");
+    value["permissions"] = json!(RECORDER_PERMISSIONS);
+    value["capabilities"] = json!({"schema":"gateway-plugin-capabilities/v1","apis":[],
+        "features":["usage_event_v1","usage_event_v2"],"requires":["usage_recorder_ipc_v2"]});
+    assert!(parse(&value).is_ok());
+    for (field, invalid) in [
+        ("schema", json!(PACKAGE_SCHEMA)),
+        ("state_schema", json!("usage-store/v1")),
+        ("permissions", json!(CODEC_PERMISSIONS)),
+        ("provider_protocol", json!("synthetic-provider/v1")),
+    ] {
+        let mut changed = value.clone();
+        changed[field] = invalid;
+        assert!(parse(&changed).is_err());
+    }
+    value["capabilities"]["features"] = json!(["usage_event_v2"]);
+    assert!(parse(&value).is_err());
+}

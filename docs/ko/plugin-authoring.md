@@ -60,7 +60,9 @@ Observer는 숫자 HTTP 메타데이터만 봅니다. Recorder는 별도로 설�
 
 ## 버전이 명시된 기능 선언
 
-[패키지 v2](../../schemas/gateway-extension-package-v2.schema.json)는 필수 `capabilities` 객체를 추가하며 `gateway-api-codec/v3` 또는 `gateway-provider/v1`만 허용합니다. 기존 패키지 v1은 위 네 역할로 제한되며 기능 선언 필드를 허용하지 않습니다. 패키지 버전 변경이나 manifest 수정으로 기존 실행 파일의 프로토콜이 업그레이드되지는 않습니다.
+[패키지 v2](../../schemas/gateway-extension-package-v2.schema.json)는 필수 `capabilities` 객체를 추가하며 `gateway-api-codec/v3`, `gateway-provider/v1`, `gateway-usage-recorder/v2`를 허용합니다. 기존 패키지 v1은 위 네 역할로 제한되며 기능 선언 필드를 허용하지 않습니다. 패키지 버전 변경이나 manifest 수정으로 기존 실행 파일의 프로토콜이 업그레이드되지는 않습니다.
+
+Recorder v2의 역할별 기능, 두 이벤트 버전과 정확한 Ready 계약은 [버전별 사용량 출처](usage-provenance.md)를 따릅니다. 아래 payload 기능 설명은 codec/provider 역할에 적용됩니다.
 
 기능 선언은 `gateway-plugin-capabilities/v1`을 사용하며 정확히 `apis`, `features`, `requires`, `schema`를 포함합니다. 모든 배열은 ASCII 사전순으로 정렬한 고유 문자열을 포함합니다. Codec API는 `chat_completions`, `gemini_interactions`, `messages`, `responses` 중 비어 있지 않은 부분집합입니다. 기능은 `editing`, `json`, `managed_continuation`, `streaming`의 부분집합이며 `json`이 필수입니다. Codec 요구사항은 정확히 `codec_ipc_v3`와 `responses_output_validation`입니다. 이 선언은 기존 `read_model_payload`, `transform_model_protocol` 권한 및 `request-memory/v1` 상태 계약과 별개입니다.
 

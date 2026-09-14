@@ -701,16 +701,16 @@ impl Service {
                                 && events.len() <= 16
                                 && events.iter().all(|e| {
                                     e.validate()
-                                        && e.producer_id == producer.as_str()
-                                        && e.request_id == request.as_str()
-                                        && e.model_alias == record.admission.route
-                                        && e.configuration_sha256
+                                        && *e.view().producer_id == producer.as_str()
+                                        && *e.view().request_id == request.as_str()
+                                        && *e.view().model_alias == record.admission.route
+                                        && *e.view().configuration_sha256
                                             == record.admission.configuration_sha256.as_str()
                                 }) =>
                         {
                             let identities: BTreeSet<_> = events
                                 .iter()
-                                .map(|e| (&e.producer_id, &e.attempt_id))
+                                .map(|e| (e.view().producer_id, e.view().attempt_id))
                                 .collect();
                             if identities.len() != events.len() {
                                 json!({"state":"unobserved","reason":"correlation_mismatch"})
@@ -743,9 +743,22 @@ impl Service {
             }
             rows.push(row);
         }
-        Ok(
-            json!({"schema":SCHEMA,"observed_at_ms":now()?,"window":"team_admitted_at","scope":if query.all{"all_team_subjects"}else{"own_subject"},"from_ms":query.from_ms,"to_ms":query.to_ms,"requests":rows,"next_after":next_after}),
-        )
+        let versioned = rows.iter().any(|row| {
+            row["usage"]["attempts"].as_array().is_some_and(|events| {
+                events
+                    .iter()
+                    .any(|e| e["schema"] == gateway_usage_contract::SCHEMA_V2)
+            })
+        });
+        let mut result = json!({"schema":SCHEMA,"observed_at_ms":now()?,"window":"team_admitted_at","scope":if query.all{"all_team_subjects"}else{"own_subject"},"from_ms":query.from_ms,"to_ms":query.to_ms,"requests":rows,"next_after":next_after});
+        if versioned {
+            result["usage_event_schemas"] = json!([
+                gateway_usage_contract::SCHEMA,
+                gateway_usage_contract::SCHEMA_V2
+            ]);
+        }
+        crate::validate_usage_report(&result)?;
+        Ok(result)
     }
 }
 async fn usage(

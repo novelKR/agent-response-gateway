@@ -60,7 +60,9 @@ The [legacy package schema](../schemas/gateway-extension-package-v1.schema.json)
 
 ## Versioned capability declarations
 
-[Package v2](../schemas/gateway-extension-package-v2.schema.json) adds a required `capabilities` object and admits only `gateway-api-codec/v3` or `gateway-provider/v1`. Legacy package v1 remains restricted to the four roles above and forbids capability fields. Neither a new package version nor a manifest edit upgrades a legacy executable protocol.
+[Package v2](../schemas/gateway-extension-package-v2.schema.json) adds a required `capabilities` object and admits `gateway-api-codec/v3`, `gateway-provider/v1` or `gateway-usage-recorder/v2`. Legacy package v1 remains restricted to the four roles above and forbids capability fields. Neither a new package version nor a manifest edit upgrades a legacy executable protocol.
+
+Recorder v2 role capabilities, both event versions and its exact Ready contract follow [versioned usage provenance](usage-provenance.md). The payload capability descriptions below apply to codec/provider roles.
 
 Capabilities use `gateway-plugin-capabilities/v1` with exactly `apis`, `features`, `requires` and `schema`. All arrays contain unique strings in ASCII lexical order. Codec APIs are a nonempty subset of `chat_completions`, `gemini_interactions`, `messages`, `responses`. Features are a subset of `editing`, `json`, `managed_continuation`, `streaming`, with `json` required. Codec requirements are exactly `codec_ipc_v3` and `responses_output_validation`. The declarations are separate from the existing `read_model_payload` and `transform_model_protocol` grants and `request-memory/v1` state contract.
 

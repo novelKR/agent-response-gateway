@@ -1192,8 +1192,8 @@
       "order": 25,
       "source": "docs/plugin-authoring.md",
       "translation": "docs/ko/plugin-authoring.md",
-      "source_sha256": "eeb5459971cab153c6f2d7245755e5393169286eaa593b12966e0af7af8e141d",
-      "translation_sha256": "50917c9092ab022331df264463de9f0099195c25e3805379ee2a499f6ddd99f0",
+      "source_sha256": "b9eac678e92cbcf95ea648bf79e64718ed44406fb9a6d962e75b3eb58f3af306",
+      "translation_sha256": "409aaaf7cf97d0eabc39c226b628a6a6ac817912d2a6671a49ce4898fcee398e",
       "anchors": [
         "choose-a-supported-role",
         "codec-messages-and-state-machine",
@@ -1242,8 +1242,8 @@
       "order": 44,
       "source": "docs/provider-continuation.md",
       "translation": "docs/ko/provider-continuation.md",
-      "source_sha256": "666ff6dedb55176172a30b1c445930195f6ba0412f5bc2a11e3eb41a98e6db75",
-      "translation_sha256": "019f6e47b4fdbbf45fed4f785e5465646d95fa618eb504bc3ac990461919a7c7",
+      "source_sha256": "784b0067c8b4fb511f71fe65fb8d48ff5b505946116d3bc68cf3c357666fe087",
+      "translation_sha256": "a1f8391f02bac2b40a71d2981f580c72f6aff98ec1bfaeb0084b4239d661ae7c",
       "anchors": [
         "protected-provider-continuation",
         "replay-versions-and-durable-barriers",
@@ -1257,6 +1257,28 @@
         "상태와-정확한-결합"
       ],
       "route": "/guide/provider-continuation"
+    },
+    {
+      "id": "usage-provenance",
+      "section": "integration",
+      "order": 45,
+      "source": "docs/usage-provenance.md",
+      "translation": "docs/ko/usage-provenance.md",
+      "source_sha256": "19e67559ad9ba4634bf47c10c13bedd69c140dfb293ec4e964d7a8172bb1c535",
+      "translation_sha256": "0b7394d1e48192298c9f2a846af9f1dd7d8841b0ae96357937576c93840119eb",
+      "anchors": [
+        "evidence-and-event-identity",
+        "external-recorder-state-and-query-support",
+        "recorder-package-and-startup-compatibility",
+        "recorder-패키지와-시작-호환성",
+        "storage-export-and-recovery-boundaries",
+        "versioned-usage-provenance",
+        "근거와-이벤트-식별",
+        "버전이-있는-사용량-출처",
+        "외부-recorder-상태와-조회-지원",
+        "저장내보내기복구-경계"
+      ],
+      "route": "/guide/usage-provenance"
     }
   ]
 }

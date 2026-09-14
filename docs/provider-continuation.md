@@ -62,7 +62,9 @@ migration is performed, and the continuation SQLite tables remain unchanged.
 With an explicitly configured managed provider path, the manifest version is
 `gateway-embedded-manifest/v10`, readiness is `gateway-ready/v10`, and an extended
 manifest/readiness uses `gateway-extended-manifest/v10` / `gateway-extended-ready/v10`.
-The replay declaration is:
+When Recorder v2 is also selected, the outer contracts become
+`gateway-extended-manifest/v11` / `gateway-extended-ready/v11`; the nested gateway
+manifest remains v10. The replay declaration is:
 
 ```json
 {"read":[1,2,3],"write_builtin":2,"write_provider":3}

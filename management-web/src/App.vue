@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import { createClient, modulesOf, observed, inventoryRows } from './api.mjs';
 import JsonView from './JsonView.vue';
+import { mergeTeamUsage } from './usage-contract.mjs';
 import { messages } from './i18n.mjs';
 import { createTheme, themeChoices } from './theme.mjs';
 const props = defineProps({
@@ -89,7 +90,7 @@ async function more() {
 }
 async function moreUsage() {
   if(!usage.value?.next_after || busy.value)return;busy.value=true;const current=generation;
-  try {const old=usage.value;const result=await client.usage(old.from_ms,old.to_ms,timezone,old.next_after);if(current!==generation)return;usage.value={...result.data,requests:[...old.requests,...result.data.requests]};viewTimes.value.usage=result.observed_at_ms;}
+  try {const old=usage.value;const result=await client.usage(old.from_ms,old.to_ms,timezone,old.next_after);if(current!==generation)return;usage.value=mergeTeamUsage(old,result.data);viewTimes.value.usage=result.observed_at_ms;}
   catch(failure){if(current===generation)readFailure(failure,'usage');}
   finally{if(current===generation)busy.value=false;}
 }
@@ -377,6 +378,13 @@ defineExpose({
 <td>
 <strong>{{ group.model_alias }}</strong>
 <small>{{ group.provider }}</small>
+<details v-if="group.interpretation">
+<summary>{{ t('interpretation') }} · {{ t(group.interpretation.kind) }}
+<template v-if="group.interpretation.kind==='builtin_parser'"> · {{ group.interpretation.profile }}</template>
+<template v-if="group.interpretation.kind==='trusted_provider_plugin'"> · {{ group.interpretation.package_id }} {{ group.interpretation.package_version }} · {{ short(group.interpretation.package_sha256) }}</template>
+</summary>
+<JsonView :value="group.interpretation" :empty-text="t('noObservation')" />
+</details>
 </td>
 <td>{{ format(group.calls) }}</td>
 <td>{{ format(group.token_sums?.input_tokens) }}</td>

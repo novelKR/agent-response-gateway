@@ -65,6 +65,7 @@ impl EmbeddedManifest {
                 Some("gateway-extended-manifest/v7") => "gateway-extended-ready/v7",
                 Some("gateway-extended-manifest/v9") => "gateway-extended-ready/v9",
                 Some("gateway-extended-manifest/v10") => "gateway-extended-ready/v10",
+                Some("gateway-extended-manifest/v11") => "gateway-extended-ready/v11",
                 Some("gateway-extended-manifest/v8") => "gateway-extended-ready/v8",
                 _ => return Err(ConfigError("Unsupported readiness schema".into())),
             };

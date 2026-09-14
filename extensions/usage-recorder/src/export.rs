@@ -1,7 +1,8 @@
 //! Only ledger events are retried. This module has no model transport entry point.
 use crate::{Result, Store, now_ms, read_private};
 use gateway_usage_contract::{
-    Batch, BatchReceipt, Destination, Receipt, ReceiptStatus, RecorderConfig, UsageEvent, digest,
+    BatchReceipt, BatchV2, Destination, Receipt, ReceiptStatus, RecordedEvent, RecorderConfig,
+    UsageEvent, digest,
 };
 use postgres::{Client, config::SslMode};
 use rusqlite::params;
@@ -114,12 +115,19 @@ fn pg_batch(d: &Destination, events: &[UsageEvent]) -> Result<Vec<Receipt>> {
     tx.commit()?;
     Ok(receipts)
 }
-fn http_batch(d: &Destination, events: &[UsageEvent]) -> Result<Vec<Receipt>> {
-    let Destination::Http {
-        url, bearer_file, ..
-    } = d
-    else {
-        return Err("not_http".into());
+fn http_batch(d: &Destination, events: &[RecordedEvent]) -> Result<Vec<Receipt>> {
+    let v2 = matches!(d, Destination::HttpV2 { .. });
+    if !v2 && events.iter().any(RecordedEvent::is_v2) {
+        return Err("unsupported_usage_export_contract".into());
+    }
+    let (url, bearer_file) = match d {
+        Destination::Http {
+            url, bearer_file, ..
+        }
+        | Destination::HttpV2 {
+            url, bearer_file, ..
+        } => (url, bearer_file),
+        _ => return Err("not_http".into()),
     };
     let url = reqwest::Url::parse(url)?;
     let loopback = url
@@ -148,8 +156,13 @@ fn http_batch(d: &Destination, events: &[UsageEvent]) -> Result<Vec<Receipt>> {
     let response = client
         .post(url)
         .bearer_auth(secret)
-        .json(&Batch {
-            schema: "gateway-usage-batch/v1".into(),
+        .json(&BatchV2 {
+            schema: if v2 {
+                "gateway-usage-batch/v2"
+            } else {
+                "gateway-usage-batch/v1"
+            }
+            .into(),
             events: events.to_vec(),
         })
         .send()?;
@@ -166,7 +179,14 @@ fn http_batch(d: &Destination, events: &[UsageEvent]) -> Result<Vec<Receipt>> {
         return Err("invalid_export_ack".into());
     }
     let ack: BatchReceipt = serde_json::from_slice(&bytes).map_err(|_| "invalid_export_ack")?;
-    if ack.schema != "gateway-usage-batch-receipt/v1" || ack.receipts.len() != events.len() {
+    if ack.schema
+        != if v2 {
+            "gateway-usage-batch-receipt/v2"
+        } else {
+            "gateway-usage-batch-receipt/v1"
+        }
+        || ack.receipts.len() != events.len()
+    {
         return Err("invalid_export_ack".into());
     }
     Ok(ack.receipts)
@@ -174,41 +194,64 @@ fn http_batch(d: &Destination, events: &[UsageEvent]) -> Result<Vec<Receipt>> {
 pub fn run_once(store: &mut Store, config: &RecorderConfig) -> Result<usize> {
     let mut sent = 0;
     for d in &config.destinations {
-        let mut stmt=store.connection.prepare("SELECT e.payload,o.attempts FROM usage_outbox o JOIN usage_events e USING(producer_id,event_id) WHERE o.destination=?1 AND o.state='pending' AND o.next_at_ms<=?2 ORDER BY e.observed_at_ms,e.producer_id,e.attempt_id,e.revision LIMIT 100")?;
+        let mut stmt=store.connection.prepare("SELECT e.payload,e.sha256,o.attempts FROM usage_outbox o JOIN usage_events e USING(producer_id,event_id) WHERE o.destination=?1 AND o.state='pending' AND o.next_at_ms<=?2 ORDER BY e.observed_at_ms,e.producer_id,e.attempt_id,e.revision LIMIT 100")?;
         let rows = stmt
             .query_map(params![d.id(), now_ms() as i64], |r| {
-                Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?))
+                Ok((
+                    r.get::<_, String>(0)?,
+                    r.get::<_, String>(1)?,
+                    r.get::<_, i64>(2)?,
+                ))
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;
         drop(stmt);
         let mut events = vec![];
         let mut attempts = vec![];
         let mut bytes = 128;
-        for (payload, n) in rows {
+        for (payload, stored_sha, n) in rows {
+            // The persisted byte identity is authoritative; never repair/relabel it on export.
+            let e = RecordedEvent::from_stored_bytes(payload.as_bytes(), &stored_sha)?;
             if bytes + payload.len() + 1 > 1_048_576 {
                 break;
             }
             bytes += payload.len() + 1;
-            events.push(serde_json::from_str::<UsageEvent>(&payload)?);
+            events.push(e);
             attempts.push(n);
         }
         if events.is_empty() {
             continue;
         }
         let result = match d {
-            Destination::Http { .. } => http_batch(d, &events),
-            Destination::Postgres { .. } => pg_batch(d, &events),
+            Destination::Http { .. } | Destination::HttpV2 { .. } => http_batch(d, &events),
+            Destination::Postgres { .. } => {
+                if events.iter().any(RecordedEvent::is_v2) {
+                    Err("unsupported_usage_export_contract".into())
+                } else {
+                    pg_batch(
+                        d,
+                        &events
+                            .iter()
+                            .map(|e| e.as_v1().expect("v1 checked").clone())
+                            .collect::<Vec<_>>(),
+                    )
+                }
+            }
         };
         let permanent = result.as_ref().err().is_some_and(|e| {
             matches!(
                 e.to_string().as_str(),
-                "permanent_export_error"
+                "unsupported_usage_export_contract"
+                    | "permanent_export_error"
                     | "invalid_export_ack"
                     | "invalid_export_url"
                     | "empty_export_credential"
                     | "unsupported_remote_schema"
             )
         });
+        let unsupported = result
+            .as_ref()
+            .err()
+            .is_some_and(|e| e.to_string() == "unsupported_usage_export_contract");
         let receipts = result.ok();
         // ACK must contain exactly one matching entry per submitted event. No partial guesswork.
         let valid = receipts.as_ref().is_some_and(|rs| {
@@ -216,8 +259,8 @@ pub fn run_once(store: &mut Store, config: &RecorderConfig) -> Result<usize> {
                 && events.iter().all(|e| {
                     rs.iter()
                         .filter(|r| {
-                            r.event_id == e.event_id
-                                && r.producer_id == e.producer_id
+                            r.event_id == *e.view().event_id
+                                && r.producer_id == *e.view().producer_id
                                 && e.bytes().is_ok_and(|b| digest(&b) == r.sha256)
                         })
                         .count()
@@ -226,14 +269,18 @@ pub fn run_once(store: &mut Store, config: &RecorderConfig) -> Result<usize> {
         });
         let tx = store.connection.transaction()?;
         for (i, e) in events.iter().enumerate() {
-            let state = if permanent || (receipts.is_some() && !valid) {
+            let state = if unsupported {
+                "blocked_unsupported_contract"
+            } else if permanent || (receipts.is_some() && !valid) {
                 "blocked"
             } else if valid {
                 match receipts
                     .as_ref()
                     .and_then(|rs| {
-                        rs.iter()
-                            .find(|r| r.event_id == e.event_id && r.producer_id == e.producer_id)
+                        rs.iter().find(|r| {
+                            r.event_id == *e.view().event_id
+                                && r.producer_id == *e.view().producer_id
+                        })
                     })
                     .map(|r| r.status)
                 {
@@ -246,7 +293,7 @@ pub fn run_once(store: &mut Store, config: &RecorderConfig) -> Result<usize> {
             };
             let n = attempts[i].saturating_add(1);
             let delay = 1000u64.saturating_mul(1u64 << n.min(8));
-            tx.execute("UPDATE usage_outbox SET state=?1,attempts=?2,next_at_ms=?3 WHERE producer_id=?4 AND event_id=?5 AND destination=?6",params![state,n,now_ms().saturating_add(delay) as i64,e.producer_id,e.event_id,d.id()])?;
+            tx.execute("UPDATE usage_outbox SET state=?1,attempts=?2,next_at_ms=?3 WHERE producer_id=?4 AND event_id=?5 AND destination=?6",params![state,n,now_ms().saturating_add(delay) as i64,*e.view().producer_id,*e.view().event_id,d.id()])?;
             if state == "committed" {
                 sent += 1;
             }

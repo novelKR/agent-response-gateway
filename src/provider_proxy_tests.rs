@@ -72,6 +72,9 @@ struct Package {
     lock: PathBuf,
 }
 fn package(inert_transport_fields: bool) -> Package {
+    package_patched(inert_transport_fields, None)
+}
+fn package_patched(inert_transport_fields: bool, patch: Option<(&str, &str)>) -> Package {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let parent = root.join(".local/provider-proxy-tests");
     fs::create_dir_all(&parent).unwrap();
@@ -91,6 +94,12 @@ fn package(inert_transport_fields: bool) -> Package {
         let original = "payload = {'query': value['request'], 'cursor': self.counter}";
         assert!(text.contains(original));
         fs::write(script,text.replace(original,"payload = {'query': value['request'], 'cursor': self.counter, 'url': 'http://127.0.0.1:1/forbidden', 'headers': {'Authorization': 'plugin-cannot-select-auth'}}")).unwrap();
+    }
+    if let Some((old, new)) = patch {
+        let path = project.join("provider.py");
+        let text = fs::read_to_string(&path).unwrap();
+        assert!(text.contains(old));
+        fs::write(path, text.replace(old, new)).unwrap();
     }
     let built = directory.path().join("package");
     let digest = String::from_utf8(command(&[
@@ -363,6 +372,19 @@ async fn managed_host(
     crate::continuation::Runtime,
     crate::continuation::Origin,
 ) {
+    managed_host_with_usage(package, url, directory, initialize, None).await
+}
+async fn managed_host_with_usage(
+    package: &Package,
+    url: &str,
+    directory: &Path,
+    initialize: bool,
+    usage: Option<crate::usage::UsageSink>,
+) -> (
+    ManagedHost,
+    crate::continuation::Runtime,
+    crate::continuation::Origin,
+) {
     use crate::continuation::{ContinuationStore, Protector, Runtime, SqliteStore};
     fs::create_dir_all(directory).unwrap();
     fs::set_permissions(directory, fs::Permissions::from_mode(0o700)).unwrap();
@@ -424,7 +446,7 @@ async fn managed_host(
             .build()
             .unwrap(),
         continuation: Some(runtime.clone()),
-        usage: None,
+        usage,
     });
     // Reuse production routing/authentication with an explicitly injected test
     // protector, avoiding process-global environment mutations in parallel tests.
@@ -758,4 +780,470 @@ async fn managed_provider_sse_tool_checkpoint_restarts_and_accepts_exact_tool_re
     assert_eq!(record.outcome, Outcome::Completed);
     drop(runtime);
     host.close().await;
+}
+
+fn usage_sink(
+    accept_start: bool,
+    accept_final: bool,
+    v2: bool,
+) -> (
+    crate::usage::UsageSink,
+    Arc<std::sync::Mutex<Vec<crate::usage::RecordedEvent>>>,
+    tokio::task::JoinHandle<()>,
+) {
+    use crate::usage::*;
+    let (sender, mut receiver) = tokio::sync::mpsc::channel::<Delivery>(256);
+    let records = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let output = records.clone();
+    let worker = tokio::spawn(async move {
+        while let Some(d) = receiver.recv().await {
+            let kind = d.event.view().kind;
+            let valid = d.event.bytes().is_ok();
+            output.lock().unwrap().push(d.event);
+            let _ = d.ack.send(
+                valid
+                    && (kind != EventKind::AttemptStarted || accept_start)
+                    && (kind != EventKind::AttemptFinished || accept_final),
+            );
+        }
+    });
+    (
+        UsageSink {
+            sender,
+            mode: Mode::DurableLocal,
+            timeout: Duration::from_millis(200),
+            producer: "host-recorder".into(),
+            supports_v2: v2,
+            dropped: Arc::new(std::sync::atomic::AtomicU64::new(0)),
+        },
+        records,
+        worker,
+    )
+}
+#[tokio::test]
+async fn provider_usage_v2_keeps_package_identity_and_numeric_failure_evidence() {
+    use crate::usage::*;
+    for invalid in [false, true] {
+        let package = package(false);
+        let server=upstream(Router::new().route("/vendor/generate",post(move||async move{
+            axum::Json(json!({"answer":[{"text":"synthetic"}],"meter":{"input_tokens":if invalid{json!(-1)}else{json!(7)},"output_tokens":2,"total_tokens":9}}))
+        }))).await;
+        let (sink, records, worker) = usage_sink(true, true, true);
+        let app = gateway_with_usage(&package, &server.url, Some(sink)).unwrap();
+        let (_gateway, response) = request(app, json!({"model":"demo","input":"test"})).await;
+        assert_eq!(
+            response.status(),
+            if invalid {
+                StatusCode::BAD_GATEWAY
+            } else {
+                StatusCode::OK
+            }
+        );
+        let _ = body(response).await;
+        let captured = records.lock().unwrap();
+        assert!(!captured.is_empty());
+        assert!(captured.iter().all(RecordedEvent::is_v2));
+        let final_event = captured
+            .iter()
+            .find(|e| e.view().kind == EventKind::AttemptFinished)
+            .unwrap();
+        let RecordedEvent::V2(event) = final_event else {
+            unreachable!()
+        };
+        assert_eq!(
+            event.interpretation.provider_protocol,
+            "synthetic-provider/v1"
+        );
+        assert_eq!(event.producer_id, "host-recorder");
+        assert!(event.usage.reported.is_empty());
+        assert_eq!(event.usage.value("output_tokens"), Some(2));
+        if invalid {
+            assert_eq!(event.usage.counters["input_tokens"].source, Source::Invalid);
+            assert!(event.observation_incomplete);
+            assert_eq!(event.gateway, Outcome::ConversionFailed);
+        } else {
+            assert_eq!(event.finality, Finality::Final);
+            assert_eq!(event.usage.value("input_tokens"), Some(7));
+        }
+        worker.abort();
+    }
+}
+#[tokio::test]
+async fn provider_recording_contract_and_durable_barriers_are_enforced() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    for (start, finish, v2) in [
+        (false, true, true),
+        (true, false, true),
+        (true, true, false),
+    ] {
+        let package = package(false);
+        let calls = Arc::new(AtomicUsize::new(0));
+        let seen = calls.clone();
+        let server = upstream(Router::new().route(
+            "/vendor/generate",
+            post(move || {
+                let seen = seen.clone();
+                async move {
+                    seen.fetch_add(1, Ordering::SeqCst);
+                    axum::Json(native(json!([{"text":"synthetic"}])))
+                }
+            }),
+        ))
+        .await;
+        let (sink, _, worker) = usage_sink(start, finish, v2);
+        let app = gateway_with_usage(&package, &server.url, Some(sink));
+        if !v2 {
+            assert!(app.is_err());
+            assert_eq!(calls.load(Ordering::SeqCst), 0);
+            worker.abort();
+            continue;
+        }
+        let (_gateway, response) =
+            request(app.unwrap(), json!({"model":"demo","input":"test"})).await;
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        let _ = body(response).await;
+        assert_eq!(calls.load(Ordering::SeqCst), usize::from(start));
+        worker.abort();
+    }
+}
+
+#[tokio::test]
+async fn provider_sse_tool_terminal_waits_for_v2_durable_final_ack() {
+    use crate::usage::*;
+    for accept_final in [true, false] {
+        let package = package(false);
+        let server = upstream(Router::new().route(
+            "/vendor/generate",
+            post(|| async {
+                (
+                    [(header::CONTENT_TYPE, "text/event-stream")],
+                    format!(
+                        "event: end\ndata: {}\n\n",
+                        native(json!([{"call":"synthetic_call","name":"lookup","arguments":"{}"}]))
+                    ),
+                )
+            }),
+        ))
+        .await;
+        let (sink, records, worker) = usage_sink(true, accept_final, true);
+        let app = gateway_with_usage(&package, &server.url, Some(sink)).unwrap();
+        let(_gateway,response)=request(app,json!({"model":"demo","input":"tool","stream":true,"tools":[{"type":"function","name":"lookup","parameters":{"type":"object","properties":{},"additionalProperties":false}}]})).await;
+        assert_eq!(response.status(), StatusCode::OK);
+        let mut stream = response.bytes_stream();
+        let mut data = Vec::new();
+        let mut failed = false;
+        while let Some(chunk) = stream.next().await {
+            match chunk {
+                Ok(bytes) => data.extend_from_slice(&bytes),
+                Err(_) => {
+                    failed = true;
+                    break;
+                }
+            }
+        }
+        let text = String::from_utf8(data).unwrap();
+        assert_eq!(text.contains("response.completed"), accept_final);
+        assert_eq!(text.contains("function_call"), accept_final);
+        assert_eq!(failed, !accept_final);
+        let captured = records.lock().unwrap();
+        let event = captured
+            .iter()
+            .find(|e| e.view().kind == EventKind::AttemptFinished)
+            .unwrap();
+        assert!(event.is_v2());
+        assert_eq!(event.usage().value("input_tokens"), Some(7));
+        worker.abort();
+    }
+}
+
+fn gateway_with_usage(
+    package: &Package,
+    url: &str,
+    usage: Option<crate::usage::UsageSink>,
+) -> Result<Router, crate::ConfigError> {
+    crate::router_with_usage(configuration(package, url), fixture_secrets(), None, usage)
+}
+
+#[tokio::test]
+async fn managed_provider_v2_captures_each_failed_exchange_before_drop() {
+    use crate::usage::*;
+    let invalid_completed = (
+        "observation = usage(native)",
+        "observation = usage({**native, 'meter': {**native.get('meter', {}), 'input_tokens': -1}})",
+    );
+    let invalid_start = (
+        "return {'result': 'progress', 'events': [], 'complete': False, 'usage': {'kind': 'unobserved'}}",
+        "return {'result': 'progress', 'events': [], 'complete': False, 'usage': usage({'meter': {'input_tokens': -1, 'output_tokens': 2, 'total_tokens': 9}})}",
+    );
+    for scenario in ["json", "event", "finish", "start"] {
+        let patch = match scenario {
+            "finish" => Some(invalid_completed),
+            "start" => Some(invalid_start),
+            _ => None,
+        };
+        let package = package_patched(false, patch);
+        let streaming = scenario != "json";
+        let invalid = scenario == "json" || scenario == "event";
+        let server=upstream(Router::new().route("/vendor/generate",post(move||async move{
+            let value=json!({"answer":[{"text":"synthetic"}],"meter":{"input_tokens":if invalid{json!(-1)}else{json!(7)},"output_tokens":2,"total_tokens":9}});
+            if streaming{([(header::CONTENT_TYPE,"text/event-stream")],format!("event: end\ndata: {value}\n\n")).into_response()}else{axum::Json(value).into_response()}
+        }))).await;
+        let directory =
+            tempfile::tempdir_in(Path::new(env!("CARGO_MANIFEST_DIR")).join(".local")).unwrap();
+        let (sink, records, worker) = usage_sink(true, true, true);
+        let (host, runtime, origin) = managed_host_with_usage(
+            &package,
+            &server.url,
+            &directory.path().join("continuation"),
+            true,
+            Some(sink),
+        )
+        .await;
+        let session = runtime
+            .access(move |store, _| store.create(&origin))
+            .await
+            .unwrap();
+        let response = reqwest::Client::builder()
+            .no_proxy()
+            .timeout(Duration::from_secs(10))
+            .build()
+            .unwrap()
+            .post(format!("{}/v1/responses", host.url))
+            .bearer_auth("L".repeat(40))
+            .header("x-gateway-session", &session.id)
+            .json(&json!({"model":"demo","input":[user_input("synthetic")],"stream":streaming}))
+            .send()
+            .await
+            .unwrap();
+        if streaming {
+            assert_eq!(response.status(), StatusCode::OK);
+            let mut chunks = response.bytes_stream();
+            while let Some(chunk) = chunks.next().await {
+                if chunk.is_err() {
+                    break;
+                }
+            }
+        } else {
+            assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
+            let _ = response.bytes().await;
+        }
+        {
+            let captured = records.lock().unwrap();
+            let last = captured
+                .iter()
+                .find(|e| e.view().kind == EventKind::AttemptFinished)
+                .unwrap_or_else(|| panic!("missing final {scenario}"));
+            assert!(last.is_v2());
+            assert_eq!(
+                last.usage().counters["input_tokens"].source,
+                Source::Invalid,
+                "{scenario}"
+            );
+            assert_eq!(last.usage().value("output_tokens"), Some(2), "{scenario}");
+            assert_eq!(last.view().gateway, Outcome::ConversionFailed, "{scenario}");
+        }
+        let id = session.id;
+        let current = runtime
+            .access(move |store, _| store.session(&id))
+            .await
+            .unwrap();
+        assert!(current.head.is_none(), "{scenario}");
+        drop(runtime);
+        host.close().await;
+        worker.abort();
+    }
+}
+#[tokio::test]
+async fn managed_provider_v2_start_and_final_ack_keep_independent_state_barriers() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    for accept_start in [false, true] {
+        let package = package(false);
+        let calls = Arc::new(AtomicUsize::new(0));
+        let seen = calls.clone();
+        let server = upstream(Router::new().route(
+            "/vendor/generate",
+            post(move || {
+                let seen = seen.clone();
+                async move {
+                    seen.fetch_add(1, Ordering::SeqCst);
+                    axum::Json(native(json!([{"text":"synthetic"}])))
+                }
+            }),
+        ))
+        .await;
+        let directory =
+            tempfile::tempdir_in(Path::new(env!("CARGO_MANIFEST_DIR")).join(".local")).unwrap();
+        let (sink, records, worker) = usage_sink(accept_start, false, true);
+        let (host, runtime, origin) = managed_host_with_usage(
+            &package,
+            &server.url,
+            &directory.path().join("continuation"),
+            true,
+            Some(sink),
+        )
+        .await;
+        let session = runtime
+            .access(move |store, _| store.create(&origin))
+            .await
+            .unwrap();
+        let (status, bytes) =
+            managed_request(&host, &session.id, json!([user_input("synthetic")])).await;
+        assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+        assert!(!String::from_utf8_lossy(&bytes).contains("encrypted_content"));
+        assert_eq!(calls.load(Ordering::SeqCst), usize::from(accept_start));
+        let id = session.id;
+        let current = runtime
+            .access(move |store, _| store.session(&id))
+            .await
+            .unwrap();
+        assert_eq!(current.head.is_some(), accept_start);
+        if accept_start {
+            assert!(records.lock().unwrap().iter().any(|e|e.is_v2()&&e.view().kind==crate::usage::EventKind::AttemptFinished));
+        }
+        drop(runtime);
+        host.close().await;
+        worker.abort();
+    }
+}
+
+#[tokio::test]
+async fn managed_provider_v2_resume_keeps_exact_interpretation_and_checkpoint_attempt_ids() {
+    use crate::usage::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let package = package(false);
+    let calls = Arc::new(AtomicUsize::new(0));
+    let seen = calls.clone();
+    let server = upstream(Router::new().route(
+        "/vendor/generate",
+        post(move |axum::Json(value): axum::Json<Value>| {
+            let seen = seen.clone();
+            async move {
+                let turn = seen.fetch_add(1, Ordering::SeqCst);
+                assert_eq!(value["cursor"], turn);
+                axum::Json(native(json!([{"text":format!("turn {turn}")}])))
+            }
+        }),
+    ))
+    .await;
+    let ledger = package._directory.path().join("ledger-v2");
+    let (sink, records, worker) = usage_sink(true, true, true);
+    let (host, runtime, origin) =
+        managed_host_with_usage(&package, &server.url, &ledger, true, Some(sink.clone())).await;
+    let session = runtime
+        .access(move |store, _| store.create(&origin))
+        .await
+        .unwrap();
+    let id = session.id.clone();
+    let first_input = user_input("first");
+    let (status, bytes) = managed_request(&host, &id, json!([first_input.clone()])).await;
+    assert_eq!(status, StatusCode::OK);
+    let first: Value = serde_json::from_slice(&bytes).unwrap();
+    let mut history = vec![first_input];
+    history.extend(first["output"].as_array().unwrap().iter().cloned());
+    history.push(user_input("second"));
+    drop(runtime);
+    host.close().await;
+    let (host, runtime, _) =
+        managed_host_with_usage(&package, &server.url, &ledger, false, Some(sink)).await;
+    let (status, bytes) = managed_request(&host, &id, json!(history)).await;
+    assert_eq!(status, StatusCode::OK);
+    let second: Value = serde_json::from_slice(&bytes).unwrap();
+    {
+        let captured = records.lock().unwrap();
+        let final_events: Vec<_> = captured
+            .iter()
+            .filter(|e| e.view().kind == EventKind::AttemptFinished)
+            .collect();
+        assert_eq!(final_events.len(), 2);
+        assert_eq!(
+            final_events[0].view().attempt_id,
+            first["id"].as_str().unwrap()
+        );
+        assert_eq!(
+            final_events[1].view().attempt_id,
+            second["id"].as_str().unwrap()
+        );
+        assert_eq!(
+            final_events[0].interpretation(),
+            final_events[1].interpretation()
+        );
+        assert!(
+            final_events
+                .iter()
+                .all(|e| e.is_v2() && e.view().finality == Finality::Final)
+        );
+    }
+    assert_eq!(calls.load(Ordering::SeqCst), 2);
+    drop(runtime);
+    host.close().await;
+    worker.abort();
+}
+
+#[tokio::test]
+async fn managed_provider_v2_sse_tool_output_waits_for_final_ack_after_checkpoint() {
+    for accept_final in [true, false] {
+        let package = package(false);
+        let server = upstream(Router::new().route(
+            "/vendor/generate",
+            post(|| async {
+                (
+                    [(header::CONTENT_TYPE, "text/event-stream")],
+                    format!(
+                        "event: end\ndata: {}\n\n",
+                        native(json!([{"call":"synthetic_call","name":"lookup","arguments":"{}"}]))
+                    ),
+                )
+            }),
+        ))
+        .await;
+        let (sink, records, worker) = usage_sink(true, accept_final, true);
+        let (host, runtime, origin) = managed_host_with_usage(
+            &package,
+            &server.url,
+            &package._directory.path().join("ledger-ack"),
+            true,
+            Some(sink),
+        )
+        .await;
+        let session = runtime
+            .access(move |store, _| store.create(&origin))
+            .await
+            .unwrap();
+        let response=reqwest::Client::builder().no_proxy().timeout(Duration::from_secs(10)).build().unwrap().post(format!("{}/v1/responses",host.url)).bearer_auth("L".repeat(40)).header("x-gateway-session",&session.id).json(&json!({"model":"demo","stream":true,"input":[user_input("tool")],"tools":[{"type":"function","name":"lookup","parameters":{"type":"object","properties":{},"additionalProperties":false}}]})).send().await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let mut data = Vec::new();
+        let mut failed = false;
+        let mut chunks = response.bytes_stream();
+        while let Some(chunk) = chunks.next().await {
+            match chunk {
+                Ok(bytes) => data.extend_from_slice(&bytes),
+                Err(_) => {
+                    failed = true;
+                    break;
+                }
+            }
+        }
+        let text = String::from_utf8(data).unwrap();
+        assert_eq!(failed, !accept_final);
+        assert_eq!(text.contains("response.completed"), accept_final);
+        assert_eq!(text.contains("function_call"), accept_final);
+        assert_eq!(text.contains("encrypted_content"), accept_final);
+        let id = session.id;
+        let current = runtime
+            .access(move |store, _| store.session(&id))
+            .await
+            .unwrap();
+        assert!(current.head.is_some());
+        assert!(current.pending_tools);
+        assert!(
+            records
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|e| e.is_v2() && e.view().kind == crate::usage::EventKind::AttemptFinished)
+        );
+        drop(runtime);
+        host.close().await;
+        worker.abort();
+    }
 }

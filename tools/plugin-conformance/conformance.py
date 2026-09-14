@@ -19,7 +19,7 @@ import subprocess
 import tempfile
 import time
 
-VERSION = '1.1.0'
+VERSION = '1.2.0'
 FRAME_LIMIT = 4096
 ROLES = {
     'gateway-observer/v1': (['observe_http_metadata', 'write_private_state'], 'observer-state/v1'),
@@ -28,6 +28,7 @@ ROLES = {
     'gateway-api-codec/v2': (['read_model_payload', 'transform_model_protocol'], 'request-memory/v1'),
 }
 V2_ROLES = {
+    'gateway-usage-recorder/v2': (['export_usage', 'observe_usage', 'write_usage_store'], 'usage-store/v2'),
     'gateway-api-codec/v3': (['read_model_payload', 'transform_model_protocol'], 'request-memory/v1'),
     'gateway-provider/v1': (['read_model_payload', 'transform_model_protocol'], 'provider-request-memory/v1'),
 }
@@ -103,6 +104,10 @@ def validate_capabilities(value, protocol):
         entries = value[name]
         require(isinstance(entries, list) and all(isinstance(entry, str) for entry in entries), 'capability_list')
         require(entries == sorted(set(entries)), 'capability_order')
+    if protocol == 'gateway-usage-recorder/v2':
+        require(value['apis'] == [] and value['features'] == ['usage_event_v1', 'usage_event_v2']
+                and value['requires'] == ['usage_recorder_ipc_v2'], 'recorder_capabilities')
+        return
     require(bool(value['features']) and 'json' in value['features']
             and set(value['features']) <= FEATURES, 'capability_features')
     if protocol == 'gateway-api-codec/v3':

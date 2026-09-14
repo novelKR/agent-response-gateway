@@ -221,18 +221,18 @@ def validate_credential_split(manifest, gateway_env, codex_env, local_key_name, 
 
 def validate_extended_manifest(value):
     require(isinstance(value,dict) and set(value)=={'schema','configuration','execution_sha256'}, 'Invalid extended manifest')
-    require(value['schema'] in {'gateway-extended-manifest/v3','gateway-extended-manifest/v4','gateway-extended-manifest/v5','gateway-extended-manifest/v6','gateway-extended-manifest/v7','gateway-extended-manifest/v8','gateway-extended-manifest/v9','gateway-extended-manifest/v10'}, 'Unsupported extended managed contract')
+    require(value['schema'] in {'gateway-extended-manifest/v3','gateway-extended-manifest/v4','gateway-extended-manifest/v5','gateway-extended-manifest/v6','gateway-extended-manifest/v7','gateway-extended-manifest/v8','gateway-extended-manifest/v9','gateway-extended-manifest/v10','gateway-extended-manifest/v11'}, 'Unsupported extended managed contract')
     configuration=value['configuration']
-    require(set(configuration) in ({'gateway','extensions'}, {'gateway','extensions','usage_contract','usage_profiles'}), 'Invalid extended configuration')
+    require(set(configuration) in (({'gateway','extensions','usage_event_schemas','usage_profiles'},) if value['schema'].endswith('/v11') else ({'gateway','extensions'}, {'gateway','extensions','usage_contract','usage_profiles'})), 'Invalid extended configuration')
     base=validate_manifest(configuration['gateway'])
-    require(base['schema']==value['schema'].replace('extended','embedded') or value['schema'].endswith(('/v6', '/v8', '/v9')), 'Managed base version mismatch')
-    if value['schema'].endswith('/v8'):
+    require(base['schema']==value['schema'].replace('extended','embedded') or value['schema'].endswith(('/v6', '/v8', '/v9', '/v11')), 'Managed base version mismatch')
+    if value['schema'].endswith(('/v8', '/v11')):
         extensions = configuration['extensions']
-        require(isinstance(extensions, dict) and extensions.get('schema') == 'gateway-extension-configuration/v3', 'Unsupported extension capabilities configuration')
+        require(isinstance(extensions, dict) and extensions.get('schema') == ('gateway-extension-configuration/v5' if value['schema'].endswith('/v11') else 'gateway-extension-configuration/v3'), 'Unsupported extension capabilities configuration')
         packages = extensions.get('packages')
         require(isinstance(packages, list), 'Invalid extension packages')
         selected = [p for p in packages if isinstance(p, dict) and p.get('protocol') == 'gateway-api-codec/v3']
-        require(bool(selected), 'Capability package selection missing')
+        require(bool(selected) or value['schema'].endswith('/v11'), 'Capability package selection missing')
         for package in selected:
             require(package.get('schema') == 'gateway-extension-package/v2', 'Invalid capability package version')
             validate_codec_capabilities(package.get('capabilities'))
@@ -241,13 +241,13 @@ def validate_extended_manifest(value):
             if codec.get('protocol') == 'gateway-api-codec/v3':
                 matching = [p for p in selected if p.get('id') == codec['id'] and p.get('version') == codec['version']]
                 require(len(matching) == 1 and matching[0]['capabilities'] == codec['capabilities'], 'Codec package capabilities mismatch')
-    if value['schema'].endswith(('/v9','/v10')):
+    if value['schema'].endswith(('/v9', '/v10', '/v11')):
         extensions = configuration['extensions']
-        require(set(configuration) == {'gateway', 'extensions'} and extensions.get('schema') == 'gateway-extension-configuration/v4', 'Unsupported provider extension configuration')
+        require((value['schema'].endswith('/v11') and extensions.get('schema') == 'gateway-extension-configuration/v5') or (set(configuration) == {'gateway', 'extensions'} and extensions.get('schema') == 'gateway-extension-configuration/v4'), 'Unsupported provider extension configuration')
         packages = extensions.get('packages')
         require(isinstance(packages, list), 'Invalid provider packages')
         providers = [p for p in packages if p.get('protocol') == 'gateway-provider/v1']
-        require(bool(providers), 'Provider package selection missing')
+        require(bool(providers) or value['schema'].endswith('/v11'), 'Provider package selection missing')
         for package in providers:
             require(package.get('schema') == 'gateway-extension-package/v2' and isinstance(package.get('provider_protocol'), str) and re.fullmatch(r'[a-z][a-z0-9._-]{0,63}/v[1-9][0-9]{0,5}', package['provider_protocol']), 'Invalid provider package identity')
             validate_provider_capabilities(package.get('capabilities'))
@@ -256,6 +256,20 @@ def validate_extended_manifest(value):
             if binding is not None:
                 matching = [p for p in providers if p.get('id') == binding['id'] and p.get('version') == binding['version']]
                 require(len(matching) == 1 and matching[0].get('capabilities') == binding['capabilities'] and matching[0].get('provider_protocol') == binding['provider_protocol'], 'Provider package binding mismatch')
+    if value['schema'].endswith('/v11'):
+        extensions = configuration['extensions']
+        require(isinstance(extensions, dict) and extensions.get('schema') == 'gateway-extension-configuration/v5', 'Unsupported recorder extension configuration')
+        packages = extensions.get('packages')
+        require(isinstance(packages, list), 'Invalid recorder packages')
+        recorders = [p for p in packages if p.get('protocol') in ('gateway-usage-recorder/v1', 'gateway-usage-recorder/v2')]
+        expected = {'schema': 'gateway-plugin-capabilities/v1', 'apis': [], 'features': ['usage_event_v1', 'usage_event_v2'], 'requires': ['usage_recorder_ipc_v2']}
+        require(len(recorders) == 1 and recorders[0].get('schema') == 'gateway-extension-package/v2'
+                and recorders[0].get('protocol') == 'gateway-usage-recorder/v2'
+                and recorders[0].get('state_schema') == 'usage-store/v2'
+                and recorders[0].get('permissions') == ['export_usage', 'observe_usage', 'write_usage_store']
+                and recorders[0].get('capabilities') == expected, 'Recorder v2 selection missing or incompatible')
+        require(configuration['usage_event_schemas'] == ['gateway-usage-event/v1', 'gateway-usage-event/v2']
+                and configuration['usage_profiles'] == (['responses/v1','chat/v1','messages/v1','gemini_interactions/v1','deepseek/v1'] if 'continuation' in base['configuration'] else ['responses/v1','chat/v1','messages/v1']), 'Unsupported recorder event schemas')
     if 'usage_contract' in configuration:
         require(configuration['usage_contract']=='gateway-usage-event/v1' and configuration['usage_profiles']==(['responses/v1','chat/v1','messages/v1','gemini_interactions/v1','deepseek/v1'] if 'continuation' in base['configuration'] else ['responses/v1','chat/v1','messages/v1']), 'Unsupported usage profiles')
     raw=json.dumps(configuration,ensure_ascii=False,sort_keys=True,separators=(',',':'),allow_nan=False).encode()

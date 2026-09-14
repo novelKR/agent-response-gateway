@@ -15,7 +15,10 @@ test('all synthetic scenarios use the real client and deterministic response con
   const client=createClient('gateway',syntheticTransport('usage'));
   const groups=(await client.usage(1,2,'UTC')).data.groups;
   assert.equal(groups[0].token_sums.output_tokens,null);assert.equal(groups[1].token_sums.output_tokens,0);
-  assert.equal(groups[1].token_sums.input_tokens,'9007199254740993123');client.dispose();
+  assert.equal(groups[1].token_sums.input_tokens,'9007199254740993123');
+  assert.deepEqual(groups[0].interpretation,{kind:'builtin_parser',profile:'responses/v1'});
+  assert.deepEqual(groups[1].interpretation,{kind:'trusted_provider_plugin',protocol:'gateway-provider/v1',provider_protocol:'synthetic-provider/v1',package_id:'synthetic-provider',package_version:'1.0.0',package_sha256:'a'.repeat(64),executable_sha256:'b'.repeat(64)});
+  assert.equal((await client.usage(1,2,'UTC')).data.schema,'gateway-management-usage/v2');client.dispose();
 });
 test('scope, pagination, audit detail and reset preserve their meanings',async()=>{
   const team=createClient('gateway',syntheticTransport('team'));

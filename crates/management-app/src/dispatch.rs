@@ -162,7 +162,7 @@ impl Adapters {
                     .ok_or(Error::Forbidden)?
                     .management_identity(actor.identity())?;
                 let service = self.team_http.as_ref().ok_or(Error::Unsupported)?;
-                return service.usage_view(
+                let report = service.usage_view(
                     &principal,
                     &gateway_team_http::UsageQuery {
                         from_ms: range.from_ms,
@@ -170,7 +170,9 @@ impl Adapters {
                         after: range.after,
                         all: principal.permissions.read_all_usage,
                     },
-                );
+                )?;
+                gateway_team_http::validate_usage_report(&report)?;
+                return Ok(report);
             }
             #[cfg(not(feature = "team"))]
             return Err(Error::Forbidden);
@@ -193,7 +195,11 @@ impl Adapters {
                 &range.timezone,
             )
             .map_err(|_| Error::Storage)?;
-            value["schema"] = json!("gateway-management-usage/v1");
+            value["schema"] = json!(if value["usage_contract"] == "gateway-usage-event/v2" {
+                "gateway-management-usage/v2"
+            } else {
+                "gateway-management-usage/v1"
+            });
             value["scope"] = json!("gateway_recorder");
             Ok(value)
         }
@@ -261,7 +267,7 @@ impl Dispatcher for Adapters {
             ),
             feature(
                 "usage",
-                "gateway-management-usage/v1",
+                "gateway-management-usage/v2",
                 cfg!(any(target_os = "linux", target_os = "macos")),
                 self.usage.is_some(),
                 if self.usage.is_some() {

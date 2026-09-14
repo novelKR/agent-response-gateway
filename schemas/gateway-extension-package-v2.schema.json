@@ -121,6 +121,31 @@
           "$ref": "#/$defs/provider_capabilities"
         }
       }
+    },
+    {
+      "properties": {
+        "protocol": {
+          "const": "gateway-usage-recorder/v2"
+        },
+        "permissions": {
+          "const": [
+            "export_usage",
+            "observe_usage",
+            "write_usage_store"
+          ]
+        },
+        "state_schema": {
+          "const": "usage-store/v2"
+        },
+        "capabilities": {
+          "$ref": "#/$defs/recorder_capabilities"
+        }
+      },
+      "not": {
+        "required": [
+          "provider_protocol"
+        ]
+      }
     }
   ],
   "$defs": {
@@ -313,6 +338,19 @@
             "responses_output_validation"
           ]
         }
+      }
+    },
+    "recorder_capabilities": {
+      "const": {
+        "schema": "gateway-plugin-capabilities/v1",
+        "apis": [],
+        "features": [
+          "usage_event_v1",
+          "usage_event_v2"
+        ],
+        "requires": [
+          "usage_recorder_ipc_v2"
+        ]
       }
     }
   }

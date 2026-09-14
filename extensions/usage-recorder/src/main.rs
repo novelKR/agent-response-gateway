@@ -1,5 +1,8 @@
 use clap::{Parser, Subcommand};
-use gateway_usage_contract::{MAX_EVENT_BYTES, PROTOCOL, ReceiptStatus, UsageEvent, digest};
+use gateway_usage_contract::{
+    MAX_EVENT_BYTES, PROTOCOL, PROTOCOL_V2, ReceiptStatus, RecordedEvent, digest,
+    recorder_v2_capabilities,
+};
 use gateway_usage_recorder::{Result, Store, config, export, now_ms, query};
 use std::{
     io::{self, BufRead, Write},
@@ -23,6 +26,17 @@ enum Command {
         store: PathBuf,
     },
     Serve,
+    ServeV2,
+    InitV2 {
+        #[arg(long)]
+        store: PathBuf,
+    },
+    UpgradeV2 {
+        #[arg(long)]
+        store: PathBuf,
+        #[arg(long)]
+        backup: PathBuf,
+    },
     Status {
         #[arg(long)]
         store: PathBuf,
@@ -88,10 +102,21 @@ enum Command {
         store: PathBuf,
     },
 }
-fn serve() -> Result<()> {
+fn serve(v2: bool) -> Result<()> {
     let path = std::env::current_dir()?;
     let c = config(&path.join("recorder.json"))?;
-    let mut store = Store::open(&path, false, true)?;
+    if v2
+        && c.destinations
+            .iter()
+            .any(|d| !matches!(d, gateway_usage_contract::Destination::HttpV2 { .. }))
+    {
+        return Err("unsupported_usage_export_contract".into());
+    }
+    let mut store = if v2 {
+        Store::open_v2(&path, false, true)?
+    } else {
+        Store::open(&path, false, true)?
+    };
     store.bind_destinations(&c)?;
     let stopped = Arc::new(AtomicBool::new(false));
     let stop = stopped.clone();
@@ -119,10 +144,11 @@ fn serve() -> Result<()> {
         }
     });
     let result = (|| -> Result<()> {
-        println!(
-            "{}",
-            serde_json::json!({"type":"ready","protocol":PROTOCOL,"producer_id":store.producer()?})
-        );
+        let mut ready = serde_json::json!({"type":"ready","protocol":if v2{PROTOCOL_V2}else{PROTOCOL},"producer_id":store.producer()?});
+        if v2 {
+            ready["capabilities"] = recorder_v2_capabilities();
+        }
+        println!("{ready}");
         io::stdout().flush()?;
         let mut input = io::stdin().lock();
         loop {
@@ -147,8 +173,11 @@ fn serve() -> Result<()> {
                 }
             }
             raw.pop();
-            let event: UsageEvent = serde_json::from_slice(&raw)?;
-            if event.producer_id != store.producer()? || event.bytes()? != raw {
+            let event: RecordedEvent = serde_json::from_slice(&raw)?;
+            if !v2 && event.is_v2() {
+                return Err("unsupported_usage_event".into());
+            }
+            if *event.view().producer_id != store.producer()? || event.bytes()? != raw {
                 return Err("invalid_event_identity".into());
             }
             if !matches!(
@@ -159,7 +188,7 @@ fn serve() -> Result<()> {
             }
             println!(
                 "{}",
-                serde_json::json!({"type":"committed","event_id":event.event_id,"sha256":digest(&raw)})
+                serde_json::json!({"type":"committed","event_id":event.view().event_id,"sha256":digest(&raw)})
             );
             io::stdout().flush()?;
         }
@@ -174,7 +203,17 @@ fn run(cli: Cli) -> Result<()> {
             let s = Store::open(&store, true, true)?;
             println!("{}", query::status(&s)?);
         }
-        Command::Serve => serve()?,
+        Command::Serve => serve(false)?,
+        Command::ServeV2 => serve(true)?,
+        Command::InitV2 { store } => {
+            let s = Store::open_v2(&store, true, true)?;
+            println!("{}", query::status(&s)?);
+        }
+        Command::UpgradeV2 { store, backup } => {
+            let mut s = Store::open_current(&store, true)?;
+            s.upgrade_v2(&backup)?;
+            println!("{}", query::status(&s)?);
+        }
         Command::Status { store } => {
             println!("{}", query::status(&Store::open(&store, false, false)?)?)
         }
@@ -198,14 +237,15 @@ fn run(cli: Cli) -> Result<()> {
             limit,
         } => {
             let s = Store::open(&store, false, false)?;
-            let mut stmt=s.connection.prepare("SELECT payload FROM usage_current WHERE (?1 IS NULL OR attempt_id=?1) ORDER BY started_at_ms DESC LIMIT ?2")?;
+            let mut stmt=s.connection.prepare("SELECT payload,sha256 FROM usage_current WHERE (?1 IS NULL OR attempt_id=?1) ORDER BY started_at_ms DESC LIMIT ?2")?;
             for row in stmt.query_map(rusqlite::params![attempt, limit.min(1000) as i64], |r| {
-                r.get::<_, String>(0)
+                Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?))
             })? {
-                let event: UsageEvent = serde_json::from_str(&row?)?;
+                let (payload, sha256) = row?;
+                let event = RecordedEvent::from_stored_bytes(payload.as_bytes(), &sha256)?;
                 println!(
                     "{}",
-                    serde_json::json!({"event":event,"non_read_input_tokens":event.usage.non_read_input_tokens()})
+                    serde_json::json!({"event":event,"non_read_input_tokens":event.usage().non_read_input_tokens()})
                 );
             }
         }
@@ -216,17 +256,21 @@ fn run(cli: Cli) -> Result<()> {
         } => {
             let s = Store::open(&store, false, false)?;
             let mut stmt = s.connection.prepare(
-                "SELECT rowid,payload FROM usage_events WHERE rowid>?1 ORDER BY rowid LIMIT ?2",
+                "SELECT rowid,payload,sha256 FROM usage_events WHERE rowid>?1 ORDER BY rowid LIMIT ?2",
             )?;
             for row in stmt.query_map(
                 rusqlite::params![after_rowid, limit.min(1000) as i64],
-                |r| Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?)),
+                |r| {
+                    Ok((
+                        r.get::<_, i64>(0)?,
+                        r.get::<_, String>(1)?,
+                        r.get::<_, String>(2)?,
+                    ))
+                },
             )? {
-                let (cursor, payload) = row?;
-                println!(
-                    "{}",
-                    serde_json::json!({"cursor":cursor,"event":serde_json::from_str::<serde_json::Value>(&payload)?})
-                );
+                let (cursor, payload, sha256) = row?;
+                let event = RecordedEvent::from_stored_bytes(payload.as_bytes(), &sha256)?;
+                println!("{}", serde_json::json!({"cursor":cursor,"event":event}));
             }
         }
         Command::Backup { store, output }
@@ -234,12 +278,15 @@ fn run(cli: Cli) -> Result<()> {
             store,
             backup: output,
         } => {
-            let s = Store::open(&store, false, true)?;
+            let s = Store::open_current(&store, true)?;
             s.backup(&output)?;
-            println!("{{\"storage_schema\":1,\"backup_completed\":true}}");
+            println!(
+                "{}",
+                serde_json::json!({"storage_schema":s.storage_version()?,"backup_completed":true})
+            );
         }
         Command::Prune { store, before_ms } => {
-            let mut s = Store::open(&store, false, true)?;
+            let mut s = Store::open_current(&store, true)?;
             let tx = s.connection.transaction()?;
             tx.execute("DELETE FROM usage_outbox WHERE state='committed' AND EXISTS(SELECT 1 FROM usage_current c WHERE c.producer_id=usage_outbox.producer_id AND c.kind='attempt_finished' AND c.observed_at_ms<?1 AND c.attempt_id=(SELECT attempt_id FROM usage_events e WHERE e.producer_id=usage_outbox.producer_id AND e.event_id=usage_outbox.event_id) AND NOT EXISTS(SELECT 1 FROM usage_outbox o JOIN usage_events e USING(producer_id,event_id) WHERE e.producer_id=c.producer_id AND e.attempt_id=c.attempt_id AND o.state!='committed'))",[i64::try_from(before_ms)?])?;
             tx.execute("INSERT INTO usage_tombstones SELECT producer_id,event_id,attempt_id,revision,sha256,kind FROM usage_events WHERE (producer_id,attempt_id) IN (SELECT producer_id,attempt_id FROM usage_current c WHERE c.kind='attempt_finished' AND c.observed_at_ms<?1 AND NOT EXISTS(SELECT 1 FROM usage_outbox o JOIN usage_events e USING(producer_id,event_id) WHERE e.producer_id=c.producer_id AND e.attempt_id=c.attempt_id))", [i64::try_from(before_ms)?])?;
@@ -249,8 +296,8 @@ fn run(cli: Cli) -> Result<()> {
             println!("{{\"deleted_events\":{n}}}");
         }
         Command::RetryBlocked { store, destination } => {
-            let s = Store::open(&store, false, true)?;
-            let n=s.connection.execute("UPDATE usage_outbox SET state='pending',next_at_ms=0 WHERE destination=?1 AND state='blocked'",[destination])?;
+            let s = Store::open_current(&store, true)?;
+            let n=s.connection.execute("UPDATE usage_outbox SET state='pending',next_at_ms=0 WHERE destination=?1 AND state IN ('blocked','blocked_unsupported_contract')",[destination])?;
             println!("{{\"retry_events\":{n}}}");
         }
         Command::InitializePostgres { store, destination } => {
@@ -265,7 +312,7 @@ fn run(cli: Cli) -> Result<()> {
         }
         Command::Flush { store } => {
             let c = config(&store.join("recorder.json"))?;
-            let mut s = Store::open(&store, false, true)?;
+            let mut s = Store::open_current(&store, true)?;
             s.bind_destinations(&c)?;
             let n = export::run_once(&mut s, &c)?;
             println!("{{\"committed_events\":{n}}}");

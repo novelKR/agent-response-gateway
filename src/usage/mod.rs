@@ -12,7 +12,7 @@ use tokio::sync::{mpsc, oneshot};
 // The native IPC receiver is currently Unix-only; other targets retain the core API.
 #[cfg_attr(not(unix), allow(dead_code))]
 pub(crate) struct Delivery {
-    pub event: UsageEvent,
+    pub event: RecordedEvent,
     pub ack: oneshot::Sender<bool>,
 }
 #[derive(Clone)]
@@ -21,6 +21,7 @@ pub struct UsageSink {
     pub(crate) mode: Mode,
     pub(crate) timeout: Duration,
     pub(crate) producer: String,
+    pub(crate) supports_v2: bool,
     pub(crate) dropped: Arc<AtomicU64>,
 }
 impl UsageSink {
@@ -84,7 +85,7 @@ impl Attempt {
         self.event.observation_incomplete |= self.accumulator.incomplete;
         let (tx, rx) = oneshot::channel();
         let delivery = Delivery {
-            event: self.event.clone(),
+            event: self.event.clone().into(),
             ack: tx,
         };
         if terminal {
@@ -221,7 +222,7 @@ impl Drop for Attempt {
         if let Some(permit) = self.terminal.take() {
             let (ack, _) = oneshot::channel();
             permit.send(Delivery {
-                event: self.event.clone(),
+                event: self.event.clone().into(),
                 ack,
             });
         }
@@ -269,3 +270,6 @@ pub(crate) async fn observe_managed(
     }
     Ok(())
 }
+
+mod provider;
+pub(crate) use provider::*;

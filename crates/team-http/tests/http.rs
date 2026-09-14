@@ -1187,7 +1187,7 @@ impl gateway_team_http::UsageReader for ChangingUsage {
         &mut self,
         producer: &Id,
         request: &Id,
-    ) -> gateway_management::Result<Vec<UsageEvent>> {
+    ) -> gateway_management::Result<Vec<gateway_usage_contract::RecordedEvent>> {
         self.calls.fetch_add(1, Ordering::SeqCst);
         let mode = self.mode.load(Ordering::SeqCst);
         if mode == 0 {
@@ -1217,10 +1217,17 @@ impl gateway_team_http::UsageReader for ChangingUsage {
             observation_incomplete: true,
             usage: Default::default(),
         };
+        if mode == 4 {
+            let mut raw = serde_json::to_value(value).unwrap();
+            raw.as_object_mut().unwrap().remove("profile");
+            raw["schema"] = json!(gateway_usage_contract::SCHEMA_V2);
+            raw["interpretation"] = json!({"kind":"trusted_provider_plugin","protocol":"gateway-provider/v1","provider_protocol":"synthetic/v1","package_id":"synthetic","package_version":"1.0.0","package_sha256":"a".repeat(64),"executable_sha256":"b".repeat(64)});
+            return Ok(vec![serde_json::from_value(raw).unwrap()]);
+        }
         Ok(if mode == 2 {
-            vec![value.clone(), value]
+            vec![value.clone().into(), value.into()]
         } else {
-            vec![value]
+            vec![value.into()]
         })
     }
 }
@@ -1306,6 +1313,31 @@ async fn recorder_failures_mismatched_routes_and_duplicate_attempts_stay_unobser
         data["requests"][0]["usage"]["attempts"][0]["usage"]["counters"]["input_tokens"]["value"]
             .is_null()
     );
+    assert!(data.get("usage_event_schemas").is_none());
+    mode.store(4, Ordering::SeqCst);
+    let data = report(&client, &endpoint, &accounts.alice, false).await;
+    assert_eq!(data["schema"], gateway_team_http::SCHEMA);
+    assert_eq!(
+        data["usage_event_schemas"],
+        json!([
+            gateway_usage_contract::SCHEMA,
+            gateway_usage_contract::SCHEMA_V2
+        ])
+    );
+    assert_eq!(
+        data["requests"][0]["usage"]["attempts"][0]["interpretation"]["package_id"],
+        "synthetic"
+    );
+    gateway_team_http::validate_usage_report(&data).unwrap();
+    let mut missing = data.clone();
+    missing
+        .as_object_mut()
+        .unwrap()
+        .remove("usage_event_schemas");
+    assert!(gateway_team_http::validate_usage_report(&missing).is_err());
+    let mut wrong = data;
+    wrong["usage_event_schemas"] = json!([gateway_usage_contract::SCHEMA_V2]);
+    assert!(gateway_team_http::validate_usage_report(&wrong).is_err());
     let forged = client
         .get(format!(
             "{}/team/v1/usage?from_ms={}&to_ms={}&subject=bob",

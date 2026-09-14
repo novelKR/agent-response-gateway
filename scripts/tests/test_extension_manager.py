@@ -463,5 +463,26 @@ class ExtensionManagerTests(unittest.TestCase):
         self.assertFalse(self.store.exists())
 
 
+    def test_recorder_v2_static_install_and_legacy_reinterpretation(self):
+        caps = {'schema': 'gateway-plugin-capabilities/v1', 'apis': [],
+                'features': ['usage_event_v1', 'usage_event_v2'], 'requires': ['usage_recorder_ipc_v2']}
+        package = self.root / 'recorder-v2'
+        sha = m.package_binary(self.binary, self.license, package, 'recorder', '1.0.0', 'usage_recorder',
+                               recorder_protocol=m.RECORDER_V2_PROTOCOL, capabilities=caps)
+        value, _ = m.inspect_package(package, sha)
+        self.assertEqual(value['state_schema'], 'usage-store/v2')
+        self.assertEqual(value['capabilities'], caps)
+        m.install(self.store, package, sha)
+        self.assertEqual(m.inventory(self.store)['inventory']['installed'][0]['package'], value)
+        for changed in (dict(value, schema=m.PACKAGE_SCHEMA), dict(value, state_schema='usage-store/v1'),
+                        dict(value, capabilities=dict(caps, features=['usage_event_v2'])),
+                        dict(value, provider_protocol='synthetic/v1')):
+            with self.assertRaises(m.ExtensionError):
+                m.validate_package(m.canonical(changed))
+        with self.assertRaises(m.ExtensionError):
+            m.package_binary(self.binary, self.license, self.root / 'bad-role', 'bad', '1.0.0',
+                             recorder_protocol=m.RECORDER_V2_PROTOCOL, capabilities=caps)
+
+
 if __name__ == '__main__':
     unittest.main()

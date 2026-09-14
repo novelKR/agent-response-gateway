@@ -53,7 +53,7 @@ pub fn router_with_usage(
     config.validate()?;
     if usage
         .as_ref()
-        .is_some_and(|sink| sink.mode != crate::usage::Mode::Off)
+        .is_some_and(|sink| sink.mode != crate::usage::Mode::Off && !sink.supports_v2)
         && config
             .models
             .values()

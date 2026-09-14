@@ -1,3 +1,4 @@
+import { validateTeamUsage, rememberNumber } from './usage-contract.mjs';
 const SCHEMA = 'gateway-management-http/v1';
 export class ApiError extends Error {
   constructor(code, status = 0) { super(code); this.code = code; this.status = status; }
@@ -27,7 +28,8 @@ export function createClient(target, fetcher = globalThis.fetch.bind(globalThis)
     } catch (error) { if (error instanceof ApiError) throw error; throw new ApiError('connection_unavailable'); }
     finally { clearTimeout(timer); active.delete(controller); }
     let value;
-    try { value = JSON.parse(text, (_key, item, context) => {
+    try { value = JSON.parse(text, function (_key, item, context) {
+      if (typeof item === 'number' && context?.source)rememberNumber(this,_key,context.source);
       if (typeof item === 'number' && Number.isInteger(item) && !Number.isSafeInteger(item)) {
         if (!context?.source) throw new ApiError('unsafe_numeric_value', response.status);
         return context.source;
@@ -61,7 +63,13 @@ export function createClient(target, fetcher = globalThis.fetch.bind(globalThis)
     },
     operations: (after = 0) => request('GET', 'operations?' + query({ after: String(after), limit: '20' })),
     operation(id) { if (!safeId(id) || id === '.' || id === '..') throw new ApiError('invalid_operation'); return request('GET', 'operations/' + encodeURIComponent(id) + '?' + query({})); },
-    usage: (from, to, timezone, after=0) => request('GET', 'usage?' + query({ from_ms: String(from), to_ms: String(to), timezone, ...(after ? {after:String(after)} : {}) })),
+    async usage(from, to, timezone, after=0) {
+      const result=await request('GET', 'usage?' + query({ from_ms:String(from),to_ms:String(to),timezone,...(after?{after:String(after)}:{}) }));
+      if((typeof result.data?.schema==='string' && result.data.schema.startsWith('gateway-team-')) || result.data?.requests || result.data?.usage_event_schemas) {
+        try { validateTeamUsage(result.data); } catch { throw new ApiError('unsupported_contract'); }
+      }
+      return result;
+    },
   });
 }
 export function modulesOf(view) { return Array.isArray(view?.modules) ? view.modules : []; }

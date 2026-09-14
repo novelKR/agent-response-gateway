@@ -73,7 +73,7 @@ class ConformanceTests(unittest.TestCase):
         self.assertEqual(report['status'], 'pass')
         self.assertEqual(report['package_sha256'], checksum)
         self.assertEqual(report['contract'], 'gateway-observer/v1')
-        self.assertEqual(report['tool_version'], '1.1.0')
+        self.assertEqual(report['tool_version'], '1.2.0')
         self.assertEqual(report['checks'][-1]['id'], 'role.execution')
         self.assertFalse(list(self.root.glob('observer-*')))
 
