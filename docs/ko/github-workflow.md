@@ -48,19 +48,35 @@ python3.14 -B scripts/validation.py plan --profile full --base BASE --head HEAD
 
 실행 전 보고된 도구와 잠긴 npm 의존성을 준비한다. 웹 표현만 검사할 때에는 Cargo나
 crate 라이선스 도구가 필요하지 않다. 로컬 결과는 `.local/validation/`에 기록한다.
-전체 Python discovery에는 분리된 실제 SPDX 통합 테스트가 포함된다. 현재 CI는
-선택 예정 영향 계획을 shadow 모드로 기록하고 기존 전체 검사 집합을 계속 요구한다.
-영향 계획은 선택한 테스트의 실행 증거가 아니다. 검증 정책의 `force_full`은 범위를
-확대하는 방향으로만 작동한다.
+전체 Python discovery에는 분리된 실제 SPDX 통합 테스트가 포함된다. PR CI는
+선택한 영향 계획을 실행하며 main, 수동 전체 검사와 릴리스 자격 검증은 전체 실행을
+유지한다. 영향 계획 자체는 테스트 실행 증거가 아니므로 실행 집합과 필수 검사 결과를
+확인한다. 검증 정책의 `force_full`은 범위를 확대하는 방향으로만 작동한다.
 
-필수 작업은 `validation-plan`, `conformance-prepare`, `web-windows`, `targets`, `format`, `rust`,
+등록된 작업 계열은 `validation-plan`, `conformance-prepare`, `web-windows`, `targets`, `format`, `rust`,
 `publication`, `licenses`, `codex-conformance`, `api-codecs`, `usage-recorder`,
 `management-web`, `docs`, `package-smoke`다. 두 네이티브 행렬은
 [공통 대상 정의](../../scripts/release_targets.py)의 플랫폼 4종을 모두 사용한다.
-`ci-required`는 명시한 필수 선행 작업 전체가 성공해야 통과한다.
-누락·추가·건너뜀·취소·실패 작업은 집계를 차단한다.
-경로 필터로 필수 검사를 조용히 생략하지 않는다. 첫 성공 실행 이후 해당
+`ci-required`는 계획기와 선택한 작업 전체의 성공을 요구한다. 계획에서 명시적으로
+제외한 작업만 건너뛸 수 있다. 누락·추가·예상 밖 건너뜀·취소·실패 결과는 집계를
+차단한다. 필수 workflow 자체를 경로 필터로 생략하지 않는다. 첫 성공 실행 이후 해당
 검사를 브랜치 보호에 등록한다.
+
+네이티브 Rust 검사는 기존 지원 플랫폼 집합에서 변경 패키지와 소비자를 선택한다.
+전체 검사는 원래 패키지·feature 행렬을 유지한다. Recorder는 별도 데이터베이스와
+업그레이드 검사를 유지한다. Web 스타일과 독립적인 화면 컴포넌트에는 Rust fixture가
+필요하지 않으며 API client와 인증을 소유한 애플리케이션 컨테이너는 실제 API fixture를
+계속 사용한다.
+
+job-seconds를 청구량으로 해석하지 않고 실제 Actions 시간을 확인할 수 있다.
+
+```sh
+python3.14 -B scripts/validation_metrics.py RUN_ID --output .local/validation/run.json
+```
+
+보고서는 필수 gate 대기 시간, 완료한 job 시간, 미완료 작업과 배포 대기를 구분한다.
+단계별 관측을 보존하며 queue·cache·동시 실행 조건이 다른 결과를 통제된 성능 비교로
+해석하지 않는다.
 
 네이티브 적합성 검사는 editing, protocol/continuity, managed reasoning,
 legacy migration의 독립 그룹 네 개로 실행한다. 외부 codec은 protocol과

@@ -28,8 +28,20 @@ class ImpactTests(unittest.TestCase):
     def test_web_parser_includes_actual_api_fixture(self):
         self.assertIn('web-api', self.plan(['management-web/src/api.mjs'])['checks'])
 
+    def test_authentication_container_keeps_api_fixture_but_pure_view_does_not(self):
+        self.assertIn('web-api', self.plan(['management-web/src/App.vue'])['checks'])
+        self.assertNotIn('cargo', self.plan(['management-web/src/JsonView.vue'])['tools'])
+
     def test_docs_do_not_select_product_packaging(self):
         self.assertEqual(self.plan(['docs/management.md'])['jobs'], ['docs', 'publication'])
+
+    def test_docs_keep_python_regressions_without_cargo_or_license_tools(self):
+        plan=self.plan(['docs-site/scripts/prepare.py'])
+        policy,_=v.read_policy(ROOT)
+        commands=[c for name,c in v.commands(ROOT,plan,policy) if name=='docs']
+        self.assertTrue(any('test_docs*.py' in c for c in commands))
+        self.assertNotIn('cargo',plan['tools'])
+        self.assertNotIn('cargo-deny',plan['tools'])
 
     def test_shared_notice_tool_selects_both_web_consumers_and_packages(self):
         p = self.plan(['docs-site/scripts/web-notices.mjs'])
@@ -70,10 +82,17 @@ class ImpactTests(unittest.TestCase):
         self.assertTrue({'agent-response-gateway', 'gateway-usage-recorder'} <= set(p['packages']))
         self.assertTrue({'codex-conformance', 'usage-recorder'} <= set(p['jobs']))
 
+    def test_extension_python_changes_keep_real_rust_smoke_without_license_setup(self):
+        plan=self.plan(['scripts/extension_manager.py'])
+        self.assertIn('extension',plan['checks'])
+        self.assertIn('rust',plan['jobs'])
+        self.assertNotIn('licenses',plan['jobs'])
+
     def test_recorder_keeps_database_and_upgrade_job(self):
         p = self.plan(['extensions/usage-recorder/src/storage.rs'])
         self.assertIn('usage-recorder', p['jobs'])
-        self.assertIn('gateway-usage-recorder', p['packages'])
+        self.assertIn('rust', p['jobs'])
+        self.assertTrue({'gateway-usage-recorder','gateway-team-http','gateway-management-app','gateway-management-embedded'} <= set(p['packages']))
 
     def test_mixed_changes_take_union(self):
         p = self.plan(['management-web/src/style.css', 'docs/management.md'])

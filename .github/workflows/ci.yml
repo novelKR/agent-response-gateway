@@ -26,6 +26,7 @@ jobs:
   validation-plan:
     outputs:
       plan: ${{ steps.plan.outputs.plan }}
+      web-fixture: ${{ steps.plan.outputs.web-fixture }}
       conformance-prepare: ${{ steps.plan.outputs.conformance-prepare }}
       web-windows: ${{ steps.plan.outputs.web-windows }}
       targets: ${{ steps.plan.outputs.targets }}
@@ -120,9 +121,14 @@ jobs:
             .local/cargo-home/registry
             target
           key: rust-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock') }}
-      - run: cargo +1.98.0 clippy -p agent-response-gateway -p gateway-management -p gateway-management-runtime -p gateway-management-extensions -p gateway-management-api -p gateway-team-access -p gateway-team-http -p gateway-management-embedded -p gateway-management-app --features gateway-management-embedded/team,gateway-management-app/team --all-targets --locked -- -D warnings
+      - name: Check affected extension Python contracts
+        if: ${{ matrix.target == 'x86_64-unknown-linux-gnu' && needs.validation-plan.outputs.licenses != 'true' && contains(fromJSON(needs.validation-plan.outputs.plan).checks, 'extension') }}
+        run: python -B -m unittest discover -s scripts/tests -p 'test_extension*.py' -v
       - run: cargo +1.98.0 build -p agent-response-gateway --locked
-      - run: cargo +1.98.0 test -p agent-response-gateway -p gateway-management -p gateway-management-runtime -p gateway-management-extensions -p gateway-management-api -p gateway-team-access -p gateway-team-http -p gateway-management-embedded -p gateway-management-app --features gateway-management-embedded/team,gateway-management-app/team --locked
+      - name: Check selected native packages and consumers
+        env:
+          VALIDATION_PLAN: ${{ needs.validation-plan.outputs.plan }}
+        run: python -B scripts/ci_rust.py
       - name: Verify explicit host authentication and bounded host shutdown
         run: |
           cargo +1.98.0 build -p gateway-management-embedded --example synthetic_host --locked
@@ -464,7 +470,7 @@ jobs:
           node-version: '24.21.0'
           cache: npm
           cache-dependency-path: docs-site/package-lock.json
-      - run: python3 -B -m unittest discover -s scripts/tests -p 'test_docs_publication.py' -v
+      - run: python3 -B -m unittest discover -s scripts/tests -p 'test_docs*.py' -v
       - run: python3 -B scripts/check_docs.py
       - run: npm ci --prefix docs-site --ignore-scripts
       - run: npm test --prefix docs-site
@@ -496,13 +502,22 @@ jobs:
           node-version: '24.21.0'
           cache: npm
           cache-dependency-path: management-web/package-lock.json
-      - run: rustup toolchain install 1.98.0 --profile minimal
+      - if: ${{ needs.validation-plan.outputs.web-fixture == 'true' }}
+        run: rustup toolchain install 1.98.0 --profile minimal
       - run: npm ci --prefix management-web --ignore-scripts
       - run: python3 -B scripts/web_assets.py .local/management-web/dist
       - run: node management-web/scripts/check-output.mjs "$GITHUB_SHA"
-      - run: cargo +1.98.0 build -p gateway-management-api --example web_fixture --locked
+      - if: ${{ needs.validation-plan.outputs.web-fixture == 'true' }}
+        run: cargo +1.98.0 build -p gateway-management-api --example web_fixture --locked
       - name: Verify production Web and synthetic/API DevDemo modes
-        run: WEB_FIXTURE_BIN="$PWD/target/debug/examples/web_fixture" npm test --prefix management-web
+        env:
+          REQUIRE_FIXTURE: ${{ needs.validation-plan.outputs.web-fixture }}
+        run: |
+          if [[ "$REQUIRE_FIXTURE" == true ]]; then
+            WEB_FIXTURE_BIN="$PWD/target/debug/examples/web_fixture" npm test --prefix management-web
+          else
+            npm test --prefix management-web
+          fi
       - name: Retain verified read-only static files
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

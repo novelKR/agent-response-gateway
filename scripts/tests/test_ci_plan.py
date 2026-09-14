@@ -38,12 +38,14 @@ class CiPlanningTests(unittest.TestCase):
         p = self.prepare()
         self.assertEqual(p['execution_jobs'], ['management-web','publication'])
         self.assertEqual(p['source_sha'], self.env['GITHUB_SHA'])
+        self.assertFalse(p['web_fixture'])
 
     def test_policy_change_runs_full_even_if_new_rules_claim_web_only(self):
         p = self.prepare(changed=True)
         self.assertEqual(p['profile'], 'full')
         self.assertIn('codex-conformance', p['execution_jobs'])
         self.assertIn('baseline-policy-differs', p['reasons'])
+        self.assertTrue(p['web_fixture'])
 
     def test_checkout_mismatch_is_rejected(self):
         self.env['GITHUB_SHA'] = 'd'*40

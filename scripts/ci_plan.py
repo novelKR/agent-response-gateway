@@ -48,6 +48,7 @@ def prepare(root, event, env):
     execution = plan['jobs'] if enabled else sorted(policy['jobs'])
     plan.update(source_sha=source, execution_jobs=execution, mode='affected' if enabled else 'shadow',
                 policy_sha256=digest, event=name)
+    plan['web_fixture'] = plan['profile']=='full' or plan['mode']=='shadow' or 'web-api' in plan.get('checks',[]) or 'rust' in execution
     return plan
 
 
@@ -62,6 +63,7 @@ def main():
         (state / 'plan.json').write_text(json.dumps(plan, indent=2) + '\n')
         with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
             output.write('plan=' + raw + '\n')
+            output.write('web-fixture=' + str(plan['web_fixture']).lower() + '\n')
             for job in validation.read_policy(root)[0]['jobs']:
                 output.write(job + '=' + str(job in plan['execution_jobs']).lower() + '\n')
         with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
