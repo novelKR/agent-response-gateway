@@ -33,8 +33,32 @@ a PR using the author's identity.
 
 ## Required checks
 
-The required jobs are `targets`, `format`, `rust`, `publication`, `licenses`,
-`codex-conformance`, `docs` and `package-smoke`. Both native matrices use all four
+Local iteration and submission use an explicit impact plan. The planner reports
+selected checks, tools, package consumers and the reason for broader coverage.
+It uses Git and manifest reads without resolving Cargo dependencies. Unknown
+paths, unavailable revisions, dependency and validation-policy changes select
+full coverage. `--base BASE --head HEAD` describes a commit range; rename and
+deletion inputs include both affected paths. Range plans are not executed against
+an unrelated local worktree. The local full profile is not a release qualification.
+
+```sh
+python3.14 -B scripts/validation.py plan --worktree
+python3.14 -B scripts/validation.py run --worktree
+python3.14 -B scripts/validation.py run --staged
+python3.14 -B scripts/validation.py plan --profile full --base BASE --head HEAD
+```
+
+Prepare reported tools and locked npm dependencies before execution. Web-only
+presentation checks require no Cargo or crate-license tooling. Local results are
+written under `.local/validation/`. Full Python discovery includes the separate
+real SPDX integration tests. CI currently records the prospective impact plan
+in shadow mode and still requires the complete existing check set; an impact
+plan is not evidence that any selected test ran. `force_full` in the validation
+policy only expands coverage.
+
+The required jobs are `validation-plan`, `targets`, `format`, `rust`,
+`publication`, `licenses`, `codex-conformance`, `api-codecs`, `usage-recorder`,
+`management-web`, `docs` and `package-smoke`. Both native matrices use all four
 platforms from the [common target definition](../scripts/release_targets.py).
 `ci-required` succeeds only when the complete, explicitly named prerequisite set succeeds.
 Missing, extra, skipped, cancelled and failed jobs block it. No path filter silently omits a required check.

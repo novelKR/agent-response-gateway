@@ -132,6 +132,51 @@ class Checker:
             self.content(data)
         return paths
 
+    def selected_files(self, staged: bool) -> list[bytes]:
+        """Inspect changed file bytes only; never interpret this as history approval."""
+        raw = self.git("diff", "--cached", "--name-only", "--no-renames", "-z", "--")
+        if not staged:
+            raw += self.git("diff", "--name-only", "--no-renames", "-z", "--")
+            raw += self.git("ls-files", "--others", "--exclude-standard", "-z")
+        paths = sorted(set(raw.split(b"\0")) - {b""})
+        entries = {}
+        for entry in self.git("ls-files", "--stage", "-z").split(b"\0"):
+            if entry:
+                meta, path = entry.split(b"\t", 1)
+                mode, oid, stage = meta.split()
+                if stage != b"0":
+                    raise BoundaryError
+                entries[path] = mode, oid
+        inspected = []
+        for path in paths:
+            if staged:
+                if path not in entries:  # A deletion has no new bytes to publish.
+                    continue
+                mode, oid = entries[path]
+                self.path(path, mode)
+                self.blob(oid)
+            else:
+                target = self.root / os.fsdecode(path)
+                parent = target
+                while parent != self.root:
+                    if parent.is_symlink():
+                        raise BoundaryError
+                    parent = parent.parent
+                if not target.exists():
+                    continue
+                self.path(path)
+                info = target.stat(follow_symlinks=False)
+                if not stat.S_ISREG(info.st_mode):
+                    raise BoundaryError
+                self.size(info.st_size)
+                with target.open("rb") as stream:
+                    data = stream.read(MAX_FILE + 1)
+                if len(data) != info.st_size:
+                    raise BoundaryError
+                self.content(data)
+            inspected.append(path)
+        return inspected
+
     def tree(self, oid: bytes) -> None:
         for entry in self.git("ls-tree", "-r", "-t", "-z", oid.decode("ascii")).split(b"\0"):
             if not entry:
@@ -243,6 +288,8 @@ def load_patterns(path: Path | None) -> list[bytes]:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])
+    parser.add_argument("--files-only", action="store_true", help="inspect changed files without checking history; not publication approval")
+    parser.add_argument("--staged", action="store_true", help="with --files-only, inspect changed index blobs")
     parser.add_argument("--worktree", action="store_true", help="also inspect untracked, non-ignored working files")
     parser.add_argument("--private-patterns", type=Path, help="explicit local JSON array of exact private markers")
     parser.add_argument("--archive", type=Path, help="also inspect a tar or tar.gz source artifact")
@@ -251,6 +298,14 @@ def main() -> int:
         checker = Checker(args.root.resolve(), load_patterns(args.private_patterns))
         if Path(os.fsdecode(checker.git("rev-parse", "--show-toplevel").strip())).resolve() != checker.root:
             raise BoundaryError
+        if args.staged and not args.files_only or args.staged and args.worktree or args.files_only and args.archive:
+            raise BoundaryError
+        if args.files_only:
+            if not (args.staged or args.worktree):
+                raise BoundaryError
+            selected = checker.selected_files(args.staged)
+            print(f"Public boundary file check passed: scope={'staged' if args.staged else 'worktree'} files={len(selected)} history=not_checked")
+            return 0
         indexed = checker.index()
         selected = checker.worktree() if args.worktree else indexed
         if not selected:

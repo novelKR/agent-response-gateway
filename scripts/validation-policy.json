@@ -1,0 +1,528 @@
+{
+  "schema": "gateway-validation-policy/v1",
+  "force_full": false,
+  "activation": "shadow",
+  "jobs": [
+    "targets",
+    "format",
+    "rust",
+    "publication",
+    "licenses",
+    "codex-conformance",
+    "package-smoke",
+    "docs",
+    "usage-recorder",
+    "api-codecs",
+    "management-web"
+  ],
+  "checks": {
+    "boundary": {
+      "tools": [
+        "git",
+        "python3"
+      ],
+      "commands": [
+        [
+          "{python}",
+          "-B",
+          "scripts/check_public_boundary.py",
+          "--files-only",
+          "{scope}"
+        ]
+      ]
+    },
+    "scripts": {
+      "tools": [
+        "python3"
+      ],
+      "commands": [
+        [
+          "{python}",
+          "-B",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "scripts/tests",
+          "-v"
+        ]
+      ]
+    },
+    "rust": {
+      "tools": [
+        "cargo"
+      ],
+      "commands": [
+        [
+          "cargo",
+          "fmt",
+          "--check"
+        ],
+        [
+          "cargo",
+          "clippy",
+          "{packages}",
+          "{features}",
+          "--all-targets",
+          "--locked",
+          "--",
+          "-D",
+          "warnings"
+        ],
+        [
+          "cargo",
+          "test",
+          "{packages}",
+          "{features}",
+          "--locked"
+        ]
+      ]
+    },
+    "licenses": {
+      "tools": [
+        "cargo",
+        "cargo-deny"
+      ],
+      "commands": [
+        [
+          "{python}",
+          "-B",
+          "scripts/license_audit.py",
+          "check"
+        ]
+      ]
+    },
+    "docs": {
+      "tools": [
+        "python3",
+        "node",
+        "npm"
+      ],
+      "commands": [
+        [
+          "{python}",
+          "-B",
+          "scripts/check_docs.py"
+        ],
+        [
+          "npm",
+          "test",
+          "--prefix",
+          "docs-site"
+        ],
+        [
+          "npm",
+          "run",
+          "build",
+          "--prefix",
+          "docs-site"
+        ],
+        [
+          "{python}",
+          "-B",
+          "docs-site/scripts/check-output.py"
+        ]
+      ]
+    },
+    "web": {
+      "tools": [
+        "node",
+        "npm"
+      ],
+      "commands": [
+        [
+          "npm",
+          "test",
+          "--prefix",
+          "management-web"
+        ],
+        [
+          "npm",
+          "run",
+          "build",
+          "--prefix",
+          "management-web"
+        ],
+        [
+          "node",
+          "management-web/scripts/check-output.mjs"
+        ]
+      ]
+    },
+    "web-api": {
+      "tools": [
+        "cargo",
+        "node",
+        "npm"
+      ],
+      "commands": [
+        [
+          "cargo",
+          "build",
+          "-p",
+          "gateway-management-api",
+          "--example",
+          "web_fixture",
+          "--locked"
+        ],
+        [
+          "npm",
+          "test",
+          "--prefix",
+          "management-web"
+        ]
+      ],
+      "fixture": true
+    },
+    "extension": {
+      "tools": [
+        "python3",
+        "cargo"
+      ],
+      "commands": [
+        [
+          "{python}",
+          "-B",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "scripts/tests",
+          "-p",
+          "test_extension*.py",
+          "-v"
+        ],
+        [
+          "cargo",
+          "test",
+          "--locked",
+          "extensions::"
+        ],
+        [
+          "cargo",
+          "build",
+          "--locked",
+          "--example",
+          "metadata_observer"
+        ],
+        [
+          "cargo",
+          "build",
+          "--locked"
+        ],
+        [
+          "{python}",
+          "-B",
+          "scripts/extension_smoke.py",
+          "--binary",
+          "target/debug/agent-response-gateway",
+          "--observer",
+          "target/debug/examples/metadata_observer"
+        ]
+      ]
+    }
+  },
+  "rules": [
+    {
+      "name": "policy",
+      "patterns": [
+        "AGENTS.md",
+        ".github/**",
+        "scripts/validation.py",
+        "scripts/validation-policy.json",
+        "scripts/check_ci_results.py",
+        "scripts/tests/test_validation*.py",
+        "scripts/tests/test_ci_results.py"
+      ],
+      "ci": [
+        "targets",
+        "format",
+        "rust",
+        "publication",
+        "licenses",
+        "codex-conformance",
+        "package-smoke",
+        "docs",
+        "usage-recorder",
+        "api-codecs",
+        "management-web"
+      ],
+      "local": [
+        "boundary",
+        "scripts",
+        "rust",
+        "licenses",
+        "docs",
+        "web",
+        "web-api",
+        "extension"
+      ],
+      "full": true
+    },
+    {
+      "name": "rust-dependencies",
+      "patterns": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "**/Cargo.toml",
+        "licensing/**"
+      ],
+      "ci": [
+        "targets",
+        "format",
+        "rust",
+        "publication",
+        "licenses",
+        "codex-conformance",
+        "package-smoke",
+        "docs",
+        "usage-recorder",
+        "api-codecs",
+        "management-web"
+      ],
+      "local": [
+        "boundary",
+        "scripts",
+        "rust",
+        "licenses",
+        "docs",
+        "web",
+        "web-api",
+        "extension"
+      ],
+      "full": true
+    },
+    {
+      "name": "web-dependencies",
+      "patterns": [
+        "management-web/package*.json",
+        "management-web/licensing/**",
+        "docs-site/scripts/web-notices.mjs"
+      ],
+      "ci": [
+        "management-web",
+        "docs",
+        "package-smoke"
+      ],
+      "local": [
+        "web",
+        "docs"
+      ]
+    },
+    {
+      "name": "web-api",
+      "patterns": [
+        "management-web/src/api.mjs",
+        "management-web/scripts/*fixture*",
+        "management-web/scripts/api-fixture.mjs",
+        "management-web/tests/*fixture*"
+      ],
+      "ci": [
+        "management-web"
+      ],
+      "local": [
+        "web",
+        "web-api"
+      ]
+    },
+    {
+      "name": "web",
+      "patterns": [
+        "management-web/**"
+      ],
+      "ci": [
+        "management-web"
+      ],
+      "local": [
+        "web"
+      ]
+    },
+    {
+      "name": "docs",
+      "patterns": [
+        "docs/**",
+        "docs-site/**",
+        "README*",
+        "CONTRIBUTING*",
+        "COMMERCIAL-LICENSING*",
+        "SECURITY*"
+      ],
+      "ci": [
+        "docs"
+      ],
+      "local": [
+        "docs"
+      ]
+    },
+    {
+      "name": "core",
+      "patterns": [
+        "src/**",
+        "tests/**",
+        "examples/**",
+        "crates/usage-contract/**",
+        "config*.toml",
+        "schemas/**"
+      ],
+      "ci": [
+        "format",
+        "rust",
+        "codex-conformance",
+        "api-codecs",
+        "usage-recorder",
+        "package-smoke"
+      ],
+      "local": [
+        "rust"
+      ]
+    },
+    {
+      "name": "management",
+      "patterns": [
+        "crates/management*/**",
+        "crates/team-*/**"
+      ],
+      "ci": [
+        "format",
+        "rust",
+        "management-web",
+        "package-smoke"
+      ],
+      "local": [
+        "rust",
+        "web",
+        "web-api"
+      ]
+    },
+    {
+      "name": "recorder",
+      "patterns": [
+        "extensions/usage-recorder/**"
+      ],
+      "ci": [
+        "format",
+        "rust",
+        "usage-recorder",
+        "package-smoke"
+      ],
+      "local": [
+        "rust"
+      ]
+    },
+    {
+      "name": "extensions",
+      "patterns": [
+        "scripts/extension_manager.py",
+        "scripts/extension_smoke.py",
+        "scripts/tests/test_extension*.py"
+      ],
+      "ci": [
+        "format",
+        "rust",
+        "package-smoke"
+      ],
+      "local": [
+        "extension"
+      ]
+    },
+    {
+      "name": "release",
+      "patterns": [
+        "scripts/release*",
+        "scripts/optional_package.py",
+        "scripts/package_smoke.py",
+        "scripts/tests/test_release*",
+        "scripts/tests/test_optional_package.py"
+      ],
+      "ci": [
+        "targets",
+        "format",
+        "rust",
+        "publication",
+        "licenses",
+        "codex-conformance",
+        "package-smoke",
+        "docs",
+        "usage-recorder",
+        "api-codecs",
+        "management-web"
+      ],
+      "local": [
+        "boundary",
+        "scripts",
+        "rust",
+        "licenses",
+        "docs",
+        "web",
+        "web-api",
+        "extension"
+      ],
+      "full": true
+    },
+    {
+      "name": "scripts",
+      "patterns": [
+        "scripts/**"
+      ],
+      "ci": [
+        "targets",
+        "format",
+        "rust",
+        "publication",
+        "licenses",
+        "codex-conformance",
+        "package-smoke",
+        "docs",
+        "usage-recorder",
+        "api-codecs",
+        "management-web"
+      ],
+      "local": [
+        "boundary",
+        "scripts",
+        "rust",
+        "licenses",
+        "docs",
+        "web",
+        "web-api",
+        "extension"
+      ],
+      "full": true
+    },
+    {
+      "name": "legal",
+      "patterns": [
+        "LICENSE",
+        "THIRD-PARTY-NOTICES.md",
+        ".gitignore",
+        ".gitattributes",
+        "THIRD-PARTY-NOTICES.ko.md"
+      ],
+      "ci": [
+        "targets",
+        "format",
+        "rust",
+        "publication",
+        "licenses",
+        "codex-conformance",
+        "package-smoke",
+        "docs",
+        "usage-recorder",
+        "api-codecs",
+        "management-web"
+      ],
+      "local": [
+        "boundary",
+        "scripts",
+        "rust",
+        "licenses",
+        "docs",
+        "web",
+        "web-api",
+        "extension"
+      ],
+      "full": true
+    }
+  ]
+}

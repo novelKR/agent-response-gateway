@@ -41,6 +41,19 @@ python3 -B scripts/check_public_boundary.py
 python3 -B -m unittest discover -s scripts/tests -v
 ```
 
+로컬 제출 시 이력을 검사하지 않고 변경 파일만 명시적으로 선택할 수 있다.
+
+```sh
+python3 -B scripts/check_public_boundary.py --files-only --staged
+python3 -B scripts/check_public_boundary.py --files-only --worktree
+```
+
+staged 모드는 변경된 index blob을 읽고 worktree 모드는 변경 파일과 무시되지 않은
+untracked 파일을 읽는다. 삭제에는 검사할 새 바이트가 없다. 출력에
+`history=not_checked`를 표시하며 성공해도 index 이력이나 배포를 승인하지 않는다.
+기본 명령과 archive 검사는 전체 이력 범위를 유지한다. 파일 전용 모드와 archive
+검증을 함께 사용할 수 없다.
+
 아직 최초 커밋이나 스테이징이 없는 로컬 작업에서는 다음 명령으로
 무시되지 않은 untracked 파일까지 검사한다. 기본 검사는 빈 index를 통과시키지 않는다.
 

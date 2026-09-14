@@ -43,6 +43,19 @@ python3 -B scripts/check_public_boundary.py
 python3 -B -m unittest discover -s scripts/tests -v
 ```
 
+For local submission, explicitly select changed files without inspecting history:
+
+```sh
+python3 -B scripts/check_public_boundary.py --files-only --staged
+python3 -B scripts/check_public_boundary.py --files-only --worktree
+```
+
+The staged mode reads changed index blobs; worktree mode reads changed and
+non-ignored untracked files. Deletions have no new bytes to inspect. Output says
+`history=not_checked`; success does not approve index history or a distribution.
+The default command and archive checks retain their full-history scope. File-only
+mode cannot be combined with archive validation.
+
 Before an initial commit or staging, use the following to include non-ignored
 untracked files. The default check does not accept an empty index.
 

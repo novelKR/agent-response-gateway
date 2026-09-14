@@ -120,7 +120,7 @@ python3 -B scripts/extension_smoke.py \
   --observer target/debug/examples/metadata_observer
 ```
 
-The probe packages and runs the actual observer against the actual gateway with a synthetic loopback upstream. It checks offline installation/inspection, unchanged default manifests, exact native JSON/SSE forwarding, authentication separation, frozen activation, exclusive runtime ownership, observer exit/stall isolation and direct-child cleanup. No real OAuth, quota or model service is used. The standard repository format, Clippy, Rust, Python, license and publication checks remain required.
+The probe packages and runs the actual observer against the actual gateway with a synthetic loopback upstream. It checks offline installation/inspection, unchanged default manifests, exact native JSON/SSE forwarding, authentication separation, frozen activation, exclusive runtime ownership, observer exit/stall isolation and direct-child cleanup. No real OAuth, quota or model service is used. Use the affected local validation plan for extension changes. Full format, Clippy, Rust, Python, license and publication checks remain required for full validation and CI.
 
 A package error can indicate a wrong trusted digest, unsupported platform/protocol, missing notice, unlisted file, nonprivate mode or a link in the path. Do not bypass checks to make it run. A startup protocol error rejects that opted-in gateway launch. A runtime protocol failure is logged as a fixed diagnostic and disables that observer, not model routes. The smoke test names only a fixed failure phase; it does not print supplied paths, credentials or fixture bodies. Read [the implementation limits and planned roles](extensions-design.md) before treating the foundation as a general plugin SDK.
 

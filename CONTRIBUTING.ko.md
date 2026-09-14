@@ -33,9 +33,11 @@
 재현 절차와 API 의견을 받는다. 큰 변경은 PR을 열기 전에 논의한다.
 각 변경은 목적을 좁히고 관련 테스트와 문서를 함께 제출한다.
 
-저장소 지침을 읽고 `cargo fmt --check`,
-`cargo clippy --all-targets --locked -- -D warnings`, `cargo test --locked`를 실행한다.
-기본 테스트는 실제 API 키 없이 합성 입력과 모의 공급자를 사용한다.
+저장소 지침을 읽는다. `python3.14 -B scripts/validation.py plan --worktree`로
+선택된 검사를 확인하고 `python3.14 -B scripts/validation.py run --worktree`로
+실행한다. 제출 전에는 `--staged`, 전체 로컬 검증에는 `--profile full`을 사용한다.
+보고된 도구만 준비하며 실행기는 의존성을 설치하지 않는다. 기본 테스트는 실제
+API 키 없이 합성 입력과 모의 공급자를 사용한다.
 
 의존성 변경에는 [라이선스 관리 절차](licensing/README.ko.md)에 따른 잠금 파일과
 필수 라이선스 기록을 포함한다. 스크립트 검사는 Python 3.11 이상을 사용한다.

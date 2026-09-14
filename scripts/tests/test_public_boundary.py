@@ -63,6 +63,53 @@ class PublicBoundaryTests(unittest.TestCase):
         self.git("commit", "-q", "-m", "Synthetic fixture")
         return self.git("rev-parse", "HEAD").strip().decode()
 
+    def test_files_only_does_not_approve_reachable_private_history(self):
+        self.write("old.txt", MARKER)
+        self.stage()
+        self.commit()
+        self.git("rm", "old.txt")
+        self.commit()
+        self.write("README.md", "Changed public fixture")
+        self.stage()
+        result = self.check("--files-only", "--staged")
+        self.assertIn("history=not_checked", result.stdout)
+        self.check(ok=False)
+
+    def test_files_only_index_is_not_replaced_by_clean_worktree(self):
+        self.stage()
+        self.commit()
+        self.write("README.md", MARKER)
+        self.stage()
+        self.write("README.md", "Clean worktree")
+        self.check("--files-only", "--staged", ok=False)
+        self.check("--files-only", "--worktree")
+
+    def test_files_only_untracked_content_is_checked(self):
+        self.stage()
+        self.commit()
+        self.write("new.txt", MARKER)
+        self.check("--files-only", "--worktree", ok=False)
+        self.check("--files-only", "--staged")
+
+    def test_files_only_deletion_has_no_replacement_bytes(self):
+        self.stage()
+        self.commit()
+        self.git("rm", "README.md")
+        self.assertIn("files=0", self.check("--files-only", "--staged").stdout)
+        self.assertIn("files=0", self.check("--files-only", "--worktree").stdout)
+
+    def test_files_only_rejects_symlink_and_gitlink(self):
+        self.stage()
+        commit = self.commit()
+        self.git("update-index", "--add", "--cacheinfo", "160000", commit, "nested")
+        self.check("--files-only", "--staged", ok=False)
+        self.git("update-index", "--force-remove", "nested")
+        try:
+            (self.repo / "alias").symlink_to(self.repo / "README.md")
+        except OSError:
+            self.skipTest("Symlinks are unavailable")
+        self.check("--files-only", "--worktree", ok=False)
+
     def test_empty_index_fails_but_worktree_supports_initial_files(self):
         self.check(ok=False)
         self.check("--worktree")
