@@ -17,8 +17,10 @@ class WebAssetsTests(unittest.TestCase):
         self.source=Path(self.temp.name);self.assets=self.source/'assets';self.assets.mkdir()
         (self.source/'management-web/licensing').mkdir(parents=True)
         (self.source/'LICENSE').write_bytes(b'license')
-        (self.source/'management-web/licensing/dependencies.json').write_bytes(b'[]')
-        files={'index.html':b'<html></html>','LICENSE.txt':b'license','web-notices.txt':b'notice','web-dependencies.json':b'[]'}
+        dependencies=json.dumps([dict(name='synthetic-package',version='1',notices=[dict(file='LICENSE',sha256=package.sha(b'original notice'))])]).encode()
+        (self.source/'management-web/licensing/dependencies.json').write_bytes(dependencies)
+        notices=b'Web dependencies shipped by the optional management dashboard.\nOriginal license and notice bytes follow each package heading.\n\n===== synthetic-package@1 =====\n\n--- LICENSE ---\noriginal notice\n'
+        files={'index.html':b'<html></html>','LICENSE.txt':b'license','web-notices.txt':notices,'web-dependencies.json':dependencies}
         for name,raw in files.items():(self.assets/name).write_bytes(raw)
         self.manifest=dict(schema='gateway-management-web/v1',api_contract='gateway-management-http/v1',state_contract='gateway-management-state/v1',read_only=True,source_commit='a'*40,source_dirty=False,files={n:package.sha(b) for n,b in files.items()})
         self.write_manifest()
@@ -49,4 +51,9 @@ class WebAssetsTests(unittest.TestCase):
     def test_linked_output_is_rejected(self):
         try:(self.assets/'link').symlink_to(self.source/'LICENSE')
         except OSError:self.skipTest('Symlinks unavailable')
+        with self.assertRaises(package.PackageError):web.verify(self.source,self.assets,'a'*40)
+
+    def test_rehashed_third_party_notice_body_is_rejected(self):
+        path=self.assets/'web-notices.txt';path.write_bytes(path.read_bytes().replace(b'original notice',b'substituted text'))
+        self.manifest['files']['web-notices.txt']=package.sha(path.read_bytes());self.write_manifest()
         with self.assertRaises(package.PackageError):web.verify(self.source,self.assets,'a'*40)
