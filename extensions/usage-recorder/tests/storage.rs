@@ -178,3 +178,53 @@ fn contradictory_terminal_revision_cannot_leave_a_newer_unfinished_snapshot() {
     let row: serde_json::Value = serde_json::from_slice(&result.stdout).unwrap();
     assert_eq!(row["non_read_input_tokens"].as_u64(), Some(u64::MAX - 4));
 }
+
+#[test]
+fn recorder_waits_for_export_writer_before_reading_ledger() {
+    use std::sync::{Condvar, Mutex};
+    use std::time::Duration;
+
+    // Synchronize on SQLite contention rather than a timing window or a production
+    // hook. A deferred transaction cannot invoke the busy handler when upgrading
+    // its read snapshot while another connection owns the write reservation.
+    static CONTENDED: (Mutex<bool>, Condvar) = (Mutex::new(false), Condvar::new());
+    fn busy(attempt: i32) -> bool {
+        *CONTENDED.0.lock().unwrap() = true;
+        CONTENDED.1.notify_one();
+        std::thread::sleep(Duration::from_millis(1));
+        attempt < 1000
+    }
+
+    let d = directory();
+    let mut store = Store::open(d.path(), true, true).unwrap();
+    store.connection.busy_handler(Some(busy)).unwrap();
+    let mut exporter = rusqlite::Connection::open(d.path().join("usage.sqlite3")).unwrap();
+    let tx = exporter
+        .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+        .unwrap();
+    tx.execute("UPDATE usage_outbox SET attempts=attempts+1", [])
+        .unwrap();
+    std::thread::scope(|scope| {
+        let recording =
+            scope.spawn(|| store.record(&event(1, EventKind::AttemptFinished), &config()));
+        let (guard, _) = CONTENDED
+            .1
+            .wait_timeout_while(CONTENDED.0.lock().unwrap(), Duration::from_secs(2), |v| !*v)
+            .unwrap();
+        let observed = *guard;
+        drop(guard);
+        tx.commit().unwrap();
+        let result = recording.join().unwrap();
+        assert!(
+            observed,
+            "recording must wait before opening a read snapshot"
+        );
+        assert_eq!(result.unwrap(), ReceiptStatus::Committed);
+    });
+    assert_eq!(
+        store
+            .record(&event(1, EventKind::AttemptFinished), &config())
+            .unwrap(),
+        ReceiptStatus::Duplicate
+    );
+}
