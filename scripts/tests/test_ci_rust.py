@@ -31,6 +31,15 @@ class NativeSelectionTests(unittest.TestCase):
         command=ci_rust.selected_commands(ROOT,self.plan([]),'a'*40)[1]
         self.assertIn('agent-response-gateway',command)
 
+    def test_recorder_consumers_preserve_team_enabled_native_coverage(self):
+        packages=validation.packages(ROOT,['extensions/usage-recorder/src/lib.rs'],False)
+        command=ci_rust.selected_commands(ROOT,self.plan(packages),'a'*40)[1]
+        self.assertIn('gateway-team-http',command)
+        self.assertIn('gateway-management-app',command)
+        self.assertIn('gateway-management-embedded',command)
+        self.assertNotIn('gateway-usage-recorder',command)
+        self.assertIn('gateway-management-app/team',command[command.index('--features')+1])
+
     def test_wrong_source_or_policy_is_rejected(self):
         plan=self.plan(['agent-response-gateway'])
         with self.assertRaises(validation.ValidationError):ci_rust.selected_commands(ROOT,plan,'b'*40)
@@ -44,3 +53,9 @@ class NativeFixtureOrderingTests(unittest.TestCase):
         build=workflow.index('      - run: cargo +1.98.0 build -p agent-response-gateway --locked')
         tests=workflow.index('      - name: Check selected native packages and consumers')
         self.assertLess(build,tests)
+
+    def test_extension_python_contracts_remain_selected_without_full_license_job(self):
+        workflow=(ROOT/'.github/workflows/ci.yml').read_text()
+        self.assertIn("needs.validation-plan.outputs.licenses != 'true'",workflow)
+        self.assertIn("contains(fromJSON(needs.validation-plan.outputs.plan).checks, 'extension')",workflow)
+        self.assertIn("-p 'test_extension*.py' -v",workflow)

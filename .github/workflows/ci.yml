@@ -121,6 +121,9 @@ jobs:
             .local/cargo-home/registry
             target
           key: rust-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock') }}
+      - name: Check affected extension Python contracts
+        if: ${{ matrix.target == 'x86_64-unknown-linux-gnu' && needs.validation-plan.outputs.licenses != 'true' && contains(fromJSON(needs.validation-plan.outputs.plan).checks, 'extension') }}
+        run: python -B -m unittest discover -s scripts/tests -p 'test_extension*.py' -v
       - run: cargo +1.98.0 build -p agent-response-gateway --locked
       - name: Check selected native packages and consumers
         env:
@@ -467,7 +470,7 @@ jobs:
           node-version: '24.21.0'
           cache: npm
           cache-dependency-path: docs-site/package-lock.json
-      - run: python3 -B -m unittest discover -s scripts/tests -p 'test_docs_publication.py' -v
+      - run: python3 -B -m unittest discover -s scripts/tests -p 'test_docs*.py' -v
       - run: python3 -B scripts/check_docs.py
       - run: npm ci --prefix docs-site --ignore-scripts
       - run: npm test --prefix docs-site
