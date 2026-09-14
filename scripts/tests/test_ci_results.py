@@ -5,6 +5,7 @@ import hashlib
 from unittest.mock import patch
 import importlib.util
 import json
+import tempfile
 from pathlib import Path
 import unittest
 
@@ -120,6 +121,23 @@ class PlannedCiTests(unittest.TestCase):
         for raw in ('', '{}', 'null', '[]'):
             self.assertFalse(module.succeeded(json.dumps(self.jobs), raw, self.source))
         self.assertFalse(module.succeeded(json.dumps(self.jobs)))
+
+
+class ResultReportTests(unittest.TestCase):
+    def test_failure_and_declared_skip_are_recorded_without_job_outputs(self):
+        state=Path(__file__).resolve().parents[2]/'.local/test-state';state.mkdir(parents=True,exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=state) as directory:
+            root=Path(directory);summary=root/'summary.md'
+            raw=json.dumps({'publication':{'result':'success','outputs':{'private':'must-not-copy'}},'management-web':{'result':'failure'}})
+            plan=json.dumps({'execution_jobs':['publication','management-web']})
+            module.write_report(raw,plan,False,{'GITHUB_SHA':'a'*40,'GITHUB_RUN_ID':'123','GITHUB_RUN_ATTEMPT':'2','GITHUB_STEP_SUMMARY':str(summary)},root)
+            data=(root/'.local/validation/result.json').read_text();doc=json.loads(data)
+            self.assertFalse(doc['passed']);self.assertEqual(doc['attempt'],'2')
+            self.assertNotIn('must-not-copy',data+summary.read_text())
+            self.assertEqual(next(j for j in doc['jobs'] if j['name']=='management-web')['result'],'failure')
+            self.assertFalse(next(j for j in doc['jobs'] if j['name']=='rust')['selected'])
+            module.write_report('null','null',False,{},root)
+            self.assertTrue(all(j['selected'] is None for j in json.loads((root/'.local/validation/result.json').read_text())['jobs']))
 
 
 if __name__ == "__main__":
