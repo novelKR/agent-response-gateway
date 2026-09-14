@@ -123,11 +123,11 @@ jobs:
             .local/cargo-home/registry
             target
           key: rust-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock') }}
+      - run: cargo +1.98.0 build -p agent-response-gateway --locked
       - name: Check selected native packages and consumers
         env:
           VALIDATION_PLAN: ${{ needs.validation-plan.outputs.plan }}
         run: python -B scripts/ci_rust.py
-      - run: cargo +1.98.0 build -p agent-response-gateway --locked
       - name: Verify explicit host authentication and bounded host shutdown
         run: |
           cargo +1.98.0 build -p gateway-management-embedded --example synthetic_host --locked
