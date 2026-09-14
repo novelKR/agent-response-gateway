@@ -94,14 +94,19 @@ language pairs, static output, local preview boundary and web dependency notices
 It retains the verified site for review for 14 days. It has no Pages deployment
 permission; artifact retention is not publication approval.
 
-On main push or manual main CI, the same checked site is packaged for Pages.
-After ci-required succeeds, the deployment job calls the public
-[docs-actions workflow](https://github.com/novelKR/docs-actions) at the full commit
-recorded in the [consumer lock](../.github/docs-pages-deploy.lock.json).
-Only that job receives pages: write and id-token: write; the caller owns its
-Pages site and github-pages environment. Configure Pages to use GitHub Actions
-and restrict that environment to main before publication. Add required reviewers
-there when a separate publication approval is needed. PRs do not deploy.
+Documentation deployment has its own main-only workflow. It selects changes to
+documentation inputs or deployment policy, and supports explicit manual deployment.
+The workflow checks reviewed pages, publication boundaries, Web notices and static
+output before packaging the same artifact for Pages. Product conformance and
+native package jobs are not its dependencies. After deployment, the served build
+manifest must match the source commit and exact manifest bytes from the build.
+
+The deployment calls the public [docs-actions workflow](https://github.com/novelKR/docs-actions)
+at the full commit recorded in the [consumer lock](../.github/docs-pages-deploy.lock.json).
+Only its deployment job receives pages: write and id-token: write. Configure Pages
+for GitHub Actions and restrict the github-pages environment to main. Required
+reviewers still control publication; PRs do not deploy. Deployment runs serialize
+without interruption, separately from superseded integration checks.
 
 Adopt central updates through a reviewed PR that changes the workflow SHA, lock
 and non-executing test snapshot together after central contracts CI succeeds.

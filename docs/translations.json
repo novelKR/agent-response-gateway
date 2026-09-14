@@ -286,8 +286,8 @@
       "order": 3,
       "source": "docs/github-workflow.md",
       "translation": "docs/ko/github-workflow.md",
-      "source_sha256": "7d1d71d2a95a15a62231bfa1f44bfc250b2a2c533ce2282b1090db7f337a783a",
-      "translation_sha256": "ffa6cb4a2401c437e800ea52e44412a7c458a1527ad96483d3d2c29e06874d22",
+      "source_sha256": "67426469df60746f6ea4c422b4ff9de277765584e6c15fec79908ac1186134ca",
+      "translation_sha256": "550771865de079f388d6dcbc092a426557f2288a1ee2b52fd608512d18f09e17",
       "anchors": [
         "branches-commits-and-reviews",
         "github-delivery-workflow",

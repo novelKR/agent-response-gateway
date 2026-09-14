@@ -10,9 +10,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.event.pull_request.number || github.ref }}
-  # Superseded PR checks can stop; do not interrupt a main Pages deployment.
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: ci-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
 
 defaults:
   run:
@@ -441,11 +440,6 @@ jobs:
       - run: npm test --prefix docs-site
       - run: npm run build --prefix docs-site
       - run: python3 -B docs-site/scripts/check-output.py
-      - name: Require clean provenance for the publication candidate
-        if: >-
-          (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
-          github.ref == 'refs/heads/main'
-        run: python3 -B scripts/check_docs_publication.py --commit "$GITHUB_SHA"
       - name: Retain the verified static site for review
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -453,15 +447,6 @@ jobs:
           name: docs-site
           path: .local/docs-site/dist/
           if-no-files-found: error
-          retention-days: 14
-      - name: Package the same verified site for Pages
-        if: >-
-          (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
-          github.ref == 'refs/heads/main'
-        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
-        with:
-          name: github-pages
-          path: .local/docs-site/dist/
           retention-days: 14
 
   management-web:
@@ -503,6 +488,8 @@ jobs:
     runs-on: windows-2025
     timeout-minutes: 15
     steps:
+      - name: Preserve committed notice bytes on Windows
+        run: git config --global core.autocrlf false
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -566,18 +553,3 @@ jobs:
           VALIDATION_BASE: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}
           VALIDATION_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: python3 -B scripts/check_ci_results.py
-
-  docs-pages:
-    # The merge gate includes docs, publication, licensing and every existing
-    # gateway check. PRs never call this privileged deployment workflow.
-    needs: ci-required
-    if: >-
-      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
-      github.ref == 'refs/heads/main'
-    permissions:
-      pages: write
-      id-token: write
-    uses: novelKR/docs-actions/.github/workflows/reusable-pages-deploy.yml@6dfabdb29486dc7e4de737ab7f08d5832fd98821
-    with:
-      artifact-name: github-pages
-      publication-branch: main

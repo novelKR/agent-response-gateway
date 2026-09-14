@@ -1,0 +1,111 @@
+name: Documentation deployment
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-deployment-main
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  plan:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      needed: ${{ steps.plan.outputs.needed }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.14'
+      - id: plan
+        run: python3 -B scripts/docs_deployment.py plan
+
+  build:
+    needs: plan
+    if: ${{ needs.plan.outputs.needed == 'true' }}
+    outputs:
+      manifest-sha256: ${{ steps.manifest.outputs.sha256 }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.14'
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24.21.0'
+          cache: npm
+          cache-dependency-path: docs-site/package-lock.json
+      - run: python3 -B -m unittest discover -s scripts/tests -p 'test_docs_publication.py' -v
+      - run: python3 -B scripts/check_public_boundary.py
+      - run: python3 -B scripts/check_docs.py
+      - run: npm ci --prefix docs-site --ignore-scripts
+      - run: npm test --prefix docs-site
+      - run: npm run build --prefix docs-site
+      - run: python3 -B docs-site/scripts/check-output.py
+      - name: Retain the verified static site for review
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          archive: true
+          name: docs-site
+          path: .local/docs-site/dist/
+          if-no-files-found: error
+          retention-days: 14
+      - run: python3 -B scripts/check_docs_publication.py --commit "$GITHUB_SHA"
+      - id: manifest
+        run: python3 -B scripts/docs_deployment.py manifest
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          name: github-pages
+          path: .local/docs-site/dist/
+          retention-days: 14
+
+  deploy:
+    needs: build
+    if: >-
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      github.ref == 'refs/heads/main'
+    permissions:
+      pages: write
+      id-token: write
+    uses: novelKR/docs-actions/.github/workflows/reusable-pages-deploy.yml@6dfabdb29486dc7e4de737ab7f08d5832fd98821
+    with:
+      artifact-name: github-pages
+      publication-branch: main
+
+  verify-served:
+    needs: [build, deploy]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.14'
+      - name: Verify actual served source and manifest bytes
+        env:
+          PAGE_URL: ${{ needs.deploy.outputs.page-url }}
+          MANIFEST_SHA: ${{ needs.build.outputs.manifest-sha256 }}
+        run: python3 -B scripts/docs_deployment.py verify --url "$PAGE_URL" --sha256 "$MANIFEST_SHA"
