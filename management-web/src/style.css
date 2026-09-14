@@ -840,3 +840,5 @@ h1 {
 .json-boolean { color:var(--json-boolean); }
 .json-null { color:var(--json-null); }
 .json-punctuation { color:var(--json-punctuation); }
+
+/* Keep shared presentation tokens deterministic. */
