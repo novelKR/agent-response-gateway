@@ -727,7 +727,11 @@ async fn audit_failure_prevents_effect_and_missing_results_are_not_reported_as_l
                 .unwrap(),
         )
         .await;
-        if view["data"]["observed_state"] == "uncertain" {
+        // The reader snapshot may precede the running journal update while the
+        // live overlay already observes the failed result. Await both boundaries.
+        if view["data"]["observed_state"] == "uncertain"
+            && view["data"]["operation"]["state"] == "running"
+        {
             break;
         }
         tokio::time::sleep(std::time::Duration::from_millis(2)).await;
