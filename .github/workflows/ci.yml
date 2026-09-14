@@ -234,10 +234,12 @@ jobs:
           cargo +1.98.0 build --locked --target-dir target/conformance-native --example embedded_editing
           cargo +1.98.0 build --workspace --locked
           cargo +1.98.0 build --locked --example api_codec --example api_codec_editing
-          git fetch --no-tags origin 7bb42c064a4e0aa26a17c821f8fe1c2e35d4175e
-          mkdir -p .local/legacy-source
-          git archive 7bb42c064a4e0aa26a17c821f8fe1c2e35d4175e | tar -x -C .local/legacy-source
-          cargo +1.98.0 build --locked --manifest-path .local/legacy-source/Cargo.toml --target-dir target/legacy
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .local/tools
+          key: license-tool-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'licensing/policy.json') }}
+      - run: python3 -B scripts/prepare_tools.py
+      - run: python3 -B scripts/prepared_evidence.py .local/prepared/evidence.tar.gz
       - id: seal-native
         run: python3 -B scripts/prepared_inputs.py pack .local/prepared/native.tar.gz --variant native
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -267,6 +269,8 @@ jobs:
         group: ["codec-protocol", "codec-editing-accounting"]
     runs-on: macos-15
     timeout-minutes: 25
+    env:
+      CARGO_HOME: ${{ github.workspace }}/.local/cargo-home
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -285,6 +289,11 @@ jobs:
         env:
           PREPARED_SHA: ${{ needs.conformance-prepare.outputs.codec-sha256 }}
         run: python3 -B scripts/prepared_inputs.py unpack .local/prepared/codec.tar.gz --variant codec --sha256 "$PREPARED_SHA"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .local/codex-runtime
+          key: codex-runtime-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'tests/codex/runtime-lock.json') }}
+      - run: python3 -B scripts/codex_runtime.py prepare
       - run: python3 -B scripts/codex_runtime.py verify
       - name: Run the complete selected scenario group
         env:
@@ -309,6 +318,8 @@ jobs:
         group: ["editing", "protocol-continuity", "managed-reasoning", "legacy-migration"]
     runs-on: macos-15
     timeout-minutes: 25
+    env:
+      CARGO_HOME: ${{ github.workspace }}/.local/cargo-home
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -327,7 +338,19 @@ jobs:
         env:
           PREPARED_SHA: ${{ needs.conformance-prepare.outputs.native-sha256 }}
         run: python3 -B scripts/prepared_inputs.py unpack .local/prepared/native.tar.gz --variant native --sha256 "$PREPARED_SHA"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .local/codex-runtime
+          key: codex-runtime-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'tests/codex/runtime-lock.json') }}
+      - run: python3 -B scripts/codex_runtime.py prepare
       - run: python3 -B scripts/codex_runtime.py verify
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: ${{ matrix.group == 'legacy-migration' }}
+        with:
+          path: |
+            .local/cargo-home/registry
+            target/legacy
+          key: legacy-writer-${{ runner.os }}-${{ runner.arch }}-7bb42c064a4e0aa26a17c821f8fe1c2e35d4175e-${{ hashFiles('rust-toolchain.toml') }}
       - name: Run the complete selected scenario group
         env:
           SUITE: ${{ matrix.group }}

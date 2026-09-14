@@ -73,6 +73,11 @@ toolchain, input locks and every file hash before installing shared executables.
 The prepared archive is retained for three days, group results for 14 days.
 Prepared inputs are not cached test success or release signatures.
 
+Shared gateway archives include corresponding source and the original dependency
+and Rust toolchain notices. Each group restores and verifies the pinned Codex
+bundle from its upstream cache; it is not republished inside the shared archive.
+The immutable legacy writer is built only in its migration group.
+
 The Web producer builds the exact source export once. Native package jobs consume
 its checked assets, while a separate Windows job retains Web build compatibility.
 License-tool caches are separate from dependency/build caches. Restored tool

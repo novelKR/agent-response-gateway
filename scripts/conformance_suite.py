@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def run(group):
     document = json.loads((ROOT / 'scripts/conformance-suites.json').read_text())
-    steps = document['groups'][group]
+    steps = document.get('setup', {}).get(group, []) + document['groups'][group]
     state = ROOT / '.local/conformance-groups' / group
     state.mkdir(parents=True, exist_ok=True)
     results = []

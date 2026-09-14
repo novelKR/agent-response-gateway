@@ -14,9 +14,9 @@ ROOT = Path(__file__).resolve().parents[1]
 LOCKS = ['Cargo.lock','rust-toolchain.toml','tests/codex/runtime-lock.json','scripts/conformance-suites.json','.github/workflows/ci.yml','scripts/prepared_inputs.py']
 BINS = {
     'native': ['target/debug/agent-response-gateway', 'target/debug/examples/embedded_editing',
-               'target/legacy/debug/agent-response-gateway'],
+               '.local/prepared/evidence.tar.gz'],
     'codec': ['target/debug/agent-response-gateway', 'target/debug/gateway-usage-recorder',
-              'target/debug/examples/api_codec', 'target/debug/examples/api_codec_editing'],
+              'target/debug/examples/api_codec', 'target/debug/examples/api_codec_editing', '.local/prepared/evidence.tar.gz'],
 }
 
 
@@ -28,8 +28,7 @@ def sha(data): return hashlib.sha256(data).hexdigest()
 
 
 def expected(root, variant='native'):
-    lock = json.loads((root / 'tests/codex/runtime-lock.json').read_text())
-    names = set(BINS[variant]) | {'.local/codex-runtime/' + p for p in lock['files']}
+    names = set(BINS[variant])
     require(all(not n.startswith('/') and '\\' not in n and all(p not in {'', '.', '..'} for p in n.split('/')) for n in names))
     return names
 
