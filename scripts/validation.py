@@ -134,7 +134,7 @@ def make_plan(root, profile='affected', scope='worktree', base=None, head=None, 
     reasons = sorted({r['name'] if r else 'unclassified-path' for r in matched})
     full = profile == 'full' or policy['force_full'] or fallback or None in matched or any(r and r.get('full') for r in matched)
     # Policy changes never decide their own reduced coverage, even when a rule was removed.
-    protected = [POLICY, 'scripts/validation.py', 'scripts/check_ci_results.py']
+    protected = [POLICY, 'scripts/validation.py', 'scripts/check_ci_results.py', 'scripts/ci_plan.py']
     if any(p in protected or p.startswith('.github/') for p in paths):
         full = True
         reasons.append('validation-policy-change')

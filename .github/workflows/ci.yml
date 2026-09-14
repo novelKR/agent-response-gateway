@@ -20,6 +20,19 @@ defaults:
 
 jobs:
   validation-plan:
+    outputs:
+      plan: ${{ steps.plan.outputs.plan }}
+      targets: ${{ steps.plan.outputs.targets }}
+      format: ${{ steps.plan.outputs.format }}
+      rust: ${{ steps.plan.outputs.rust }}
+      publication: ${{ steps.plan.outputs.publication }}
+      licenses: ${{ steps.plan.outputs.licenses }}
+      codex-conformance: ${{ steps.plan.outputs.codex-conformance }}
+      package-smoke: ${{ steps.plan.outputs.package-smoke }}
+      docs: ${{ steps.plan.outputs.docs }}
+      usage-recorder: ${{ steps.plan.outputs.usage-recorder }}
+      api-codecs: ${{ steps.plan.outputs.api-codecs }}
+      management-web: ${{ steps.plan.outputs.management-web }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -30,21 +43,11 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.14'
-      - name: Verify impact policy and record prospective coverage
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-        run: |
-          python3 -B -m unittest discover -s scripts/tests -p 'test_validation.py' -v
-          if [[ "$EVENT_NAME" == pull_request ]]; then
-            python3 -B scripts/validation.py plan --stage pr --base "$BASE_SHA" --head "$HEAD_SHA" --output .local/validation/plan.json
-          elif [[ "$EVENT_NAME" == push ]]; then
-            python3 -B scripts/validation.py plan --stage main --base "$BASE_SHA" --head "$HEAD_SHA" --output .local/validation/plan.json
-          else
-            python3 -B scripts/validation.py plan --stage main --profile full --output .local/validation/plan.json
-          fi
-          cat .local/validation/plan.json >> "$GITHUB_STEP_SUMMARY"
+      - name: Verify impact policy
+        run: python3 -B -m unittest discover -s scripts/tests -p 'test_*validation*.py' -v
+      - id: plan
+        name: Record source-bound execution plan
+        run: python3 -B scripts/ci_plan.py
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           archive: true
@@ -54,6 +57,8 @@ jobs:
           retention-days: 14
 
   targets:
+    needs: validation-plan
+    if: ${{ needs.validation-plan.outputs.targets == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
@@ -66,6 +71,8 @@ jobs:
         run: echo "matrix=$(python -B scripts/release_targets.py)" >> "$GITHUB_OUTPUT"
 
   format:
+    needs: validation-plan
+    if: ${{ needs.validation-plan.outputs.format == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -76,8 +83,9 @@ jobs:
       - run: cargo +1.98.0 fmt --check
 
   rust:
+    needs: [validation-plan, targets]
+    if: ${{ needs.validation-plan.outputs.rust == 'true' }}
     name: rust (${{ matrix.target }})
-    needs: targets
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.targets.outputs.matrix) }}
@@ -125,6 +133,8 @@ jobs:
         run: python -B scripts/package_smoke.py --binary "target/debug/$GATEWAY_EXECUTABLE" --state-dir .local/native-cli-smoke
 
   publication:
+    needs: validation-plan
+    if: ${{ needs.validation-plan.outputs.publication == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -145,6 +155,8 @@ jobs:
           python3 -B scripts/check_public_boundary.py --archive .local/release/source.tar.gz
 
   licenses:
+    needs: validation-plan
+    if: ${{ needs.validation-plan.outputs.licenses == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     env:
@@ -181,6 +193,8 @@ jobs:
           python3 -B scripts/check_public_boundary.py --archive .local/release/license-notices.tar
 
   api-codecs:
+    needs: validation-plan
+    if: ${{ needs.validation-plan.outputs.api-codecs == 'true' }}
     runs-on: macos-15
     timeout-minutes: 25
     env:
@@ -230,6 +244,8 @@ jobs:
         run: python3 -B scripts/managed_usage_smoke.py --gateway-bin target/debug/agent-response-gateway --recorder-bin target/debug/gateway-usage-recorder --compatibility-policy --profile-packs --codec-bin target/debug/examples/api_codec
 
   codex-conformance:
+    needs: validation-plan
+    if: ${{ needs.validation-plan.outputs.codex-conformance == 'true' }}
     runs-on: macos-15
     timeout-minutes: 30
     env:
@@ -326,8 +342,9 @@ jobs:
           fi
 
   package-smoke:
+    needs: [validation-plan, targets]
+    if: ${{ needs.validation-plan.outputs.package-smoke == 'true' }}
     name: package-smoke (${{ matrix.target }})
-    needs: targets
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.targets.outputs.matrix) }}
@@ -397,6 +414,8 @@ jobs:
           retention-days: 14
 
   docs:
+    needs: validation-plan
+    if: ${{ needs.validation-plan.outputs.docs == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -443,6 +462,8 @@ jobs:
           retention-days: 14
 
   management-web:
+    needs: validation-plan
+    if: ${{ needs.validation-plan.outputs.management-web == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -471,6 +492,8 @@ jobs:
           retention-days: 14
 
   usage-recorder:
+    needs: validation-plan
+    if: ${{ needs.validation-plan.outputs.usage-recorder == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
@@ -517,6 +540,9 @@ jobs:
       - name: Require every prerequisite to succeed
         env:
           CI_RESULTS: ${{ toJSON(needs) }}
+          VALIDATION_PLAN: ${{ needs.validation-plan.outputs.plan }}
+          VALIDATION_BASE: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}
+          VALIDATION_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: python3 -B scripts/check_ci_results.py
 
   docs-pages:
