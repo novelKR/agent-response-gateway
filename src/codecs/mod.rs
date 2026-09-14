@@ -1,5 +1,6 @@
 //! Explicit request-scoped native codec execution through versioned IPC.
 pub mod contract;
+mod conversion;
 pub(crate) mod dispatch;
 pub mod engine;
 pub(crate) mod execution;

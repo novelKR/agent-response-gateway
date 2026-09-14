@@ -921,8 +921,8 @@
       "order": 32,
       "source": "docs/api-codecs.md",
       "translation": "docs/ko/api-codecs.md",
-      "source_sha256": "ec33dc1b6b85feb827c71849d8131c3ac052166991978f80e491358e3223fd4f",
-      "translation_sha256": "ea2ebb3f006462ccbd3a18f1112a0dcc3c47888eff730b810900dd4e7a49acbe",
+      "source_sha256": "288e647c7aa5cee35f0ed109386d497fa2cefbc97da584dca17750e25062d38e",
+      "translation_sha256": "c985841ae14bea44df0f8be48b5189a12fa50de5b9341131d1fba7849eda2afc",
       "anchors": [
         "change-and-recovery",
         "external-api-codecs",

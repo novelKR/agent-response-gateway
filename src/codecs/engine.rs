@@ -1,5 +1,5 @@
 //! The reference process uses the same codec library as the built-in execution path.
-use super::contract::*;
+use super::conversion::*;
 use crate::{
     adapters::{PreparedAdapter, managed::ManagedAdapter, sse::SseEvent},
     ir::{
@@ -32,8 +32,7 @@ fn read(input: &mut impl Read, sequence: u64, protocol: &str) -> Result<Operatio
     {
         return Err(IrError::UnsupportedVersion);
     }
-    let request: Request =
-        serde_json::from_value(value).map_err(|_| IrError::UnsupportedVersion)?;
+    let request = decode_request(value)?;
     if request.protocol != protocol || request.sequence != sequence {
         return Err(IrError::UnsupportedVersion);
     }
@@ -45,12 +44,11 @@ fn write(
     value: ResultValue,
     protocol: &str,
 ) -> Result<(), IrError> {
-    let bytes = serde_json::to_vec(&Reply {
+    let bytes = encode_reply(&Reply {
         protocol: protocol.into(),
         sequence,
         value,
-    })
-    .map_err(|_| IrError::InvalidEventOrder)?;
+    })?;
     if bytes.len() > MAX_FRAME {
         return Err(IrError::SizeLimit);
     }

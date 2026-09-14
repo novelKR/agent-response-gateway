@@ -1,5 +1,5 @@
 //! Async, bounded request-scoped IPC. Dropping the session kills and reaps its child.
-use super::{Binding, contract::*};
+use super::{Binding, conversion::*};
 use crate::ir::IrError;
 
 #[cfg(unix)]
@@ -101,8 +101,7 @@ mod native {
                 .read_exact(&mut bytes)
                 .await
                 .map_err(|_| IrError::InvalidEventOrder)?;
-            let reply: Reply = serde_json::from_value(crate::adapters::json::decode(&bytes)?)
-                .map_err(|_| IrError::UnsupportedVersion)?;
+            let reply = decode_reply(crate::adapters::json::decode(&bytes)?)?;
             if reply.protocol != self.protocol || reply.sequence != self.sequence {
                 return Err(IrError::UnsupportedVersion);
             }
@@ -113,12 +112,11 @@ mod native {
                 return Err(IrError::InvalidEventOrder);
             }
             self.sequence = self.sequence.checked_add(1).ok_or(IrError::SizeLimit)?;
-            let bytes = serde_json::to_vec(&Request {
+            let bytes = encode_request(&Request {
                 protocol: self.protocol.clone(),
                 sequence: self.sequence,
                 operation,
-            })
-            .map_err(|_| IrError::InvalidEventOrder)?;
+            })?;
             if bytes.len() > MAX_FRAME {
                 self.failed = true;
                 return Err(IrError::SizeLimit);

@@ -1,4 +1,4 @@
-use super::{contract::*, engine, verification::Progress};
+use super::{conversion::*, engine, verification::Progress};
 use serde_json::{Value, json};
 use std::io::{Cursor, Read};
 
@@ -168,4 +168,87 @@ fn core_output_verifier_rejects_unregistered_tools_duplicate_arguments_and_opaqu
             .decode_bytes(changed.to_string().as_bytes())
             .is_err()
     );
+}
+
+#[test]
+fn portable_wire_boundary_preserves_simple_request_and_rejects_nested_core_contract_drift() {
+    let value = json!({"protocol": PROTOCOL, "sequence": 1, "operation": prepare()});
+    let typed: Request = serde_json::from_value(value.clone()).unwrap();
+    let wire: gateway_plugin_contract::Request = serde_json::from_value(value.clone()).unwrap();
+    assert_eq!(
+        encode_request(&typed).unwrap(),
+        serde_json::to_vec(&wire).unwrap()
+    );
+    assert_eq!(
+        encode_request(&typed).unwrap(),
+        serde_json::to_vec(&typed).unwrap()
+    );
+    assert!(decode_request(value.clone()).is_ok());
+    for (field, replacement) in [
+        ("api", json!("unknown_api")),
+        ("support", json!({"unknown_feature":"native"})),
+        ("reasoning_contract", json!({"unknown_field":true})),
+    ] {
+        let mut changed = value.clone();
+        changed["operation"]["value"]["route"][field] = replacement;
+        assert!(decode_request(changed).is_err());
+    }
+    let reply = json!({"protocol":PROTOCOL,"sequence":2,"value":{
+        "result":"managed","value":{"response":{},
+        "native":{"format":"unrecognized_state","version":1},
+        "outcome":"completed","accounting":{}}}});
+    assert!(serde_json::from_value::<gateway_plugin_contract::Reply>(reply.clone()).is_ok());
+    assert!(decode_reply(reply).is_err());
+}
+
+#[test]
+fn portable_wire_boundary_keeps_optional_absence_and_large_unsigned_limits() {
+    let mut value = json!({"protocol":PROTOCOL,"sequence":u64::MAX,"operation":prepare()});
+    value["operation"]["value"]["route"]["context_window"] = json!(u64::MAX);
+    let typed = decode_request(value).unwrap();
+    let wire: Value = serde_json::from_slice(&encode_request(&typed).unwrap()).unwrap();
+    assert_eq!(wire["sequence"], json!(u64::MAX));
+    assert_eq!(
+        wire["operation"]["value"]["route"]["context_window"],
+        json!(u64::MAX)
+    );
+    assert!(wire["operation"]["value"].get("editing").is_none());
+    assert_eq!(
+        wire["operation"]["value"]["route"]["reasoning_contract"],
+        Value::Null
+    );
+}
+
+#[test]
+fn portable_managed_reply_keeps_semantics_without_widening_core_validation() {
+    let reply = Reply {
+        protocol: EDITING_PROTOCOL.into(),
+        sequence: 4,
+        value: ResultValue::Managed {
+            value: Box::new(ManagedResult {
+                response: json!({"output":[]}),
+                native: crate::ir::continuity::NativeReplay::Gemini {
+                    version: 1,
+                    steps: vec![json!({"synthetic":true})],
+                },
+                outcome: crate::ir::continuity::Outcome::Completed,
+                accounting: crate::adapters::managed::Accounting::new(
+                    gateway_usage_contract::Profile::ResponsesV1,
+                    Some(
+                        &json!({"input_tokens":9007199254740993_u64,"output_tokens":1,"total_tokens":9007199254740994_u64}),
+                    ),
+                    &json!({"model":"synthetic","id":"r"}),
+                    gateway_usage_contract::Outcome::Completed,
+                ),
+            }),
+        },
+    };
+    let expected = serde_json::to_value(&reply).unwrap();
+    let actual: Value = serde_json::from_slice(&encode_reply(&reply).unwrap()).unwrap();
+    assert_eq!(actual, expected);
+    let decoded = decode_reply(actual.clone()).unwrap();
+    assert_eq!(serde_json::to_value(decoded).unwrap(), expected);
+    let mut changed = actual;
+    changed["value"]["value"]["accounting"]["host_secret"] = json!(true);
+    assert!(decode_reply(changed).is_err());
 }

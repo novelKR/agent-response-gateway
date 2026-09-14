@@ -92,6 +92,15 @@ the schema and compare inspected/readiness digests before starting their agent.
 
 ## IPC lifecycle and validation
 
+The portable Rust wire types are provided by the standalone
+`gateway-plugin-contract` crate. They depend only on serialization libraries;
+the gateway converts them to strict internal types before using them. Nested JSON
+values still follow the published role contracts. Deserializing a wire value is
+not semantic approval. Rust consumers migrating from the gateway's former
+`codecs::contract` types use strings and JSON values for wire fields instead of
+internal API, replay, editing and accounting types. JSON message meaning and
+protocol versions remain unchanged; object member order is not a wire guarantee.
+
 Each frame is a four-byte unsigned big-endian length followed by UTF-8 JSON.
 Frames are bounded to 128 MiB, while request/response and event accumulation still
 obey configured gateway limits. Duplicate keys, unknown fields and unsupported

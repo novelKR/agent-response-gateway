@@ -85,6 +85,14 @@ import와 codec 선택을 함께 사용할 수 있다. 외부 codec은 지원하
 
 ## IPC 수명 주기와 검증
 
+이식 가능한 Rust wire 타입은 독립 `gateway-plugin-contract` crate로 제공합니다.
+직렬화 라이브러리에만 의존하며 게이트웨이는 사용 전에 엄격한 내부 타입으로
+변환합니다. 중첩 JSON 값도 공개된 역할 계약을 따라야 합니다. Wire 값의
+역직렬화가 의미 검증 승인을 뜻하지는 않습니다. 기존 게이트웨이
+`codecs::contract` 타입에서 이전하는 Rust 소비자는 내부 API, replay, editing,
+accounting 타입 대신 wire 필드의 문자열과 JSON 값을 사용합니다. JSON 메시지의
+의미와 프로토콜 버전은 유지하며 객체 멤버 순서는 wire 보장이 아닙니다.
+
 각 프레임은 부호 없는 4바이트 big-endian 길이와 UTF-8 JSON으로 구성된다.
 프레임은 128 MiB로 제한되며 요청·응답과 이벤트 누적에는 게이트웨이 설정 한도도
 적용된다. 중복 키, 알 수 없는 필드와 미지원 버전은 실패한다. 응답은 `protocol`과
