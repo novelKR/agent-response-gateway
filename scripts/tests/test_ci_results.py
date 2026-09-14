@@ -136,6 +136,10 @@ class ResultReportTests(unittest.TestCase):
             self.assertNotIn('must-not-copy',data+summary.read_text())
             self.assertEqual(next(j for j in doc['jobs'] if j['name']=='management-web')['result'],'failure')
             self.assertFalse(next(j for j in doc['jobs'] if j['name']=='rust')['selected'])
+            module.write_report(raw,'malformed-plan',False,{},root)
+            invalid=json.loads((root/'.local/validation/result.json').read_text())
+            publication=next(j for j in invalid['jobs'] if j['name']=='publication')
+            self.assertIsNone(publication['selected']);self.assertEqual(publication['result'],'success')
             module.write_report('null','null',False,{},root)
             self.assertTrue(all(j['selected'] is None for j in json.loads((root/'.local/validation/result.json').read_text())['jobs']))
 

@@ -60,12 +60,15 @@ def write_report(raw, plan_raw, passed, env, root):
     """Persist only bounded public status fields, never arbitrary job outputs."""
     try:
         results = json.loads(raw)
+    except (ValueError, TypeError):
+        results = {}
+    try:
         plan = json.loads(plan_raw or '{}')
         selected = set(plan['execution_jobs']) | {'validation-plan'}
         if not selected <= REQUIRED_JOBS:
             selected = set()
     except (ValueError, KeyError, TypeError):
-        results, selected = {}, set()
+        selected = set()
     if not isinstance(results, dict):
         results = {}
     statuses = {'success', 'failure', 'cancelled', 'skipped'}
