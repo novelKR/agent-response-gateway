@@ -114,6 +114,14 @@ class ImpactTests(unittest.TestCase):
         self.assertIn('gateway-management-app/team', ' '.join(cmds[-1]))
         self.assertIn('-p', cmds[-1])
 
+    def test_extension_commands_resolve_current_platform_executables(self):
+        plan=self.plan(['scripts/extension_manager.py'])
+        policy,_=v.read_policy(ROOT)
+        command=[c for name,c in v.commands(ROOT,plan,policy) if name=='extension'][-1]
+        suffix='.exe' if v.os.name=='nt' else ''
+        self.assertIn('target/debug/agent-response-gateway'+suffix,command)
+        self.assertIn('target/debug/examples/metadata_observer'+suffix,command)
+
     def test_range_plan_is_not_executed_against_unrelated_worktree(self):
         with self.assertRaises(v.ValidationError):
             v.run_plan(ROOT, self.plan([], scope='range'))
@@ -129,6 +137,7 @@ class GitSelectionTests(unittest.TestCase):
         v.git(self.root, 'init', '-q')
         v.git(self.root, 'config', 'user.name', 'Synthetic')
         v.git(self.root, 'config', 'user.email', 'test@example.invalid')
+        (self.root / '.gitignore').write_text('/.local/\n')
         (self.root / 'old.txt').write_text('before')
         v.git(self.root, 'add', '.')
         v.git(self.root, 'commit', '-qm', 'Synthetic input')
@@ -158,6 +167,37 @@ class GitSelectionTests(unittest.TestCase):
         (self.root / 'new.txt').write_text('three')
         self.assertEqual(v.input_digest(self.root, 'staged', base, head, ['new.txt']), staged)
 
+    def test_range_and_staged_execution_require_matching_checkout_bytes(self):
+        plan=dict(scope='range',head_sha=self.base)
+        v.require_execution_checkout(self.root,plan)
+        (self.root/'old.txt').write_text('changed')
+        with self.assertRaises(v.ValidationError):v.require_execution_checkout(self.root,plan)
+        with self.assertRaises(v.ValidationError):v.require_execution_checkout(self.root,dict(scope='staged',head_sha=self.base))
+        v.git(self.root,'add','old.txt')
+        v.require_execution_checkout(self.root,dict(scope='staged',head_sha=self.base))
+        with self.assertRaises(v.ValidationError):v.require_execution_checkout(self.root,dict(scope='worktree',head_sha='b'*40))
+
+    def test_range_boundary_command_uses_exact_commits(self):
+        policy,_=v.read_policy(ROOT)
+        plan=dict(scope='range',base_sha=self.base,head_sha=self.base,checks=['boundary'],packages=[])
+        commands=list(v.commands(ROOT,plan,policy))
+        self.assertEqual(commands[0][1][-4:],['--base',self.base,'--head',self.base])
+        self.assertNotIn('--worktree',commands[0][1])
+
+    def test_range_execution_records_success_but_rejects_post_check_mutation(self):
+        plan=dict(scope='range',head_sha=self.base,base_sha=self.base,policy_sha256='d'*64,
+                  tools=[],checks=['boundary'],profile='affected',stage='local',input_sha256='c'*64)
+        policy={'checks':{'boundary':{}}}
+        with patch.object(v,'read_policy',return_value=(policy,'d'*64)),patch.object(v,'make_plan',return_value=plan):
+            with patch.object(v,'commands',return_value=[('boundary',[v.sys.executable,'-c','pass'])]):
+                v.run_plan(self.root,plan)
+            result=self.root/'.local/validation/result.json'
+            self.assertTrue(json.loads(result.read_text())['success'])
+            command=[v.sys.executable,'-c',"from pathlib import Path; Path('old.txt').write_text('changed')"]
+            with patch.object(v,'commands',return_value=[('boundary',command)]),self.assertRaises(v.ValidationError):
+                v.run_plan(self.root,plan)
+            self.assertFalse(json.loads(result.read_text())['success'])
+
     def test_range_resolves_exact_commits_and_deletion(self):
         v.git(self.root, 'rm', 'old.txt')
         v.git(self.root, 'commit', '-qm', 'Synthetic deletion')
@@ -165,6 +205,24 @@ class GitSelectionTests(unittest.TestCase):
         self.assertEqual(paths, ['old.txt'])
         self.assertEqual(base, self.base)
         self.assertNotEqual(base, head)
+
+
+class MissingToolTests(unittest.TestCase):
+    def test_missing_rust_reports_check_and_preparation_without_execution(self):
+        policy,digest=v.read_policy(ROOT)
+        plan=dict(scope='worktree',head_sha='a'*40,policy_sha256=digest,tools=['cargo'],checks=['rust'])
+        with patch.object(v.shutil,'which',return_value=None),patch.object(v,'git',return_value=b'a'*40),patch.object(v.subprocess,'run') as run:
+            with self.assertRaises(v.ValidationError) as error:v.run_plan(ROOT,plan)
+        self.assertIn('affected checks: rust',str(error.exception))
+        self.assertIn('rustup toolchain install 1.98.0',str(error.exception))
+        run.assert_not_called()
+
+
+class RangeCliTests(unittest.TestCase):
+    def test_explicit_empty_range_does_not_become_a_worktree_plan(self):
+        result=v.subprocess.run([v.sys.executable,'-B',str(ROOT/'scripts/validation.py'),'plan','--base','','--head',''],capture_output=True,text=True)
+        self.assertNotEqual(result.returncode,0)
+        self.assertIn('Non-empty base and head',result.stderr)
 
 
 if __name__ == '__main__':

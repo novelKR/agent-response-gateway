@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
   pull_request:
+  schedule:
+    - cron: '17 18 * * *'
   workflow_dispatch:
   workflow_call:
     inputs:
@@ -16,7 +18,7 @@ permissions:
 
 concurrency:
   group: ci-${{ inputs.release_profile && 'qualification' || github.event_name }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+  cancel-in-progress: ${{ !inputs.release_profile && (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) }}
 
 defaults:
   run:
@@ -114,6 +116,8 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.14'
+      - name: Verify portable local planning and execution contracts
+        run: python -B -m unittest discover -s scripts/tests -p test_validation.py -v
       - run: rustup toolchain install 1.98.0 --profile minimal --component clippy
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -613,3 +617,13 @@ jobs:
           path: .local/validation/qualification.json
           if-no-files-found: error
           retention-days: 30
+
+      - name: Retain actual aggregate results even on failure
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          archive: true
+          name: validation-result
+          path: .local/validation/result.json
+          if-no-files-found: error
+          retention-days: 14

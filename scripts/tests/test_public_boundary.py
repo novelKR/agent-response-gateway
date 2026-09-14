@@ -325,6 +325,22 @@ class PublicBoundaryTests(unittest.TestCase):
         self.patterns.write_text("not valid json", encoding="utf-8")
         self.check(ok=False)
 
+    def test_empty_range_does_not_become_a_full_history_check(self):
+        self.stage();self.commit()
+        self.check('--base','','--head','',ok=False)
+
+    def test_commit_range_reads_selected_blobs_not_current_worktree(self):
+        self.stage();base=self.commit()
+        self.write('README.md',MARKER);self.stage();head=self.commit()
+        self.write('README.md','Safe uncommitted replacement')
+        self.check('--files-only','--base',base,'--head',head,ok=False)
+        self.git('rm','-f','README.md');deleted=self.commit()
+        result=self.check('--files-only','--base',head,'--head',deleted)
+        self.assertIn('scope=range',result.stdout)
+        self.assertIn('history=not_checked',result.stdout)
+        self.check('--files-only','--base',base,ok=False)
+        self.check('--files-only','--staged','--base',base,'--head',deleted,ok=False)
+
     def test_oversized_archive_member_is_rejected_without_reading_it(self):
         self.stage()
         archive = self.base / "oversized.tar"
@@ -334,10 +350,6 @@ class PublicBoundaryTests(unittest.TestCase):
         # for non-empty regular files, so write only the synthetic header.
         archive.write_bytes(entry.tobuf())
         self.check("--archive", archive, ok=False)
-
-
-if __name__ == "__main__":
-    unittest.main()
 
 
 class BoundaryBudgetTests(unittest.TestCase):
@@ -359,3 +371,7 @@ class BoundaryBudgetTests(unittest.TestCase):
         checker.path(b'repeated.md');checker.content(b'Public text')
         checker.path(b'repeated.md')
         with self.assertRaises(module.BoundaryError):checker.content(MARKER.encode())
+
+
+if __name__ == "__main__":
+    unittest.main()

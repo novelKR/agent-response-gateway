@@ -138,6 +138,25 @@ class Checker:
             self.content(data)
         return paths
 
+    def committed_files(self, base: str, head: str) -> list[bytes]:
+        base = self.git('rev-parse', '--verify', base + '^{commit}').decode().strip()
+        head = self.git('rev-parse', '--verify', head + '^{commit}').decode().strip()
+        changed = set(self.git('diff', '--name-only', '--no-renames', '-z', base, head, '--').split(b'\0')) - {b''}
+        inspected = []
+        for entry in self.git('ls-tree', '-r', '-z', head).split(b'\0'):
+            if not entry:
+                continue
+            metadata, path = entry.split(b'\t', 1)
+            if path not in changed:
+                continue
+            mode, kind, oid = metadata.split()
+            if kind != b'blob':
+                raise BoundaryError
+            self.path(path, mode)
+            self.blob(oid)
+            inspected.append(path)
+        return inspected
+
     def selected_files(self, staged: bool) -> list[bytes]:
         """Inspect changed file bytes only; never interpret this as history approval."""
         raw = self.git("diff", "--cached", "--name-only", "--no-renames", "-z", "--")
@@ -298,6 +317,8 @@ def main() -> int:
     parser.add_argument("--staged", action="store_true", help="with --files-only, inspect changed index blobs")
     parser.add_argument("--worktree", action="store_true", help="also inspect untracked, non-ignored working files")
     parser.add_argument("--private-patterns", type=Path, help="explicit local JSON array of exact private markers")
+    parser.add_argument("--base", help="with --files-only, inspect changed blobs in a commit range")
+    parser.add_argument("--head")
     parser.add_argument("--archive", type=Path, help="also inspect a tar or tar.gz source artifact")
     args = parser.parse_args()
     try:
@@ -306,11 +327,16 @@ def main() -> int:
             raise BoundaryError
         if args.staged and not args.files_only or args.staged and args.worktree or args.files_only and args.archive:
             raise BoundaryError
+        if args.base == '' or args.head == '':
+            raise BoundaryError
+        if bool(args.base) != bool(args.head) or args.base and (not args.files_only or args.staged or args.worktree):
+            raise BoundaryError
         if args.files_only:
-            if not (args.staged or args.worktree):
+            if not (args.staged or args.worktree or args.base):
                 raise BoundaryError
-            selected = checker.selected_files(args.staged)
-            print(f"Public boundary file check passed: scope={'staged' if args.staged else 'worktree'} files={len(selected)} history=not_checked")
+            selected = checker.committed_files(args.base, args.head) if args.base else checker.selected_files(args.staged)
+            scope = 'range' if args.base else 'staged' if args.staged else 'worktree'
+            print(f"Public boundary file check passed: scope={scope} files={len(selected)} history=not_checked")
             return 0
         indexed = checker.index()
         selected = checker.worktree() if args.worktree else indexed

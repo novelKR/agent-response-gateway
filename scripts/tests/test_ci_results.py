@@ -5,6 +5,7 @@ import hashlib
 from unittest.mock import patch
 import importlib.util
 import json
+import tempfile
 from pathlib import Path
 import unittest
 
@@ -101,6 +102,18 @@ class PlannedCiTests(unittest.TestCase):
         for job in self.jobs.values(): job['result'] = 'success'
         self.assertTrue(self.check())
 
+    def test_force_full_policy_cannot_be_overridden_by_a_reduced_plan(self):
+        self.policy['force_full']=True
+        self.assertFalse(self.check())
+        self.plan.update(profile='full',jobs=sorted(module.REQUIRED_JOBS-{'validation-plan'}),execution_jobs=sorted(module.REQUIRED_JOBS-{'validation-plan'}))
+        for job in self.jobs.values():job['result']='success'
+        self.assertTrue(self.check())
+
+    def test_unknown_stage_fails_even_with_full_execution(self):
+        self.plan.update(stage='unknown',mode='shadow',execution_jobs=sorted(module.REQUIRED_JOBS-{'validation-plan'}))
+        for job in self.jobs.values():job['result']='success'
+        self.assertFalse(self.check())
+
     def test_full_cannot_claim_a_subset(self):
         self.plan['profile'] = 'full'
         self.assertFalse(self.check())
@@ -120,6 +133,27 @@ class PlannedCiTests(unittest.TestCase):
         for raw in ('', '{}', 'null', '[]'):
             self.assertFalse(module.succeeded(json.dumps(self.jobs), raw, self.source))
         self.assertFalse(module.succeeded(json.dumps(self.jobs)))
+
+
+class ResultReportTests(unittest.TestCase):
+    def test_failure_and_declared_skip_are_recorded_without_job_outputs(self):
+        state=Path(__file__).resolve().parents[2]/'.local/test-state';state.mkdir(parents=True,exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=state) as directory:
+            root=Path(directory);summary=root/'summary.md'
+            raw=json.dumps({'publication':{'result':'success','outputs':{'private':'must-not-copy'}},'management-web':{'result':'failure'}})
+            plan=json.dumps({'execution_jobs':['publication','management-web']})
+            module.write_report(raw,plan,False,{'GITHUB_SHA':'a'*40,'GITHUB_RUN_ID':'123','GITHUB_RUN_ATTEMPT':'2','GITHUB_STEP_SUMMARY':str(summary)},root)
+            data=(root/'.local/validation/result.json').read_text();doc=json.loads(data)
+            self.assertFalse(doc['passed']);self.assertEqual(doc['attempt'],'2')
+            self.assertNotIn('must-not-copy',data+summary.read_text())
+            self.assertEqual(next(j for j in doc['jobs'] if j['name']=='management-web')['result'],'failure')
+            self.assertFalse(next(j for j in doc['jobs'] if j['name']=='rust')['selected'])
+            module.write_report(raw,'malformed-plan',False,{},root)
+            invalid=json.loads((root/'.local/validation/result.json').read_text())
+            publication=next(j for j in invalid['jobs'] if j['name']=='publication')
+            self.assertIsNone(publication['selected']);self.assertEqual(publication['result'],'success')
+            module.write_report('null','null',False,{},root)
+            self.assertTrue(all(j['selected'] is None for j in json.loads((root/'.local/validation/result.json').read_text())['jobs']))
 
 
 if __name__ == "__main__":

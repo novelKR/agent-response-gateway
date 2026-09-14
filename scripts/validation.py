@@ -164,6 +164,11 @@ def commands(root, plan, policy):
     values = {'{python}': [sys.executable], '{scope}': ['--staged' if plan['scope'] == 'staged' else '--worktree'],
               '{packages}': rust_packages or ['--workspace'],
               '{features}': ['--features', ','.join(features)] if features else []}
+    suffix = '.exe' if os.name == 'nt' else ''
+    values['{gateway-bin}'] = ['target/debug/agent-response-gateway' + suffix]
+    values['{observer-bin}'] = ['target/debug/examples/metadata_observer' + suffix]
+    if plan['scope'] == 'range' and 'boundary' in plan['checks']:
+        values['{scope}'] = ['--base', plan['base_sha'], '--head', plan['head_sha']]
     # The fixture consumes built assets; run it only after the production Web build.
     for name in policy['checks']:
         if name not in plan['checks']:
@@ -172,26 +177,47 @@ def commands(root, plan, policy):
             yield name, [part for arg in command for part in values.get(arg, [arg])]
 
 
-def run_plan(root, plan):
-    if plan['scope'] == 'range':
-        raise ValidationError('Local execution requires --worktree or --staged; range plans describe CI inputs')
-    if plan['head_sha'] is None:
-        raise ValidationError('Resolve the Git input before executing checks')
+def require_execution_checkout(root, plan):
+    if git(root, 'rev-parse', 'HEAD').decode().strip() != plan['head_sha']:
+        raise ValidationError('Execution checkout must match the selected head')
+    if plan['scope'] == 'range' and git(root, 'status', '--porcelain', '--untracked-files=normal'):
+        raise ValidationError('Commit-range execution requires a clean checkout of the selected head')
     if plan['scope'] == 'staged' and (git(root, 'diff', '--name-only', '-z', '--') or git(root, 'ls-files', '--others', '--exclude-standard', '-z')):
         raise ValidationError('Staged execution requires worktree bytes to match the index; stage changes or use --worktree')
+
+
+def run_plan(root, plan):
+    if plan['head_sha'] is None:
+        raise ValidationError('Resolve the Git input before executing checks')
+    require_execution_checkout(root, plan)
     policy, digest = read_policy(root)
     if digest != plan['policy_sha256']:
         raise ValidationError('Validation policy changed after planning')
     missing = []
     for tool in plan['tools']:
         if tool == 'cargo-deny':
-            present = (root / '.local/tools/bin/cargo-deny').is_file()
+            present = (root / '.local/tools/bin' / ('cargo-deny.exe' if os.name == 'nt' else 'cargo-deny')).is_file()
         else:
             present = tool == 'python3' or shutil.which(tool)
         if not present:
             missing.append(tool)
     if missing:
-        raise ValidationError('Missing tools: ' + ', '.join(missing) + '; prepare the selected tools using the development and licensing guides')
+        affected = sorted(c for c in plan['checks'] if set(policy['checks'][c]['tools']) & set(missing))
+        preparation = []
+        if 'cargo' in missing:
+            preparation.append('rustup toolchain install 1.98.0 --profile minimal --component clippy --component rustfmt')
+        if 'cargo-deny' in missing:
+            preparation.append(sys.executable + ' -B scripts/prepare_tools.py')
+        if {'node', 'npm'} & set(missing):
+            preparation.append('Install Node 24.21.0 and npm 11.19.0 using your Node manager')
+            for check, directory in [('web', 'management-web'), ('web-api', 'management-web'), ('docs', 'docs-site')]:
+                command = 'npm ci --prefix ' + directory + ' --ignore-scripts'
+                if check in plan['checks'] and command not in preparation:
+                    preparation.append(command)
+        if 'git' in missing:
+            preparation.append('Install Git using your platform package manager')
+        raise ValidationError('Missing tools: ' + ', '.join(missing) + '; affected checks: ' + ', '.join(affected)
+                              + '; preparation (not executed): ' + '; '.join(preparation))
     state = root / '.local/validation'
     state.mkdir(parents=True, exist_ok=True)
     result = dict(schema='gateway-validation-result/v1', plan=plan, checks=[], success=False)
@@ -200,6 +226,13 @@ def run_plan(root, plan):
             env = dict(os.environ)
             if policy['checks'][name].get('fixture') and command[0] == 'npm':
                 env['WEB_FIXTURE_BIN'] = str(root / 'target/debug/examples' / ('web_fixture.exe' if os.name == 'nt' else 'web_fixture'))
+            if command[0] == 'npm':
+                from web_assets import npm_command
+                from release_package import PackageError
+                try:
+                    command = npm_command(env) + command[1:]
+                except PackageError as error:
+                    raise ValidationError('Pinned npm CLI is missing; repair the selected Node/npm installation') from error
             started = time.monotonic()
             print('validation: ' + name + ': ' + ' '.join(command), flush=True)
             completed = subprocess.run(command, cwd=root, env=env, check=False)
@@ -207,7 +240,8 @@ def run_plan(root, plan):
                                          duration_seconds=round(time.monotonic() - started, 3)))
             if completed.returncode:
                 raise ValidationError('Selected check failed: ' + name)
-        current = make_plan(root, plan['profile'], plan['scope'], stage=plan['stage'])
+        require_execution_checkout(root, plan)
+        current = make_plan(root, plan['profile'], plan['scope'], plan['base_sha'], plan['head_sha'], stage=plan['stage'])
         if current['input_sha256'] != plan['input_sha256'] or current['head_sha'] != plan['head_sha'] or current['policy_sha256'] != digest:
             raise ValidationError('Validation inputs changed during execution; rerun selected checks')
         result['success'] = True
@@ -229,6 +263,8 @@ def main():
     parser.add_argument('--output', type=Path)
     args = parser.parse_args()
     try:
+        if args.base == '' or args.head == '':
+            raise ValidationError('Non-empty base and head are required')
         if bool(args.base) != bool(args.head):
             raise ValidationError('Both base and head are required')
         scope = 'range' if args.base else 'staged' if args.staged else 'worktree'

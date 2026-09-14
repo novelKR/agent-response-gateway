@@ -26,6 +26,8 @@ def succeeded(raw, plan_raw=None, source=None, base=None, head=None):
                 or plan['policy_sha256'] != hashlib.sha256(policy_raw).hexdigest()
                 or set(policy['jobs']) != expected or plan['profile'] not in {'full', 'affected'}
                 or plan['mode'] not in {'shadow', 'affected'}
+                or plan['stage'] not in {'pr', 'main', 'release'}
+                or policy['force_full'] and plan['profile'] != 'full'
                 or len(plan['jobs']) != len(set(plan['jobs']))
                 or len(plan['execution_jobs']) != len(set(plan['execution_jobs']))
                 or not set(plan['jobs']) <= expected
@@ -56,7 +58,45 @@ def succeeded(raw, plan_raw=None, source=None, base=None, head=None):
         return False
 
 
+def write_report(raw, plan_raw, passed, env, root):
+    """Persist only bounded public status fields, never arbitrary job outputs."""
+    try:
+        results = json.loads(raw)
+    except (ValueError, TypeError):
+        results = {}
+    try:
+        plan = json.loads(plan_raw or '{}')
+        selected = set(plan['execution_jobs']) | {'validation-plan'}
+        if not selected <= REQUIRED_JOBS:
+            selected = set()
+    except (ValueError, KeyError, TypeError):
+        selected = set()
+    if not isinstance(results, dict):
+        results = {}
+    statuses = {'success', 'failure', 'cancelled', 'skipped'}
+    jobs = []
+    for name in sorted(REQUIRED_JOBS):
+        job = results.get(name)
+        status = job.get('result') if isinstance(job, dict) else None
+        jobs.append(dict(name=name, selected=name in selected if selected else None,
+                         result=status if status in statuses else 'missing-or-invalid'))
+    report = dict(schema='gateway-ci-result/v1', source_sha=env.get('GITHUB_SHA'),
+                  run_id=env.get('GITHUB_RUN_ID'), attempt=env.get('GITHUB_RUN_ATTEMPT'),
+                  passed=passed, jobs=jobs)
+    path = root / '.local/validation/result.json'
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(report, indent=2) + '\n')
+    if env.get('GITHUB_STEP_SUMMARY'):
+        with Path(env['GITHUB_STEP_SUMMARY']).open('a') as summary:
+            summary.write('Required validation: ' + ('passed' if passed else 'failed') + '\n\n')
+            summary.write('| Job | Selected | Actual result |\n|---|---|---|\n')
+            for job in jobs:
+                summary.write(f"| {job['name']} | {job['selected']} | {job['result']} |\n")
+
+
 if __name__ == '__main__':
     passed = succeeded(os.environ.get('CI_RESULTS', ''), os.environ.get('VALIDATION_PLAN'), os.environ.get('GITHUB_SHA'), os.environ.get('VALIDATION_BASE'), os.environ.get('VALIDATION_HEAD'))
+    if os.environ.get('GITHUB_ACTIONS') == 'true':
+        write_report(os.environ.get('CI_RESULTS', ''), os.environ.get('VALIDATION_PLAN'), passed, os.environ, Path(__file__).resolve().parents[1])
     print('Required CI prerequisites passed' if passed else 'Required CI prerequisites did not all succeed')
     raise SystemExit(0 if passed else 1)
