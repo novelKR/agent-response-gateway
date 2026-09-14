@@ -73,7 +73,7 @@ class ConformanceTests(unittest.TestCase):
         self.assertEqual(report['status'], 'pass')
         self.assertEqual(report['package_sha256'], checksum)
         self.assertEqual(report['contract'], 'gateway-observer/v1')
-        self.assertEqual(report['tool_version'], '1.0.0')
+        self.assertEqual(report['tool_version'], '1.1.0')
         self.assertEqual(report['checks'][-1]['id'], 'role.execution')
         self.assertFalse(list(self.root.glob('observer-*')))
 
@@ -174,6 +174,73 @@ class ConformanceTests(unittest.TestCase):
         serialized = json.dumps(report)
         self.assertNotIn('sensitive synthetic text', serialized)
         self.assertNotIn(str(self.root), serialized)
+
+    def test_capability_package_vectors_match_standalone_inspection(self):
+        corpus = json.loads((ROOT / 'schemas/plugin-capabilities-vectors.json').read_text())
+        legacy = json.loads((ROOT / 'schemas/plugin-vectors.json').read_text())['canonical_package']
+        for name, data in legacy['files_utf8'].items():
+            (self.package / name).write_text(data)
+        for case in corpus['cases']:
+            if not case['schema'].startswith('gateway-extension-package-'):
+                continue
+            with self.subTest(case=case['id']):
+                checksum = self.write_manifest(case['value'])
+                report = runner.run(self.package, checksum)
+                self.assertEqual(report['checks'][0]['status'] == 'pass', case['valid'], report)
+
+    def test_provider_declaration_execution_is_explicitly_unavailable(self):
+        corpus = json.loads((ROOT / 'schemas/plugin-capabilities-vectors.json').read_text())
+        manifest = next(case['value'] for case in corpus['cases'] if case['id'] == 'provider-declaration-only')
+        legacy = json.loads((ROOT / 'schemas/plugin-vectors.json').read_text())['canonical_package']
+        for name, data in legacy['files_utf8'].items():
+            (self.package / name).write_text(data)
+        checksum = self.write_manifest(manifest)
+        report = runner.run(self.package, checksum, True, self.root)
+        self.assertEqual(report['status'], 'not-run')
+        self.assertEqual(report['checks'][-1]['code'], 'provider_runtime_unavailable')
+        self.assertFalse(list(self.root.glob('observer-*')))
+
+    def test_legacy_capability_and_new_protocol_reinterpretation_rejected(self):
+        checksum = self.package_source('')
+        manifest = json.loads((self.package / 'extension.json').read_bytes())
+        manifest['capabilities'] = None
+        self.assert_failure(runner.run(self.package, self.write_manifest(manifest)), 'manifest_fields')
+        del manifest['capabilities']
+        manifest['protocol'] = 'gateway-api-codec/v3'
+        self.assert_failure(runner.run(self.package, self.write_manifest(manifest)), 'unsupported_role')
+
+    def test_capability_schema_references_resolve_inside_distribution(self):
+        from urllib.parse import unquote, urlsplit
+        schema_root = (ROOT / 'schemas').resolve()
+        visited = set()
+
+        def load(path):
+            self.assertTrue(path.is_relative_to(schema_root))
+            value = json.loads(path.read_text())
+            if path not in visited:
+                visited.add(path)
+                self.assertEqual(value['$schema'], 'https://json-schema.org/draft/2020-12/schema')
+                walk(value, path)
+            return value
+
+        def walk(value, path):
+            if isinstance(value, list):
+                for item in value:
+                    walk(item, path)
+            elif isinstance(value, dict):
+                if '$ref' in value:
+                    ref = urlsplit(value['$ref'])
+                    self.assertFalse(ref.scheme or ref.netloc or ref.query)
+                    target = load((path.parent / ref.path).resolve() if ref.path else path)
+                    if ref.fragment:
+                        self.assertTrue(ref.fragment.startswith('/'))
+                        for segment in unquote(ref.fragment[1:]).split('/'):
+                            target = target[segment.replace('~1', '/').replace('~0', '~')]
+                for item in value.values():
+                    walk(item, path)
+
+        load(schema_root / 'gateway-extension-package-v2.schema.json')
+        load(schema_root / 'gateway-api-codec-v3.schema.json')
 
     def test_strict_json_and_canonical_unicode(self):
         self.assertEqual(runner.canonical({'z': '\u00e9', 'a': 1}), b'{"a":1,"z":"\\u00e9"}\n')

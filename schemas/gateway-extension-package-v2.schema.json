@@ -1,0 +1,319 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Gateway native extension package v2",
+  "description": "Structural wire validation only. The authoring specification defines byte identity, state transitions, semantic validation and host compatibility.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "id",
+    "version",
+    "target",
+    "protocol",
+    "permissions",
+    "state_schema",
+    "files",
+    "capabilities"
+  ],
+  "properties": {
+    "schema": {
+      "const": "gateway-extension-package/v2"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,63}(?![\\s\\S])"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]{0,5})\\.(0|[1-9][0-9]{0,5})\\.(0|[1-9][0-9]{0,5})(?![\\s\\S])"
+    },
+    "target": {
+      "enum": [
+        "linux-x64",
+        "linux-arm64",
+        "macos-x64",
+        "macos-arm64"
+      ]
+    },
+    "protocol": {
+      "type": "string"
+    },
+    "permissions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "state_schema": {
+      "type": "string"
+    },
+    "files": {
+      "type": "object",
+      "minProperties": 2,
+      "maxProperties": 8,
+      "required": [
+        "extension",
+        "LICENSE.txt"
+      ],
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}(?![\\s\\S])",
+        "not": {
+          "const": "extension.json"
+        }
+      },
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^[0-9a-f]{64}(?![\\s\\S])"
+      }
+    },
+    "capabilities": {
+      "type": "object"
+    },
+    "provider_protocol": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9._-]{0,63}/v[1-9][0-9]{0,5}(?![\\s\\S])"
+    }
+  },
+  "oneOf": [
+    {
+      "properties": {
+        "protocol": {
+          "const": "gateway-api-codec/v3"
+        },
+        "permissions": {
+          "const": [
+            "read_model_payload",
+            "transform_model_protocol"
+          ]
+        },
+        "state_schema": {
+          "const": "request-memory/v1"
+        },
+        "capabilities": {
+          "$ref": "#/$defs/codec_capabilities"
+        }
+      },
+      "not": {
+        "required": [
+          "provider_protocol"
+        ]
+      }
+    },
+    {
+      "required": [
+        "provider_protocol"
+      ],
+      "properties": {
+        "protocol": {
+          "const": "gateway-provider/v1"
+        },
+        "permissions": {
+          "const": [
+            "read_model_payload",
+            "transform_model_protocol"
+          ]
+        },
+        "state_schema": {
+          "const": "provider-request-memory/v1"
+        },
+        "capabilities": {
+          "$ref": "#/$defs/provider_capabilities"
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "codec_capabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "apis",
+        "features",
+        "requires"
+      ],
+      "properties": {
+        "schema": {
+          "const": "gateway-plugin-capabilities/v1"
+        },
+        "apis": {
+          "enum": [
+            [
+              "chat_completions"
+            ],
+            [
+              "gemini_interactions"
+            ],
+            [
+              "messages"
+            ],
+            [
+              "responses"
+            ],
+            [
+              "chat_completions",
+              "gemini_interactions"
+            ],
+            [
+              "chat_completions",
+              "messages"
+            ],
+            [
+              "chat_completions",
+              "responses"
+            ],
+            [
+              "gemini_interactions",
+              "messages"
+            ],
+            [
+              "gemini_interactions",
+              "responses"
+            ],
+            [
+              "messages",
+              "responses"
+            ],
+            [
+              "chat_completions",
+              "gemini_interactions",
+              "messages"
+            ],
+            [
+              "chat_completions",
+              "gemini_interactions",
+              "responses"
+            ],
+            [
+              "chat_completions",
+              "messages",
+              "responses"
+            ],
+            [
+              "gemini_interactions",
+              "messages",
+              "responses"
+            ],
+            [
+              "chat_completions",
+              "gemini_interactions",
+              "messages",
+              "responses"
+            ]
+          ]
+        },
+        "features": {
+          "enum": [
+            [
+              "json"
+            ],
+            [
+              "editing",
+              "json"
+            ],
+            [
+              "json",
+              "managed_continuation"
+            ],
+            [
+              "json",
+              "streaming"
+            ],
+            [
+              "editing",
+              "json",
+              "managed_continuation"
+            ],
+            [
+              "editing",
+              "json",
+              "streaming"
+            ],
+            [
+              "json",
+              "managed_continuation",
+              "streaming"
+            ],
+            [
+              "editing",
+              "json",
+              "managed_continuation",
+              "streaming"
+            ]
+          ]
+        },
+        "requires": {
+          "const": [
+            "codec_ipc_v3",
+            "responses_output_validation"
+          ]
+        }
+      }
+    },
+    "provider_capabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "apis",
+        "features",
+        "requires"
+      ],
+      "properties": {
+        "schema": {
+          "const": "gateway-plugin-capabilities/v1"
+        },
+        "apis": {
+          "const": []
+        },
+        "features": {
+          "enum": [
+            [
+              "json"
+            ],
+            [
+              "editing",
+              "json"
+            ],
+            [
+              "json",
+              "managed_continuation"
+            ],
+            [
+              "json",
+              "streaming"
+            ],
+            [
+              "editing",
+              "json",
+              "managed_continuation"
+            ],
+            [
+              "editing",
+              "json",
+              "streaming"
+            ],
+            [
+              "json",
+              "managed_continuation",
+              "streaming"
+            ],
+            [
+              "editing",
+              "json",
+              "managed_continuation",
+              "streaming"
+            ]
+          ]
+        },
+        "requires": {
+          "const": [
+            "provider_ipc_v1",
+            "responses_output_validation"
+          ]
+        }
+      }
+    }
+  }
+}

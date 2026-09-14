@@ -4,7 +4,7 @@
 
 [English](plugin-authoring.md) | [한국어](ko/plugin-authoring.md)
 
-This specification describes the existing installable native roles. A plugin can be built in an independent repository and in any language that can implement the process and byte contracts below. Installing a compatible executable does not rebuild the gateway. No Rust ABI or gateway library import is required. This document adds no new runtime role, provider API, permission or compatibility negotiation.
+This specification describes the existing installable native roles. A plugin can be built in an independent repository and in any language that can implement the process and byte contracts below. Installing a compatible executable does not rebuild the gateway. No Rust ABI or gateway library import is required. Legacy roles retain their contracts; codec API subsets use the explicit capability contract below. Provider package declarations do not enable provider execution.
 
 Read the [installation guide](extensions.md), [trust and lifecycle contract](extensions-design.md), [codec behavior](api-codecs.md) and [usage semantics](usage-accounting.md) with this specification. Native plugins are trusted programs running as the host user. A narrow IPC interface and an empty inherited environment are not an OS sandbox.
 
@@ -52,9 +52,51 @@ Package identity, package version and protocol version are separate. The `protoc
 ]
 ```
 
-Observer sees only numeric HTTP metadata. Recorder sees usage events with the separately configured delivery mode. Codec transforms the already admitted request and provider response for the existing Responses, Messages, Chat Completions and Gemini Interactions APIs. Codec selection does not add an API enum, route, credential source or transport. A single-API codec cannot satisfy the current startup declaration.
+Observer sees only numeric HTTP metadata. Recorder sees usage events with the separately configured delivery mode. Codec transforms the already admitted request and provider response for the existing Responses, Messages, Chat Completions and Gemini Interactions APIs. Codec selection does not add an API enum, route, credential source or transport. A single-API codec cannot satisfy the legacy startup declaration; it requires codec v3 below.
 
-The [package schema](../schemas/gateway-extension-package-v1.schema.json) enumerates the current role combinations. Unknown roles or fields are errors. There is no feature negotiation or optional-permission downgrade. Publish the exact supported host release and tested OS/architecture alongside your artifact; this metadata is release documentation, not extra manifest fields. Future incompatible wire changes require a separately supported protocol identifier.
+The [legacy package schema](../schemas/gateway-extension-package-v1.schema.json) enumerates the current role combinations. Unknown roles or fields are errors. There is no implicit feature negotiation or optional-permission downgrade. Publish the exact supported host release and tested OS/architecture alongside your artifact; this metadata is release documentation, not extra manifest fields. Future incompatible wire changes require a separately supported protocol identifier.
+
+<a id="버전이-명시된-기능-선언"></a>
+
+## Versioned capability declarations
+
+[Package v2](../schemas/gateway-extension-package-v2.schema.json) adds a required `capabilities` object and admits only `gateway-api-codec/v3` or `gateway-provider/v1`. Legacy package v1 remains restricted to the four roles above and forbids capability fields. Neither a new package version nor a manifest edit upgrades a legacy executable protocol.
+
+Capabilities use `gateway-plugin-capabilities/v1` with exactly `apis`, `features`, `requires` and `schema`. All arrays contain unique strings in ASCII lexical order. Codec APIs are a nonempty subset of `chat_completions`, `gemini_interactions`, `messages`, `responses`. Features are a subset of `editing`, `json`, `managed_continuation`, `streaming`, with `json` required. Codec requirements are exactly `codec_ipc_v3` and `responses_output_validation`. The declarations are separate from the existing `read_model_payload` and `transform_model_protocol` grants and `request-memory/v1` state contract.
+
+The [codec v3 schema](../schemas/gateway-api-codec-v3.schema.json) retains v2 operation and editing-policy semantics, but replaces the legacy ready fields with the complete capability object. Native replay version one is part of this contract; do not add legacy `apis` or `replay_versions` fields beside `capabilities`. The ready declaration must equal the inspected manifest, not merely overlap it. This example supports only Messages:
+
+```json
+{
+  "protocol": "gateway-api-codec/v3",
+  "sequence": 0,
+  "value": {
+    "result": "ready",
+    "capabilities": {
+      "schema": "gateway-plugin-capabilities/v1",
+      "apis": [
+        "messages"
+      ],
+      "features": [
+        "editing",
+        "json",
+        "managed_continuation",
+        "streaming"
+      ],
+      "requires": [
+        "codec_ipc_v3",
+        "responses_output_validation"
+      ]
+    }
+  }
+}
+```
+
+The selected model API must belong to `apis`. Each requested feature must be declared before preparation: streaming requires `streaming`, managed execution requires `managed_continuation`, and editing requires `editing`. These checks supplement the route capability profile and permission checks; a declaration cannot widen host admission. Offline inspect/install never executes a handshake. Unsupported requirements or mismatched startup declarations are explicit errors, with no downgrade or implicit protocol selection.
+
+Provider packages declare `gateway-provider/v1`, the same payload grants, `provider-request-memory/v1`, empty `apis`, and requirements exactly `provider_ipc_v1` and `responses_output_validation`. They additionally require `provider_protocol` matching `[a-z][a-z0-9._-]{0,63}/v[1-9][0-9]{0,5}`. Codec packages forbid that field, including null. Provider declarations may be inspected, installed and inventoried, but provider activation and runtime execution are unavailable. Declared provider features are not evidence of implemented host provider support. No provider role messages or new supplier routing are accepted through codec v3.
+
+The [capability vectors](../schemas/plugin-capabilities-vectors.json) cover valid declarations, ordering, missing/unknown requirements, forbidden legacy reinterpretation and the v3 ready shape. Exact manifest/ready equality, route membership and feature gates also require runtime tests; schema validity alone does not establish compatibility.
 
 <a id="패키지-바이트와-실행"></a>
 
@@ -113,7 +155,7 @@ The [codec v1 schema](../schemas/gateway-api-codec-v1.schema.json) and [codec v2
 {"protocol":"gateway-api-codec/v1","sequence":0,"value":{"result":"ready","apis":["responses","messages","chat_completions","gemini_interactions"],"replay_versions":[1]}}
 ```
 
-Ready must declare exactly that API array in that order and replay version array. Use the selected protocol in every envelope. Requests begin at sequence one, increment by one, and each reply echoes its request sequence. JSON field order/whitespace is not canonicalized for codec framing; duplicate keys and unknown fields are rejected. Unsigned integers use exact 64-bit values; host-emitted size/index fields must fit the configured size limits. Strings contain no implicit identifiers or callback addresses.
+Legacy codec v1/v2 ready must declare exactly that API array in that order and replay version array. Use the selected protocol in every envelope. Requests begin at sequence one, increment by one, and each reply echoes its request sequence. JSON field order/whitespace is not canonicalized for codec framing; duplicate keys and unknown fields are rejected. Unsigned integers use exact 64-bit values; host-emitted size/index fields must fit the configured size limits. Strings contain no implicit identifiers or callback addresses.
 
 ```text
 ready(sequence=0)
@@ -133,7 +175,7 @@ The `json` operation carries provider body text and host `response_id`; `stream`
 
 ## Codec nested types and invariants
 
-Optional nullable fields permit missing or `null` according to each schema; host serialization normally includes explicit nulls except explicitly omitted extension fields. Codec v1 forbids the `editing` field entirely, including `null`. Codec v2 permits it; a non-null policy must satisfy the [editing contract](editing-design.md). Its `version` is one, separate from IPC version two. No codec may infer an editing policy from tool names.
+Optional nullable fields permit missing or `null` according to each schema; host serialization normally includes explicit nulls except explicitly omitted extension fields. Codec v1 forbids the `editing` field entirely, including `null`. Codec v2 and v3 permit it; a non-null policy must satisfy the [editing contract](editing-design.md). Its `version` is one, separate from IPC versions two and three. No codec may infer an editing policy from tool names.
 
 Schemas enumerate supported feature and bridge names. A bridge must match its feature: instruction envelopes bind instruction hierarchy and their API; custom-tool JSON binds custom tools; tool namespaces bind namespaced tools; code-mode text parts bind structured tool output; patch/registered grammar bridges bind custom grammar. Registered grammar requires native custom tools on Responses. Provider parallel permission requires Chat Completions with the explicit DeepSeek reasoning contract. Unsupported combinations fail admission; a plugin cannot widen them.
 

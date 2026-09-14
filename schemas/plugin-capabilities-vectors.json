@@ -1,0 +1,724 @@
+{
+  "schema": "gateway-plugin-capabilities-vectors/v1",
+  "cases": [
+    {
+      "id": "codec-single-api",
+      "schema": "gateway-extension-package-v2.schema.json",
+      "value": {
+        "schema": "gateway-extension-package/v2",
+        "id": "example-observer",
+        "version": "1.0.0",
+        "target": "linux-x64",
+        "protocol": "gateway-api-codec/v3",
+        "permissions": [
+          "read_model_payload",
+          "transform_model_protocol"
+        ],
+        "state_schema": "request-memory/v1",
+        "files": {
+          "extension": "9afd2910ff2a64488c0177d36c1d41e94bd42df8904093a79cb297d1136f38d1",
+          "LICENSE.txt": "3619b0b715bbbabadfa3165cad0e37affa65799c5ee6da58a43e12f117deacbd"
+        },
+        "capabilities": {
+          "schema": "gateway-plugin-capabilities/v1",
+          "apis": [
+            "messages"
+          ],
+          "features": [
+            "json"
+          ],
+          "requires": [
+            "codec_ipc_v3",
+            "responses_output_validation"
+          ]
+        }
+      },
+      "valid": true
+    },
+    {
+      "id": "provider-declaration-only",
+      "schema": "gateway-extension-package-v2.schema.json",
+      "value": {
+        "schema": "gateway-extension-package/v2",
+        "id": "example-observer",
+        "version": "1.0.0",
+        "target": "linux-x64",
+        "protocol": "gateway-provider/v1",
+        "permissions": [
+          "read_model_payload",
+          "transform_model_protocol"
+        ],
+        "state_schema": "provider-request-memory/v1",
+        "files": {
+          "extension": "9afd2910ff2a64488c0177d36c1d41e94bd42df8904093a79cb297d1136f38d1",
+          "LICENSE.txt": "3619b0b715bbbabadfa3165cad0e37affa65799c5ee6da58a43e12f117deacbd"
+        },
+        "capabilities": {
+          "schema": "gateway-plugin-capabilities/v1",
+          "apis": [],
+          "features": [
+            "json"
+          ],
+          "requires": [
+            "provider_ipc_v1",
+            "responses_output_validation"
+          ]
+        },
+        "provider_protocol": "synthetic-provider/v1"
+      },
+      "valid": true
+    },
+    {
+      "id": "codec-full-capabilities",
+      "schema": "gateway-extension-package-v2.schema.json",
+      "value": {
+        "schema": "gateway-extension-package/v2",
+        "id": "example-observer",
+        "version": "1.0.0",
+        "target": "linux-x64",
+        "protocol": "gateway-api-codec/v3",
+        "permissions": [
+          "read_model_payload",
+          "transform_model_protocol"
+        ],
+        "state_schema": "request-memory/v1",
+        "files": {
+          "extension": "9afd2910ff2a64488c0177d36c1d41e94bd42df8904093a79cb297d1136f38d1",
+          "LICENSE.txt": "3619b0b715bbbabadfa3165cad0e37affa65799c5ee6da58a43e12f117deacbd"
+        },
+        "capabilities": {
+          "schema": "gateway-plugin-capabilities/v1",
+          "apis": [
+            "chat_completions",
+            "gemini_interactions",
+            "messages",
+            "responses"
+          ],
+          "features": [
+            "editing",
+            "json",
+            "managed_continuation",
+            "streaming"
+          ],
+          "requires": [
+            "codec_ipc_v3",
+            "responses_output_validation"
+          ]
+        }
+      },
+      "valid": true
+    },
+    {
+      "id": "empty-apis",
+      "schema": "gateway-extension-package-v2.schema.json",
+      "value": {
+        "schema": "gateway-extension-package/v2",
+        "id": "example-observer",
+        "version": "1.0.0",
+        "target": "linux-x64",
+        "protocol": "gateway-api-codec/v3",
+        "permissions": [
+          "read_model_payload",
+          "transform_model_protocol"
+        ],
+        "state_schema": "request-memory/v1",
+        "files": {
+          "extension": "9afd2910ff2a64488c0177d36c1d41e94bd42df8904093a79cb297d1136f38d1",
+          "LICENSE.txt": "3619b0b715bbbabadfa3165cad0e37affa65799c5ee6da58a43e12f117deacbd"
+        },
+        "capabilities": {
+          "schema": "gateway-plugin-capabilities/v1",
+          "apis": [],
+          "features": [
+            "json"
+          ],
+          "requires": [
+            "codec_ipc_v3",
+            "responses_output_validation"
+          ]
+        }
+      },
+      "valid": false
+    },
+    {
+      "id": "duplicate-apis",
+      "schema": "gateway-extension-package-v2.schema.json",
+      "value": {
+        "schema": "gateway-extension-package/v2",
+        "id": "example-observer",
+        "version": "1.0.0",
+        "target": "linux-x64",
+        "protocol": "gateway-api-codec/v3",
+        "permissions": [
+          "read_model_payload",
+          "transform_model_protocol"
+        ],
+        "state_schema": "request-memory/v1",
+        "files": {
+          "extension": "9afd2910ff2a64488c0177d36c1d41e94bd42df8904093a79cb297d1136f38d1",
+          "LICENSE.txt": "3619b0b715bbbabadfa3165cad0e37affa65799c5ee6da58a43e12f117deacbd"
+        },
+        "capabilities": {
+          "schema": "gateway-plugin-capabilities/v1",
+          "apis": [
+            "messages",
+            "messages"
+          ],
+          "features": [
+            "json"
+          ],
+          "requires": [
+            "codec_ipc_v3",
+            "responses_output_validation"
+          ]
+        }
+      },
+      "valid": false
+    },
+    {
+      "id": "unordered-apis",
+      "schema": "gateway-extension-package-v2.schema.json",
+      "value": {
+        "schema": "gateway-extension-package/v2",
+        "id": "example-observer",
+        "version": "1.0.0",
+        "target": "linux-x64",
+        "protocol": "gateway-api-codec/v3",
+        "permissions": [
+          "read_model_payload",
+          "transform_model_protocol"
+        ],
+        "state_schema": "request-memory/v1",
+        "files": {
+          "extension": "9afd2910ff2a64488c0177d36c1d41e94bd42df8904093a79cb297d1136f38d1",
+          "LICENSE.txt": "3619b0b715bbbabadfa3165cad0e37affa65799c5ee6da58a43e12f117deacbd"
+        },
+        "capabilities": {
+          "schema": "gateway-plugin-capabilities/v1",
+          "apis": [
+            "responses",
+            "messages"
+          ],
+          "features": [
+            "json"
+          ],
+          "requires": [
+            "codec_ipc_v3",
+            "responses_output_validation"
+          ]
+        }
+      },
+      "valid": false
+    },
+    {
+      "id": "unknown-api",
+      "schema": "gateway-extension-package-v2.schema.json",
+      "value": {
+        "schema": "gateway-extension-package/v2",
+        "id": "example-observer",
+        "version": "1.0.0",
+        "target": "linux-x64",
+        "protocol": "gateway-api-codec/v3",
+        "permissions": [
+          "read_model_payload",
+          "transform_model_protocol"
+        ],
+        "state_schema": "request-memory/v1",
+        "files": {
+          "extension": "9afd2910ff2a64488c0177d36c1d41e94bd42df8904093a79cb297d1136f38d1",
+          "LICENSE.txt": "3619b0b715bbbabadfa3165cad0e37affa65799c5ee6da58a43e12f117deacbd"
+        },
+        "capabilities": {
+          "schema": "gateway-plugin-capabilities/v1",
+          "apis": [
+            "new_api"
+          ],
+          "features": [
+            "json"
+          ],
+          "requires": [
+            "codec_ipc_v3",
+            "responses_output_validation"
+          ]
+        }
+      },
+      "valid": false
+    },
+    {
+      "id": "missing-json",
+      "schema": "gateway-extension-package-v2.schema.json",
+      "value": {
+        "schema": "gateway-extension-package/v2",
+        "id": "example-observer",
+        "version": "1.0.0",
+        "target": "linux-x64",
+        "protocol": "gateway-api-codec/v3",
+        "permissions": [
+          "read_model_payload",
+          "transform_model_protocol"
+        ],
+        "state_schema": "request-memory/v1",
+        "files": {
+          "extension": "9afd2910ff2a64488c0177d36c1d41e94bd42df8904093a79cb297d1136f38d1",
+          "LICENSE.txt": "3619b0b715bbbabadfa3165cad0e37affa65799c5ee6da58a43e12f117deacbd"
+        },
+        "capabilities": {
+          "schema": "gateway-plugin-capabilities/v1",
+          "apis": [
+            "messages"
+          ],
+          "features": [
+            "streaming"
+          ],
+          "requires": [
+            "codec_ipc_v3",
+            "responses_output_validation"
+          ]
+        }
+      },
+      "valid": false
+    },
+    {
+      "id": "unknown-feature",
+      "schema": "gateway-extension-package-v2.schema.json",
+      "value": {
+        "schema": "gateway-extension-package/v2",
+        "id": "example-observer",
+        "version": "1.0.0",
+        "target": "linux-x64",
+        "protocol": "gateway-api-codec/v3",
+        "permissions": [
+          "read_model_payload",
+          "transform_model_protocol"
+        ],
+        "state_schema": "request-memory/v1",
+        "files": {
+          "extension": "9afd2910ff2a64488c0177d36c1d41e94bd42df8904093a79cb297d1136f38d1",
+          "LICENSE.txt": "3619b0b715bbbabadfa3165cad0e37affa65799c5ee6da58a43e12f117deacbd"
+        },
+        "capabilities": {
+          "schema": "gateway-plugin-capabilities/v1",
+          "apis": [
+            "messages"
+          ],
+          "features": [
+            "json",
+            "network"
+          ],
+          "requires": [
+            "codec_ipc_v3",
+            "responses_output_validation"
+          ]
+        }
+      },
+      "valid": false
+    },
+    {
+      "id": "unordered-features",
+      "schema": "gateway-extension-package-v2.schema.json",
+      "value": {
+        "schema": "gateway-extension-package/v2",
+        "id": "example-observer",
+        "version": "1.0.0",
+        "target": "linux-x64",
+        "protocol": "gateway-api-codec/v3",
+        "permissions": [
+          "read_model_payload",
+          "transform_model_protocol"
+        ],
+        "state_schema": "request-memory/v1",
+        "files": {
+          "extension": "9afd2910ff2a64488c0177d36c1d41e94bd42df8904093a79cb297d1136f38d1",
+          "LICENSE.txt": "3619b0b715bbbabadfa3165cad0e37affa65799c5ee6da58a43e12f117deacbd"
+        },
+        "capabilities": {
+          "schema": "gateway-plugin-capabilities/v1",
+          "apis": [
+            "messages"
+          ],
+          "features": [
+            "json",
+            "editing"
+          ],
+          "requires": [
+            "codec_ipc_v3",
+            "responses_output_validation"
+          ]
+        }
+      },
+      "valid": false
+    },
+    {
+      "id": "missing-host-feature",
+      "schema": "gateway-extension-package-v2.schema.json",
+      "value": {
+        "schema": "gateway-extension-package/v2",
+        "id": "example-observer",
+        "version": "1.0.0",
+        "target": "linux-x64",
+        "protocol": "gateway-api-codec/v3",
+        "permissions": [
+          "read_model_payload",
+          "transform_model_protocol"
+        ],
+        "state_schema": "request-memory/v1",
+        "files": {
+          "extension": "9afd2910ff2a64488c0177d36c1d41e94bd42df8904093a79cb297d1136f38d1",
+          "LICENSE.txt": "3619b0b715bbbabadfa3165cad0e37affa65799c5ee6da58a43e12f117deacbd"
+        },
+        "capabilities": {
+          "schema": "gateway-plugin-capabilities/v1",
+          "apis": [
+            "messages"
+          ],
+          "features": [
+            "json"
+          ],
+          "requires": [
+            "codec_ipc_v3"
+          ]
+        }
+      },
+      "valid": false
+    },
+    {
+      "id": "unknown-host-feature",
+      "schema": "gateway-extension-package-v2.schema.json",
+      "value": {
+        "schema": "gateway-extension-package/v2",
+        "id": "example-observer",
+        "version": "1.0.0",
+        "target": "linux-x64",
+        "protocol": "gateway-api-codec/v3",
+        "permissions": [
+          "read_model_payload",
+          "transform_model_protocol"
+        ],
+        "state_schema": "request-memory/v1",
+        "files": {
+          "extension": "9afd2910ff2a64488c0177d36c1d41e94bd42df8904093a79cb297d1136f38d1",
+          "LICENSE.txt": "3619b0b715bbbabadfa3165cad0e37affa65799c5ee6da58a43e12f117deacbd"
+        },
+        "capabilities": {
+          "schema": "gateway-plugin-capabilities/v1",
+          "apis": [
+            "messages"
+          ],
+          "features": [
+            "json"
+          ],
+          "requires": [
+            "codec_ipc_v3",
+            "extra",
+            "responses_output_validation"
+          ]
+        }
+      },
+      "valid": false
+    },
+    {
+      "id": "unknown-capability-field",
+      "schema": "gateway-extension-package-v2.schema.json",
+      "value": {
+        "schema": "gateway-extension-package/v2",
+        "id": "example-observer",
+        "version": "1.0.0",
+        "target": "linux-x64",
+        "protocol": "gateway-api-codec/v3",
+        "permissions": [
+          "read_model_payload",
+          "transform_model_protocol"
+        ],
+        "state_schema": "request-memory/v1",
+        "files": {
+          "extension": "9afd2910ff2a64488c0177d36c1d41e94bd42df8904093a79cb297d1136f38d1",
+          "LICENSE.txt": "3619b0b715bbbabadfa3165cad0e37affa65799c5ee6da58a43e12f117deacbd"
+        },
+        "capabilities": {
+          "schema": "gateway-plugin-capabilities/v1",
+          "apis": [
+            "messages"
+          ],
+          "features": [
+            "json"
+          ],
+          "requires": [
+            "codec_ipc_v3",
+            "responses_output_validation"
+          ],
+          "extra": true
+        }
+      },
+      "valid": false
+    },
+    {
+      "id": "codec-provider-null-forbidden",
+      "schema": "gateway-extension-package-v2.schema.json",
+      "value": {
+        "schema": "gateway-extension-package/v2",
+        "id": "example-observer",
+        "version": "1.0.0",
+        "target": "linux-x64",
+        "protocol": "gateway-api-codec/v3",
+        "permissions": [
+          "read_model_payload",
+          "transform_model_protocol"
+        ],
+        "state_schema": "request-memory/v1",
+        "files": {
+          "extension": "9afd2910ff2a64488c0177d36c1d41e94bd42df8904093a79cb297d1136f38d1",
+          "LICENSE.txt": "3619b0b715bbbabadfa3165cad0e37affa65799c5ee6da58a43e12f117deacbd"
+        },
+        "capabilities": {
+          "schema": "gateway-plugin-capabilities/v1",
+          "apis": [
+            "messages"
+          ],
+          "features": [
+            "json"
+          ],
+          "requires": [
+            "codec_ipc_v3",
+            "responses_output_validation"
+          ]
+        },
+        "provider_protocol": null
+      },
+      "valid": false
+    },
+    {
+      "id": "legacy-capabilities-forbidden",
+      "schema": "gateway-extension-package-v1.schema.json",
+      "value": {
+        "schema": "gateway-extension-package/v1",
+        "id": "example-observer",
+        "version": "1.0.0",
+        "target": "linux-x64",
+        "protocol": "gateway-api-codec/v3",
+        "permissions": [
+          "read_model_payload",
+          "transform_model_protocol"
+        ],
+        "state_schema": "request-memory/v1",
+        "files": {
+          "extension": "9afd2910ff2a64488c0177d36c1d41e94bd42df8904093a79cb297d1136f38d1",
+          "LICENSE.txt": "3619b0b715bbbabadfa3165cad0e37affa65799c5ee6da58a43e12f117deacbd"
+        },
+        "capabilities": {
+          "schema": "gateway-plugin-capabilities/v1",
+          "apis": [
+            "messages"
+          ],
+          "features": [
+            "json"
+          ],
+          "requires": [
+            "codec_ipc_v3",
+            "responses_output_validation"
+          ]
+        }
+      },
+      "valid": false
+    },
+    {
+      "id": "legacy-codec-in-v2-forbidden",
+      "schema": "gateway-extension-package-v2.schema.json",
+      "value": {
+        "schema": "gateway-extension-package/v2",
+        "id": "example-observer",
+        "version": "1.0.0",
+        "target": "linux-x64",
+        "protocol": "gateway-api-codec/v2",
+        "permissions": [
+          "read_model_payload",
+          "transform_model_protocol"
+        ],
+        "state_schema": "request-memory/v1",
+        "files": {
+          "extension": "9afd2910ff2a64488c0177d36c1d41e94bd42df8904093a79cb297d1136f38d1",
+          "LICENSE.txt": "3619b0b715bbbabadfa3165cad0e37affa65799c5ee6da58a43e12f117deacbd"
+        },
+        "capabilities": {
+          "schema": "gateway-plugin-capabilities/v1",
+          "apis": [
+            "messages"
+          ],
+          "features": [
+            "json"
+          ],
+          "requires": [
+            "codec_ipc_v3",
+            "responses_output_validation"
+          ]
+        }
+      },
+      "valid": false
+    },
+    {
+      "id": "missing-provider-protocol",
+      "schema": "gateway-extension-package-v2.schema.json",
+      "value": {
+        "schema": "gateway-extension-package/v2",
+        "id": "example-observer",
+        "version": "1.0.0",
+        "target": "linux-x64",
+        "protocol": "gateway-provider/v1",
+        "permissions": [
+          "read_model_payload",
+          "transform_model_protocol"
+        ],
+        "state_schema": "provider-request-memory/v1",
+        "files": {
+          "extension": "9afd2910ff2a64488c0177d36c1d41e94bd42df8904093a79cb297d1136f38d1",
+          "LICENSE.txt": "3619b0b715bbbabadfa3165cad0e37affa65799c5ee6da58a43e12f117deacbd"
+        },
+        "capabilities": {
+          "schema": "gateway-plugin-capabilities/v1",
+          "apis": [],
+          "features": [
+            "json"
+          ],
+          "requires": [
+            "provider_ipc_v1",
+            "responses_output_validation"
+          ]
+        }
+      },
+      "valid": false
+    },
+    {
+      "id": "provider-protocol-terminal-lf",
+      "schema": "gateway-extension-package-v2.schema.json",
+      "value": {
+        "schema": "gateway-extension-package/v2",
+        "id": "example-observer",
+        "version": "1.0.0",
+        "target": "linux-x64",
+        "protocol": "gateway-provider/v1",
+        "permissions": [
+          "read_model_payload",
+          "transform_model_protocol"
+        ],
+        "state_schema": "provider-request-memory/v1",
+        "files": {
+          "extension": "9afd2910ff2a64488c0177d36c1d41e94bd42df8904093a79cb297d1136f38d1",
+          "LICENSE.txt": "3619b0b715bbbabadfa3165cad0e37affa65799c5ee6da58a43e12f117deacbd"
+        },
+        "capabilities": {
+          "schema": "gateway-plugin-capabilities/v1",
+          "apis": [],
+          "features": [
+            "json"
+          ],
+          "requires": [
+            "provider_ipc_v1",
+            "responses_output_validation"
+          ]
+        },
+        "provider_protocol": "synthetic/v1\n"
+      },
+      "valid": false
+    },
+    {
+      "id": "provider-builtin-api-forbidden",
+      "schema": "gateway-extension-package-v2.schema.json",
+      "value": {
+        "schema": "gateway-extension-package/v2",
+        "id": "example-observer",
+        "version": "1.0.0",
+        "target": "linux-x64",
+        "protocol": "gateway-provider/v1",
+        "permissions": [
+          "read_model_payload",
+          "transform_model_protocol"
+        ],
+        "state_schema": "provider-request-memory/v1",
+        "files": {
+          "extension": "9afd2910ff2a64488c0177d36c1d41e94bd42df8904093a79cb297d1136f38d1",
+          "LICENSE.txt": "3619b0b715bbbabadfa3165cad0e37affa65799c5ee6da58a43e12f117deacbd"
+        },
+        "capabilities": {
+          "schema": "gateway-plugin-capabilities/v1",
+          "apis": [
+            "messages"
+          ],
+          "features": [
+            "json"
+          ],
+          "requires": [
+            "provider_ipc_v1",
+            "responses_output_validation"
+          ]
+        },
+        "provider_protocol": "synthetic-provider/v1"
+      },
+      "valid": false
+    },
+    {
+      "id": "codec-v3-ready",
+      "schema": "gateway-api-codec-v3.schema.json",
+      "value": {
+        "protocol": "gateway-api-codec/v3",
+        "sequence": 0,
+        "value": {
+          "result": "ready",
+          "capabilities": {
+            "schema": "gateway-plugin-capabilities/v1",
+            "apis": [
+              "messages"
+            ],
+            "features": [
+              "json"
+            ],
+            "requires": [
+              "codec_ipc_v3",
+              "responses_output_validation"
+            ]
+          }
+        }
+      },
+      "valid": true
+    },
+    {
+      "id": "v3-legacy-ready-forbidden",
+      "schema": "gateway-api-codec-v3.schema.json",
+      "value": {
+        "protocol": "gateway-api-codec/v3",
+        "sequence": 0,
+        "value": {
+          "result": "ready",
+          "apis": [
+            "messages"
+          ],
+          "replay_versions": [
+            1
+          ]
+        }
+      },
+      "valid": false
+    },
+    {
+      "id": "v3-empty-ready-apis",
+      "schema": "gateway-api-codec-v3.schema.json",
+      "value": {
+        "protocol": "gateway-api-codec/v3",
+        "sequence": 0,
+        "value": {
+          "result": "ready",
+          "capabilities": {
+            "schema": "gateway-plugin-capabilities/v1",
+            "apis": [],
+            "features": [
+              "json"
+            ],
+            "requires": [
+              "codec_ipc_v3",
+              "responses_output_validation"
+            ]
+          }
+        }
+      },
+      "valid": false
+    }
+  ]
+}

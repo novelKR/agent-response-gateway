@@ -35,8 +35,18 @@ impl PreparedCodec {
     ) -> Result<Self, IrError> {
         let managed = managed_pending.is_some();
         let pending_tools = managed_pending.unwrap_or(false);
+        if !binding.supports_api(plan.route.api)
+            || !binding.supports("json")
+            || (binding.protocol == super::contract::CAPABILITIES_PROTOCOL
+                && plan.editing.is_some()
+                && !binding.supports("editing"))
+            || (managed && !binding.supports("managed_continuation"))
+            || (request.generation.stream == Some(true) && !binding.supports("streaming"))
+        {
+            return Err(IrError::UnsupportedFeature);
+        }
         let verifier = output_verifier(request, plan)?;
-        if plan.editing.is_some() && binding.protocol != EDITING_PROTOCOL {
+        if plan.editing.is_some() && !binding.supports("editing") {
             return Err(IrError::UnsupportedVersion);
         }
         let value = Prepare {

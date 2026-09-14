@@ -456,7 +456,18 @@ fn native_local_driver_checks_real_packages_and_fresh_grants_without_execution()
     let mut selections = vec![];
     for (source, version) in [("first", "1.0.0"), ("second", "2.0.0")] {
         let package = root.path().join(source);
-        let output = Process::new(&python)
+        let capabilities = root.path().join(format!("capabilities-{source}.json"));
+        fs::write(
+            &capabilities,
+            serde_json::to_vec(&json!({
+                "schema":"gateway-plugin-capabilities/v1", "apis":["messages"],
+                "features":["json"], "requires":["codec_ipc_v3","responses_output_validation"]
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        let mut command = Process::new(&python);
+        command
             .args(["-I", "-B"])
             .arg(&script)
             .args(["package", "--binary"])
@@ -473,10 +484,16 @@ fn native_local_driver_checks_real_packages_and_fresh_grants_without_execution()
                 "--role",
                 "api_codec",
                 "--codec-protocol",
-                "gateway-api-codec/v2",
-            ])
-            .output()
-            .unwrap();
+                if source == "first" {
+                    "gateway-api-codec/v2"
+                } else {
+                    "gateway-api-codec/v3"
+                },
+            ]);
+        if source == "second" {
+            command.arg("--capabilities").arg(&capabilities);
+        }
+        let output = command.output().unwrap();
         assert!(output.status.success());
         let result: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
         let digest =
@@ -606,6 +623,20 @@ fn native_local_driver_checks_real_packages_and_fresh_grants_without_execution()
     );
     let status = manager.status(None).unwrap();
     assert!(status.effective.is_none());
+    let installed_v3 = status.store.inventory["installed"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|item| item["version"] == "2.0.0")
+        .unwrap();
+    assert_eq!(
+        installed_v3["package"]["capabilities"]["apis"],
+        json!(["messages"])
+    );
+    assert_eq!(
+        installed_v3["package"]["schema"],
+        "gateway-extension-package/v2"
+    );
     assert_eq!(
         status.store.inventory["installed"]
             .as_array()

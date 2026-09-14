@@ -83,6 +83,31 @@ import와 codec 선택을 함께 사용할 수 있다. 외부 codec은 지원하
 패키지 식별은 경로 어댑터 식별에도 참여한다. 호스트는 스키마를 이해하고 검사와
 준비 응답의 digest를 비교한 뒤 에이전트를 시작해야 한다.
 
+별도로 구현한 codec은 검토한 기능 JSON 파일과 `gateway-extension-package/v2`를
+사용하여 `gateway-api-codec/v3`를 명시적으로 선택할 수 있다. 파일에는 ready envelope가
+아닌 [작성 명세](plugin-authoring.md)의 `capabilities` 객체를 담는다. 예를 들면 다음과 같다.
+
+```sh
+python3 -B scripts/extension_manager.py package \
+  --binary /absolute/path/subset-codec \
+  --license-file /absolute/path/LICENSE --output /absolute/path/subset-package \
+  --id subset-codec --version 1.0.0 --role api_codec \
+  --codec-protocol gateway-api-codec/v3 --capabilities /absolute/path/capabilities.json
+```
+
+비어 있지 않은 API 부분집합과 필수 호스트 기능은 설치 시 실행 없이 검증한다.
+시작 ready는 manifest 선언을 정확히 반복해야 한다. 미선언 모델 API, 스트리밍,
+편집 또는 관리형 작업 선택은 준비 전에 오류가 되며 기능이나 권한을 암묵적으로
+넓히지 않는다. 기존 v1/v2 실행 파일은 원래 ready 계약을 유지하므로 manifest만
+수정하여 v3로 만들 수 없다.
+
+v3 선택에는 `gateway-embedded-manifest/v8`, `gateway-ready/v8`,
+`gateway-extended-manifest/v8`, `gateway-extended-ready/v8`를 사용한다.
+패키지 projection은 `gateway-extension-configuration/v3`를 사용하며 정확한 기능을
+결합한다. 기존 선택만 사용하는 경우 기존 스키마를 유지한다. Provider v1 패키지
+선언은 설치할 수 있지만 provider 활성화·런타임은 사용할 수 없다.
+Codec v3는 새로운 공급자 API 계약을 추가하지 않는다.
+
 ## IPC 수명 주기와 검증
 
 이식 가능한 Rust wire 타입은 독립 `gateway-plugin-contract` crate로 제공합니다.
@@ -96,8 +121,9 @@ accounting 타입 대신 wire 필드의 문자열과 JSON 값을 사용합니다
 각 프레임은 부호 없는 4바이트 big-endian 길이와 UTF-8 JSON으로 구성된다.
 프레임은 128 MiB로 제한되며 요청·응답과 이벤트 누적에는 게이트웨이 설정 한도도
 적용된다. 중복 키, 알 수 없는 필드와 미지원 버전은 실패한다. 응답은 `protocol`과
-정확한 요청 `sequence`를 되돌려준다. 최초 준비 응답은 sequence 0으로 네 API와
-native replay 버전 1을 선언한다. 이후 sequence는 1씩 증가한다.
+정확한 요청 `sequence`를 되돌려준다. 기존 codec v1/v2 준비 응답은 sequence 0으로 네 API와
+native replay 버전 1을 선언한다. Codec v3는 sequence 0에서 패키지 기능 선언 전체를
+반복하며 기존 ready 필드를 사용하지 않는다. 이후 sequence는 1씩 증가한다.
 
 [타입 계약](../../src/codecs/contract.rs)은 `Request.operation`과 `Reply.value`를
 정의한다. 첫 작업은 `prepare`이며 다음 작업으로 `json` 또는 `stream`을 선택한다.

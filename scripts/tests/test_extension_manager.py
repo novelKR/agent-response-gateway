@@ -300,6 +300,137 @@ class ExtensionManagerTests(unittest.TestCase):
         self.assertNotIn(str(self.root), err.getvalue())
         self.assertEqual(out.getvalue(), '')
 
+    @staticmethod
+    def codec_capabilities():
+        return {'schema': m.CAPABILITIES_SCHEMA, 'apis': ['messages'],
+                'features': ['editing', 'json', 'managed_continuation', 'streaming'],
+                'requires': ['codec_ipc_v3', 'responses_output_validation']}
+
+    @staticmethod
+    def provider_capabilities():
+        return {'schema': m.CAPABILITIES_SCHEMA, 'apis': [], 'features': ['json'],
+                'requires': ['provider_ipc_v1', 'responses_output_validation']}
+
+    def test_codec_v3_package_install_enable_and_inventory_bind_declaration(self):
+        package = self.root / 'codec'
+        capabilities = self.codec_capabilities()
+        sha = m.package_binary(self.binary, self.license, package, 'codec', '1.0.0',
+                               'api_codec', m.SUBSET_CODEC_PROTOCOL, capabilities=capabilities)
+        value, _ = m.inspect_package(package, sha)
+        self.assertEqual(value['schema'], m.CAPABILITY_PACKAGE_SCHEMA)
+        self.assertEqual(value['capabilities'], capabilities)
+        self.assertNotIn('provider_protocol', value)
+        m.install(self.store, package, sha)
+        before = m.inventory(self.store)['inventory']
+        self.assertEqual(before['installed'][0]['package'], value)
+        self.assertEqual(before['activation']['extensions'], [])
+        m.enable(self.store, 'codec', '1.0.0', sha, m.CODEC_PERMISSIONS)
+        after = m.inventory(self.store)['inventory']
+        self.assertFalse(after['runtime_checked'])
+        self.assertEqual(after['activation']['extensions'][0]['package_sha256'], sha)
+        self.assertEqual(after['installed'][0]['package']['capabilities'], capabilities)
+        path = package / 'extension.json'
+        path.chmod(0o600)
+        value['capabilities']['apis'] = ['responses']
+        path.write_bytes(m.canonical(value))
+        with self.assertRaises(m.ExtensionError):
+            m.inspect_package(package, sha)
+
+    def test_provider_static_install_preserves_identity_but_activation_is_unavailable(self):
+        package = self.root / 'provider'
+        sha = m.package_binary(self.binary, self.license, package, 'provider', '1.0.0',
+                               'provider', capabilities=self.provider_capabilities(),
+                               provider_protocol='synthetic.vendor/v1')
+        value, _ = m.inspect_package(package, sha)
+        self.assertEqual(value['protocol'], m.PROVIDER_PROTOCOL)
+        self.assertEqual(value['provider_protocol'], 'synthetic.vendor/v1')
+        self.assertEqual(value['state_schema'], 'provider-request-memory/v1')
+        self.assertEqual(value['permissions'], m.CODEC_PERMISSIONS)
+        m.install(self.store, package, sha)
+        self.assertEqual(m.inventory(self.store)['inventory']['installed'][0]['package'], value)
+        with self.assertRaises(m.ExtensionError):
+            m.enable(self.store, 'provider', '1.0.0', sha, m.CODEC_PERMISSIONS)
+        self.assertEqual(m.read_lock(self.store)['extensions'], [])
+        self.assertFalse((self.store / 'state' / 'provider').exists())
+
+    def test_capability_schema_and_arrays_reject_noncanonical_or_unsupported_values(self):
+        for field, replacement in [
+            ('schema', 'unknown/v1'), ('apis', []), ('apis', ['messages', 'messages']),
+            ('apis', ['responses', 'messages']), ('apis', ['unknown']), ('apis', [True]),
+            ('features', []), ('features', ['streaming']), ('features', ['json', 'unknown']),
+            ('features', ['json', 'json']), ('requires', ['codec_ipc_v3']),
+            ('requires', ['codec_ipc_v3', 'network', 'responses_output_validation']),
+            ('requires', ['responses_output_validation', 'codec_ipc_v3']),
+        ]:
+            with self.subTest(field=field, replacement=replacement):
+                capabilities = self.codec_capabilities()
+                capabilities[field] = replacement
+                with self.assertRaises(m.ExtensionError):
+                    m.validate_capabilities(capabilities, m.SUBSET_CODEC_PROTOCOL)
+        for field, replacement in [('apis', ['responses']), ('requires', ['codec_ipc_v3', 'responses_output_validation'])]:
+            capabilities = self.provider_capabilities()
+            capabilities[field] = replacement
+            with self.assertRaises(m.ExtensionError):
+                m.validate_capabilities(capabilities, m.PROVIDER_PROTOCOL)
+        capabilities = self.codec_capabilities()
+        capabilities['unknown'] = True
+        with self.assertRaises(m.ExtensionError):
+            m.validate_capabilities(capabilities, m.SUBSET_CODEC_PROTOCOL)
+
+    def test_legacy_roles_do_not_gain_capabilities_or_new_protocols(self):
+        original = json.loads((self.package / 'extension.json').read_bytes())
+        for change in [
+            {'capabilities': self.codec_capabilities()},
+            {'protocol': m.SUBSET_CODEC_PROTOCOL},
+            {'protocol': m.PROVIDER_PROTOCOL},
+            {'schema': m.CAPABILITY_PACKAGE_SCHEMA, 'capabilities': self.codec_capabilities()},
+        ]:
+            with self.subTest(change=change), self.assertRaises(m.ExtensionError):
+                m.validate_package(m.canonical({**original, **change}))
+        for protocol in m.LEGACY_CODEC_PROTOCOLS:
+            output = self.root / protocol.rsplit('/', 1)[1]
+            with self.assertRaises(m.ExtensionError):
+                m.package_binary(self.binary, self.license, output, 'codec', '1.0.0',
+                                 'api_codec', protocol, capabilities=self.codec_capabilities())
+            self.assertFalse(output.exists())
+
+    def test_v2_required_fields_provider_identity_and_canonical_digest_are_strict(self):
+        package = self.root / 'codec'
+        sha = m.package_binary(self.binary, self.license, package, 'codec', '1.0.0',
+                               'api_codec', m.SUBSET_CODEC_PROTOCOL, capabilities=self.codec_capabilities())
+        value, _ = m.inspect_package(package, sha)
+        invalid = [dict(value, capabilities=None), dict(value, provider_protocol=None),
+                   {k: v for k, v in value.items() if k != 'capabilities'}]
+        for manifest in invalid:
+            with self.assertRaises(m.ExtensionError):
+                m.validate_package(m.canonical(manifest))
+        raw = m.canonical(value)
+        with self.assertRaises(m.ExtensionError):
+            m.validate_package(b' ' + raw)
+        with self.assertRaises(m.ExtensionError):
+            m.validate_package(raw.replace(b'"schema":', b'"schema":"duplicate","schema":', 1))
+        for identity in [None, '', 'synthetic', 'synthetic/v0', 'synthetic/v01', 'synthetic/v1000000',
+                         'https://synthetic/v1', 'Synthetic/v1', 'synthetic/v1\n']:
+            with self.subTest(identity=identity), self.assertRaises(m.ExtensionError):
+                m.package_binary(self.binary, self.license, self.root / 'bad-provider', 'provider', '1.0.0',
+                                 'provider', capabilities=self.provider_capabilities(), provider_protocol=identity)
+        self.assertFalse((self.root / 'bad-provider').exists())
+
+    def test_cli_codec_v3_requires_explicit_capabilities_file(self):
+        path = self.root / 'capabilities.json'
+        path.write_bytes(m.canonical(self.codec_capabilities()))
+        output = self.root / 'cli-codec'
+        command = ['package', '--binary', str(self.binary), '--license-file', str(self.license),
+                   '--output', str(output), '--id', 'codec', '--version', '1.0.0',
+                   '--role', 'api_codec', '--codec-protocol', m.SUBSET_CODEC_PROTOCOL]
+        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            self.assertEqual(m.main(command), 1)
+        self.assertFalse(output.exists())
+        out = io.StringIO()
+        with redirect_stdout(out):
+            self.assertEqual(m.main(command + ['--capabilities', str(path)]), 0)
+        m.inspect_package(output, json.loads(out.getvalue())['package_sha256'])
+
     def test_cross_target_static_package_does_not_relax_install(self):
         other = next(value for value in m.TARGETS if value != m.target())
         output = self.root / 'cross-package'

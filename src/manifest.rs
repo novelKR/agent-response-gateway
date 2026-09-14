@@ -63,6 +63,7 @@ impl EmbeddedManifest {
                 Some("gateway-extended-manifest/v5") => "gateway-extended-ready/v5",
                 Some("gateway-extended-manifest/v6") => "gateway-extended-ready/v6",
                 Some("gateway-extended-manifest/v7") => "gateway-extended-ready/v7",
+                Some("gateway-extended-manifest/v8") => "gateway-extended-ready/v8",
                 _ => return Err(ConfigError("Unsupported readiness schema".into())),
             };
             ready["schema"] = json!(schema);
@@ -83,6 +84,7 @@ impl EmbeddedManifest {
     pub fn ready_schema(&self) -> &'static str {
         match self.schema {
             "gateway-embedded-manifest/v7" => "gateway-ready/v7",
+            "gateway-embedded-manifest/v8" => "gateway-ready/v8",
             "gateway-embedded-manifest/v6" => "gateway-ready/v6",
             "gateway-embedded-manifest/v5" => "gateway-ready/v5",
             "gateway-embedded-manifest/v4" => "gateway-ready/v4",
@@ -231,7 +233,14 @@ impl Config {
             .map(|byte| format!("{byte:02x}"))
             .collect();
         Ok(EmbeddedManifest {
-            schema: if self.models.values().any(|m| m.editing_policy.is_some())
+            schema: if self
+                .models
+                .values()
+                .filter_map(|m| m.api_codec.as_ref())
+                .any(|id| self.codecs[id].capabilities.is_some())
+            {
+                "gateway-embedded-manifest/v8"
+            } else if self.models.values().any(|m| m.editing_policy.is_some())
                 || self
                     .profile_packs
                     .as_ref()
