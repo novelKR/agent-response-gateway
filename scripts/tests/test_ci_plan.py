@@ -20,9 +20,9 @@ class CiPlanningTests(unittest.TestCase):
         if args[0] == 'rev-parse': return b'a'*40+b'\n'
         return (ROOT / args[-1].split(':',1)[1]).read_bytes()
 
-    def prepare(self, changed=False):
+    def prepare(self, changed=False, stages=None):
         policy, digest = validation.read_policy(ROOT)
-        policy.update(activation='affected', affected_stages=['pr'])
+        policy.update(activation='affected', affected_stages=stages if stages is not None else ['pr'])
         def plan(root, profile, scope, base, head, stage):
             p = copy.deepcopy(self.prospect)
             p.update(stage=stage, profile=profile, base_sha=base, head_sha=head)
@@ -66,6 +66,25 @@ class CiPlanningTests(unittest.TestCase):
         self.assertEqual(p['profile'], 'full')
         self.assertEqual(p['base_sha'], self.env['GITHUB_SHA'])
         self.assertEqual(p['head_sha'], self.env['GITHUB_SHA'])
+
+    def test_main_activation_does_not_reduce_schedule_manual_or_release_coverage(self):
+        for name in ('schedule', 'workflow_dispatch'):
+            self.env['GITHUB_EVENT_NAME'] = name
+            p = self.prepare(stages=['pr', 'main'])
+            self.assertEqual(p['profile'], 'full')
+            self.assertIn('codex-conformance', p['execution_jobs'])
+            self.assertIn('package-smoke', p['execution_jobs'])
+        self.env.update(GITHUB_EVENT_NAME='push', VALIDATION_RELEASE='true')
+        p = self.prepare(stages=['pr', 'main'])
+        self.assertEqual(p['stage'], 'release')
+        self.assertEqual(p['profile'], 'full')
+
+    def test_main_push_can_select_affected_checks(self):
+        self.env['GITHUB_EVENT_NAME'] = 'push'
+        self.event = {'before':'b'*40}
+        p = self.prepare(stages=['pr', 'main'])
+        self.assertEqual(p['mode'], 'affected')
+        self.assertEqual(p['execution_jobs'], ['management-web', 'publication'])
 
     def test_push_uses_before_and_actual_commit(self):
         self.env['GITHUB_EVENT_NAME'] = 'push'

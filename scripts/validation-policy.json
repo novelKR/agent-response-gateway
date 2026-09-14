@@ -531,7 +531,8 @@
     }
   ],
   "affected_stages": [
-    "pr"
+    "pr",
+    "main"
   ],
   "ci_rust_packages": [
     "agent-response-gateway",

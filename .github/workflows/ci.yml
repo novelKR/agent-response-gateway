@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
   pull_request:
+  schedule:
+    - cron: '17 18 * * *'
   workflow_dispatch:
   workflow_call:
     inputs:
@@ -16,7 +18,7 @@ permissions:
 
 concurrency:
   group: ci-${{ inputs.release_profile && 'qualification' || github.event_name }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+  cancel-in-progress: ${{ !inputs.release_profile && (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) }}
 
 defaults:
   run:

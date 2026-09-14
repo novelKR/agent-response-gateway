@@ -48,10 +48,16 @@ python3.14 -B scripts/validation.py plan --profile full --base BASE --head HEAD
 
 실행 전 보고된 도구와 잠긴 npm 의존성을 준비한다. 웹 표현만 검사할 때에는 Cargo나
 crate 라이선스 도구가 필요하지 않다. 로컬 결과는 `.local/validation/`에 기록한다.
-전체 Python discovery에는 분리된 실제 SPDX 통합 테스트가 포함된다. PR CI는
-선택한 영향 계획을 실행하며 main, 수동 전체 검사와 릴리스 자격 검증은 전체 실행을
-유지한다. 영향 계획 자체는 테스트 실행 증거가 아니므로 실행 집합과 필수 검사 결과를
+전체 Python discovery에는 분리된 실제 SPDX 통합 테스트가 포함된다. PR과 main push
+CI는 선택한 영향 계획을 실행한다. 매일 실행, 수동 전체 검사와 릴리스 자격 검증은
+전체 실행을 유지한다. 영향 계획 자체는 테스트 실행 증거가 아니므로 실행 집합과 필수 검사 결과를
 확인한다. 검증 정책의 `force_full`은 범위를 확대하는 방향으로만 작동한다.
+
+전체 검증은 매일 18:17 UTC(한국 시간 다음 날 03:17)에 실행한다. 수동 CI도 전체
+범위를 선택한다. 이 실행들과 릴리스 자격 검증은 오래된 PR/main 통합 검사와 별도
+동시 실행 그룹을 사용한다. 정기 실패는 Actions 실패이며 자동 재시도나 릴리스가
+아니다. 영향 분류 문제를 복구하려면 버전 관리 정책의 `force_full`을 true로 설정한다.
+실행 범위를 확대하는 것이며 실패한 검사를 우회하지 않는다.
 
 등록된 작업 계열은 `validation-plan`, `conformance-prepare`, `web-windows`, `targets`, `format`, `rust`,
 `publication`, `licenses`, `codex-conformance`, `api-codecs`, `usage-recorder`,

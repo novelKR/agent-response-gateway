@@ -51,10 +51,17 @@ python3.14 -B scripts/validation.py plan --profile full --base BASE --head HEAD
 Prepare reported tools and locked npm dependencies before execution. Web-only
 presentation checks require no Cargo or crate-license tooling. Local results are
 written under `.local/validation/`. Full Python discovery includes the separate
-real SPDX integration tests. PR CI executes the selected impact plan; main, manual
-full checks and release qualification retain full execution. An impact plan is not
+real SPDX integration tests. PR and main push CI execute the selected impact plan.
+Daily, manual full checks and release qualification retain full execution. An impact plan is not
 evidence that a test ran: inspect its execution set and the required-check result.
 `force_full` in the validation policy only expands coverage.
+
+Full validation runs daily at 18:17 UTC (03:17 the following day in Korea).
+Manual CI runs also select full coverage. These runs and release qualification
+have separate concurrency groups from superseded PR/main integration checks.
+A scheduled failure is an Actions failure, not an automatic retry or a release.
+To recover from an impact-classification problem, set `force_full` to true in the
+versioned policy; this expands execution and does not bypass a failed check.
 
 The registered job families are `validation-plan`, `conformance-prepare`, `web-windows`, `targets`, `format`, `rust`,
 `publication`, `licenses`, `codex-conformance`, `api-codecs`, `usage-recorder`,
