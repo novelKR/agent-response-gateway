@@ -300,6 +300,32 @@ class ExtensionManagerTests(unittest.TestCase):
         self.assertNotIn(str(self.root), err.getvalue())
         self.assertEqual(out.getvalue(), '')
 
+    def test_cross_target_static_package_does_not_relax_install(self):
+        other = next(value for value in m.TARGETS if value != m.target())
+        output = self.root / 'cross-package'
+        sha = m.package_binary(self.binary, self.license, output, 'observer', '0.1.0', package_target=other)
+        package, _ = m.inspect_package(output, sha, expected_target=other)
+        self.assertEqual(package['target'], other)
+        with self.assertRaises(m.ExtensionError):
+            m.inspect_package(output, sha)
+        with self.assertRaises(m.ExtensionError):
+            m.install(self.store, output, sha)
+        self.assertEqual(list((self.store / 'packages').iterdir()), [])
+        out = io.StringIO()
+        with redirect_stdout(out):
+            self.assertEqual(m.main(['inspect', '--package', str(output), '--expected-sha256', sha, '--target', other]), 0)
+        self.assertFalse(json.loads(out.getvalue())['executed'])
+
+    def test_cross_target_still_checks_bytes_and_rejects_unknown_targets(self):
+        with self.assertRaises(m.ExtensionError):
+            m.package_binary(self.binary, self.license, self.root / 'bad', 'observer', '0.1.0', package_target='windows-x64')
+        self.assertFalse((self.root / 'bad').exists())
+        binary = self.package / 'extension'
+        binary.chmod(0o600)
+        binary.write_bytes(b'tampered')
+        with self.assertRaises(m.ExtensionError):
+            m.inspect_package(self.package, self.sha, expected_target=m.target())
+
     def test_unsupported_platform_fails_before_mutation(self):
         with patch.object(m.sys, 'platform', 'win32'), self.assertRaises(m.ExtensionError):
             self.install()

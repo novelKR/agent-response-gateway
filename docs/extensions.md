@@ -22,6 +22,14 @@ Run the following example from a reviewed source checkout with absolute, non-sym
 
 ## Prepare a local example package
 
+The source-inclusive [plugin tooling distribution](../tooling/plugin-tools/README.md)
+can be used outside a gateway checkout. For packaging or static inspection only,
+`package --target` and `inspect --target` accept an explicit artifact target such
+as `macos-arm64`. Omitting it preserves host matching. Declaring a target does not
+validate the executable ABI. Installation and activation always retain the actual
+host checks and provide no target override. A Linux tooling container can inspect
+a macOS package but cannot establish native macOS execution compatibility.
+
 ```sh
 ROOT="$(pwd -P)"
 mkdir -p "$ROOT/.local"

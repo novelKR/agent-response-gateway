@@ -22,6 +22,14 @@ Linux 또는 macOS, Python 3.11 이상과 정확히 호환되는 gateway 빌드�
 
 ## 로컬 예제 패키지 준비
 
+소스를 포함한 [플러그인 도구 배포물](../../tooling/plugin-tools/README.md)은
+게이트웨이 체크아웃 밖에서도 사용할 수 있습니다. 패키징과 정적 검사에만
+`package --target` 및 `inspect --target`으로 `macos-arm64` 같은 산출물 대상을
+명시할 수 있습니다. 생략하면 기존 호스트 일치 검사를 유지합니다. 대상 선언은
+실행 파일 ABI 검증이 아닙니다. 설치와 활성화는 실제 호스트 검사를 계속 수행하며
+대상 override를 제공하지 않습니다. Linux 도구 컨테이너는 macOS 패키지를
+검사할 수 있지만 macOS 네이티브 실행 호환성을 입증하지 못합니다.
+
 ```sh
 ROOT="$(pwd -P)"
 mkdir -p "$ROOT/.local"

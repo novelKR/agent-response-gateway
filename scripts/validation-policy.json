@@ -482,7 +482,10 @@
       "name": "plugin-tooling",
       "patterns": [
         "tools/plugin-conformance/**",
-        "scripts/tests/test_plugin_conformance.py"
+        "scripts/tests/test_plugin_conformance.py",
+        "tooling/plugin-tools/**",
+        "scripts/build_plugin_tools.py",
+        "scripts/tests/test_plugin_tools.py"
       ],
       "ci": [
         "targets",
