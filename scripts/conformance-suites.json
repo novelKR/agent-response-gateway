@@ -101,5 +101,13 @@
         "run": "python3 -B scripts/managed_usage_smoke.py --gateway-bin target/debug/agent-response-gateway --recorder-bin target/debug/gateway-usage-recorder --compatibility-policy --profile-packs --codec-bin target/debug/examples/api_codec"
       }
     ]
+  },
+  "setup": {
+    "legacy-migration": [
+      {
+        "name": "Build the immutable Gemini v1 writer",
+        "run": "git fetch --no-tags origin 7bb42c064a4e0aa26a17c821f8fe1c2e35d4175e\nmkdir -p .local/legacy-source\ngit archive 7bb42c064a4e0aa26a17c821f8fe1c2e35d4175e | tar -x -C .local/legacy-source\ncargo build --locked --manifest-path .local/legacy-source/Cargo.toml --target-dir target/legacy\n"
+      }
+    ]
   }
 }

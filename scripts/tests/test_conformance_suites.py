@@ -20,6 +20,7 @@ class SuiteTests(unittest.TestCase):
         actual=Counter((s['name'],s['run']) for steps in groups.values() for s in steps)
         self.assertEqual(actual,original)
         self.assertTrue(all(count==1 for count in actual.values()))
+        self.assertEqual(json.loads((ROOT/'scripts/conformance-suites.json').read_text())['setup'], baseline['setup'])
         self.assertRegex(baseline['source_commit'],r'^[a-f0-9]{40}$')
 
     def test_failure_stops_group_and_is_recorded(self):
