@@ -158,3 +158,44 @@ Host·Origin·WebSocket 연결과 파일 제공 범위를 필요한 Web 소스·
 DevDemo가 없으며 대응 소스 archive에는 개발 소스가 유지됩니다. 기존 직접 실제 API
 fixture 검증은 별도 테스트로 유지합니다. 합성 화면의 성공은 인증·실행 운영 검증을
 의미하지 않습니다.
+
+
+<a id="actual-api-fixture-development-mode"></a>
+
+## 실제 API fixture 개발 모드
+
+같은 UI를 실제 관리 router에 연결해 확인하려면 선택형 fixture launcher를 사용합니다.
+
+```sh
+npm run devdemo:fixture --prefix management-web
+npm run devdemo:fixture --prefix management-web -- --preset usage
+```
+
+이 모드에는 Rust 1.98.0도 필요합니다. Launcher는 잠긴 `web_fixture` example을
+저장소의 `target/`에 빌드하고 API 전용 모드로 시작하며 stdin 수명을 소유합니다.
+기본 `all` preset은 상태·사용량·감사 조회를 허용하고 `usage`는 사용량 조회만 허용합니다.
+둘 다 DevDemo 제어판에 표시하는 기존 합성 조회 key와 정상 API 로그인·로그아웃을
+사용합니다. 이 테스트 key만 사용하세요. 실행 fixture에는 최소 플랫폼 환경만 전달하며
+provider·관리 credential을 전달하지 않습니다.
+
+제어판은 실제 API 전송과 합성 fixture 상태를 구분해 표시합니다. 시나리오·오류 주입
+제어는 비활성화되며 preset은 실행 명령에서 선택합니다. 화면·테마·언어·viewport·초기화는
+계속 사용할 수 있습니다. Shell과 canvas는 테마 토큰을 공유하며 화면 설정은 임시로만
+유지합니다. 초기화는 화면을 다시 만들 뿐 API 인증을 우회하거나 갱신하지 않습니다.
+
+HMR 서버는 대시보드의 조회 경로와 세션 생성·삭제만 자신이 시작한 fixture로 전달합니다.
+입력 Host·Origin을 검사한 뒤 fixture Origin으로 대응시키고, fixture 자신의 세션
+cookie만 전달하며 직접 로컬 HTTP agent를 사용합니다. Bearer 헤더는 세션 생성 시에만
+전달합니다. Backend URL을 입력받거나 관리
+변경·continuation 제어·모델 요청·임의 파일을 중계하지 않습니다. 기존 직접 정적
+fixture 테스트는 원래 API Origin 경계를 별도로 검증합니다.
+
+Ctrl+C 또는 감독용 stdin 종료 시 두 서버를 정리합니다. Fixture가 예상 밖에 종료되면
+DevDemo도 실패로 종료하며 구성·빌드·전송 오류 때문에 합성 모드를 선택하지 않습니다.
+두 모드의 기본 포트는 43142이므로 기존 launcher를 종료한 뒤 전환하거나 다른 포트를
+명시적으로 선택합니다. Fixture마다 새로운 임시 감사 저장소를 소유하며 모드 간 인증
+상태를 공유하지 않습니다.
+
+기존 `web_fixture --assets ...` 정적 실행도 유지합니다. `--api-only`와 `--assets`는
+함께 사용할 수 없습니다. 같은 선택형 `--preset all|usage`를 두 실행 방식에 적용할 수
+있습니다. 제품 관리 API에 추가되는 기능이 아니라 개발 fixture의 옵션입니다.

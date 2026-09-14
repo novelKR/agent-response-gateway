@@ -34,8 +34,9 @@ test('development server denies private files, foreign requests and management e
     });
     assert.equal((await fetch(ready)).status,200);
     assert.equal((await fetch(ready+'canvas.js')).status,200);
+    assert.deepEqual(await (await fetch(ready+'__devdemo/config')).json(),{schema:'gateway-devdemo/v1',mode:'synthetic',preset:null});
     assert.equal((await fetch(ready+'@fs'+privateFile)).status,403);
-    for(const path of ['.env','@fs/etc/passwd','@fs'+fileURLToPath(new URL('../../.local/not-public',import.meta.url)),'management/v1/state','__devdemo/config']) {
+    for(const path of ['.env','@fs/etc/passwd','@fs'+fileURLToPath(new URL('../../.local/not-public',import.meta.url)),'management/v1/state']) {
       assert.ok([403,404].includes((await fetch(ready+path)).status));
     }
     assert.equal((await fetch(ready,{headers:{Origin:'https://untrusted.example'}})).status,403);

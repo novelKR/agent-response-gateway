@@ -178,3 +178,49 @@ excluded from product Web archives; the corresponding source archive retains its
 development sources. Existing direct real-API fixture verification remains a
 separate test. A successful synthetic view is not authentication or runtime
 acceptance.
+
+
+<a id="실제-api-fixture-개발-모드"></a>
+
+## Actual API fixture development mode
+
+To inspect the same UI through the actual management router, use the optional
+fixture launcher:
+
+```sh
+npm run devdemo:fixture --prefix management-web
+npm run devdemo:fixture --prefix management-web -- --preset usage
+```
+
+This mode also requires Rust 1.98.0. The launcher builds the locked
+`web_fixture` example into the repository's `target/`, starts its API-only mode,
+and owns its stdin lifetime. The default `all` preset permits state, usage and
+audit reads; `usage` permits usage only. Both use the existing synthetic read key,
+shown in the DevDemo panel, with normal API login/logout. Use only that test key.
+The runtime fixture receives a minimal platform environment, not provider or
+management credentials.
+
+The panel identifies actual API transport with synthetic fixture state. Scenario
+and fault injection controls are disabled; choose the preset in the launch
+command. Page, theme, language, viewport and reset remain available. The shell and
+canvas share theme tokens, and presentation choices remain temporary. Reset
+recreates the view; it does not bypass or renew API authentication.
+
+The HMR server forwards only the dashboard's read routes and session creation/
+deletion to the fixture it started. It checks incoming Host/Origin before mapping
+them to the fixture origin, forwards only the fixture's own session cookie, and
+uses a direct local HTTP agent. Bearer headers are forwarded only for session
+creation. It does not accept backend URLs or proxy management
+mutations, continuation controls, model requests or arbitrary files. Existing
+direct static-fixture tests separately verify the original API origin boundary.
+
+Ctrl+C or supervised stdin closure stops both servers. Unexpected fixture exit
+closes DevDemo with a failure; configuration, build or transport errors never
+select synthetic fallback. Stop one launcher before changing mode (both default
+to port 43142), or explicitly select another port. Each fixture owns a fresh
+temporary audit store, and modes do not share authentication state.
+
+The existing `web_fixture --assets ...` static workflow remains available.
+`--api-only` and `--assets` are mutually exclusive. The same optional
+`--preset all|usage` applies to either workflow. These are development fixture
+options, not additions to the product management API.
