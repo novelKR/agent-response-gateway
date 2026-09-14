@@ -45,6 +45,7 @@ class Checker:
         self.total = 0
         self.entries = 0
         self.blobs: set[bytes] = set()
+        self.paths: set[tuple[bytes, bytes]] = set()
 
     def git(self, *args: str) -> bytes:
         result = subprocess.run(
@@ -63,6 +64,10 @@ class Checker:
             raise BoundaryError
 
     def path(self, path: bytes, mode: bytes = b"100644") -> None:
+        # History revisits unchanged paths; bound unique path/mode inputs.
+        # Blob contents and commit metadata retain their independent checks.
+        if (path, mode) in self.paths:
+            return
         self.entries += 1
         if self.entries > MAX_ENTRIES or mode not in {b"100644", b"100755", b"040000"}:
             raise BoundaryError
@@ -75,6 +80,7 @@ class Checker:
         ):
             raise BoundaryError
         self.content(path)
+        self.paths.add((path, mode))
 
     def size(self, length: int) -> None:
         if length < 0 or length > MAX_FILE:
