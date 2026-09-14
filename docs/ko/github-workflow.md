@@ -36,14 +36,17 @@ PR을 승인하지 않는다.
 패키지 소비자와 범위 확대 이유를 보고한다. Cargo 의존성을 해석하지 않고 Git과
 manifest를 읽는다. 알 수 없는 경로, 확인할 수 없는 revision, 의존성 및 검증
 정책 변경은 전체 범위를 선택한다. `--base BASE --head HEAD`는 커밋 범위를
-나타내며 이름 변경과 삭제는 영향을 받는 양쪽 경로를 포함한다. 범위 계획을
-무관한 로컬 작업 트리에서 실행하지 않는다. 전체 로컬 프로필은 릴리스 자격이 아니다.
+나타내며 이름 변경과 삭제는 영향을 받는 양쪽 경로를 포함한다. 범위 실행은
+정확한 head의 깨끗한 checkout에서만 가능하며, 파일 경계 검사는 선택한 커밋의
+blob을 읽는다. staged 및 범위 실행은 검증 도중 checkout이 바뀌면 실패한다.
+전체 로컬 프로필은 릴리스 자격이 아니다.
 
 ```sh
 python3.14 -B scripts/validation.py plan --worktree
 python3.14 -B scripts/validation.py run --worktree
 python3.14 -B scripts/validation.py run --staged
 python3.14 -B scripts/validation.py plan --profile full --base BASE --head HEAD
+python3.14 -B scripts/validation.py run --base BASE --head HEAD
 ```
 
 실행 전 보고된 도구와 잠긴 npm 의존성을 준비한다. 웹 표현만 검사할 때에는 Cargo나

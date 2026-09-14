@@ -217,9 +217,9 @@
           "-B",
           "scripts/extension_smoke.py",
           "--binary",
-          "target/debug/agent-response-gateway",
+          "{gateway-bin}",
           "--observer",
-          "target/debug/examples/metadata_observer"
+          "{observer-bin}"
         ]
       ]
     }

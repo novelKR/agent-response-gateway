@@ -38,14 +38,17 @@ selected checks, tools, package consumers and the reason for broader coverage.
 It uses Git and manifest reads without resolving Cargo dependencies. Unknown
 paths, unavailable revisions, dependency and validation-policy changes select
 full coverage. `--base BASE --head HEAD` describes a commit range; rename and
-deletion inputs include both affected paths. Range plans are not executed against
-an unrelated local worktree. The local full profile is not a release qualification.
+deletion inputs include both affected paths. Run a range only from a clean checkout
+of its exact head; file-boundary checks read the selected committed blobs. Staged
+and range execution reject checkout changes during validation. The local full
+profile is not a release qualification.
 
 ```sh
 python3.14 -B scripts/validation.py plan --worktree
 python3.14 -B scripts/validation.py run --worktree
 python3.14 -B scripts/validation.py run --staged
 python3.14 -B scripts/validation.py plan --profile full --base BASE --head HEAD
+python3.14 -B scripts/validation.py run --base BASE --head HEAD
 ```
 
 Prepare reported tools and locked npm dependencies before execution. Web-only
