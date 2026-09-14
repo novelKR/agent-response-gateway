@@ -77,6 +77,10 @@ CI는 선택한 영향 계획을 실행한다. 매일 실행, 수동 전체 검�
 필요하지 않으며 API client와 인증을 소유한 애플리케이션 컨테이너는 실제 API fixture를
 계속 사용한다.
 
+문서·확장 변경은 `licenses` 작업이 선택되지 않아도 관련 Python 회귀 검사를
+유지한다. Recorder 변경은 기본 feature 조합의 별도 usage 검사와 함께
+Team을 활성화한 Rust 소비 crate도 검증한다.
+
 job-seconds를 청구량으로 해석하지 않고 실제 Actions 시간을 확인할 수 있다.
 
 ```sh

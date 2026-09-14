@@ -82,6 +82,11 @@ The recorder retains its separate database and upgrade checks. Web styles and
 independent presentation components need no Rust fixture; the API client and the
 application container that owns authentication keep the real API fixture.
 
+Documentation and extension changes retain their relevant Python regressions even
+when the `licenses` job is not selected. Recorder changes also validate native
+consumers with Team enabled, alongside the separate usage checks with default
+features.
+
 Inspect observed Actions timing without equating job-seconds with billing:
 
 ```sh
