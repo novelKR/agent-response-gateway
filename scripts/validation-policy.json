@@ -232,7 +232,9 @@
         "scripts/validation-policy.json",
         "scripts/check_ci_results.py",
         "scripts/tests/test_validation*.py",
-        "scripts/tests/test_ci_results.py"
+        "scripts/tests/test_ci_results.py",
+        "scripts/ci_plan.py",
+        "scripts/tests/test_ci_plan.py"
       ],
       "ci": [
         "targets",
@@ -524,5 +526,6 @@
       ],
       "full": true
     }
-  ]
+  ],
+  "affected_stages": []
 }
