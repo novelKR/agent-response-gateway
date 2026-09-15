@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 import queue
 import secrets
+import selectors
 import signal
 import subprocess
 import sys
@@ -500,6 +501,51 @@ def linux_group_has_live_members(group, deadline):
     raise AssertionError('Owned process group is not visible to cleanup')
 
 
+def darwin_group_snapshot(deadline):
+    # Fixed OS tool and numeric group/state columns only; never collect command lines.
+    child = subprocess.Popen(['/bin/ps', '-A', '-o', 'pgid=,state='],
+                             env={'LC_ALL': 'C'}, stdin=subprocess.DEVNULL,
+                             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    raw = bytearray()
+    try:
+        with selectors.DefaultSelector() as selector:
+            selector.register(child.stdout, selectors.EVENT_READ)
+            while True:
+                remaining = deadline - time.monotonic()
+                require(remaining > 0 and bool(selector.select(remaining)), 'Cleanup process inspection timed out')
+                chunk = os.read(child.stdout.fileno(), 65536)
+                if not chunk:
+                    break
+                raw.extend(chunk)
+                require(len(raw) <= 1024 * 1024, 'Cleanup process metadata exceeds limit')
+        remaining = deadline - time.monotonic()
+        require(remaining > 0, 'Cleanup process inspection timed out')
+        require(child.wait(timeout=remaining) == 0, 'Cleanup process inspection failed')
+        return bytes(raw)
+    finally:
+        if child.poll() is None:
+            child.kill()
+        try:
+            child.wait(timeout=1)
+        finally:
+            child.stdout.close()
+
+
+def darwin_group_has_live_members(group, deadline):
+    # XNU killpg excludes SZOMB and reports EPERM for an existing zombie-only group.
+    # EPERM alone proves nothing: inspect every row before accepting quiescence.
+    rows = darwin_group_snapshot(deadline).decode('ascii').splitlines()
+    require(bool(rows), 'Missing cleanup process metadata')
+    live = False
+    for row in rows:
+        fields = row.split()
+        require(len(fields) == 2 and fields[0].isdecimal()
+                and fields[1] and fields[1].isascii(), 'Invalid cleanup process metadata')
+        if int(fields[0]) == group and not fields[1].startswith('Z'):
+            live = True
+    return live
+
+
 def stop_process(process):
     if process.__dict__.get('_conformance_cleaned', False):
         return
@@ -516,15 +562,24 @@ def stop_process(process):
             group = process.__dict__.get('_conformance_group')
             if group is not None:
                 # An exited parent may leave background writers in its owned group.
+                deadline = time.monotonic() + 5
+                quiescent = False
                 try:
                     os.killpg(group, signal.SIGKILL)
                 except ProcessLookupError:
-                    pass
-                deadline = time.monotonic() + 5
-                while True:
+                    quiescent = True
+                except PermissionError:
+                    if sys.platform != 'darwin' or darwin_group_has_live_members(group, deadline):
+                        raise
+                    quiescent = True
+                while not quiescent:
                     try:
                         os.killpg(group, 0)
                     except ProcessLookupError:
+                        break
+                    except PermissionError:
+                        if sys.platform != 'darwin' or darwin_group_has_live_members(group, deadline):
+                            raise
                         break
                     if sys.platform == 'linux' and not linux_group_has_live_members(group, deadline):
                         break
