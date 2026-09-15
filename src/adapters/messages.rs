@@ -190,7 +190,7 @@ pub(crate) fn encode_with_history(
                 if let Some((end, native)) = history.segments.get(&position) {
                     let crate::ir::continuity::NativeReplay::Messages {
                         version: 1, blocks, ..
-                    } = native
+                    } = native.builtin()?
                     else {
                         return Err(IrError::ContinuityMismatch);
                     };
@@ -290,7 +290,7 @@ pub(crate) fn encode_with_history(
             if let Some((_, native)) = history.segments.get(&items.len()) {
                 let crate::ir::continuity::NativeReplay::Messages {
                     version: 1, blocks, ..
-                } = native
+                } = native.builtin()?
                 else {
                     return Err(IrError::ContinuityMismatch);
                 };

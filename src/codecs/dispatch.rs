@@ -250,20 +250,98 @@ impl Stream<'_> {
     }
 }
 
+/// Common host result; legacy adapter/wire output types keep their original shape.
+pub(crate) struct ManagedDecoded {
+    pub response: Value,
+    pub native: crate::ir::continuity::NativeState,
+    pub outcome: crate::continuation::Outcome,
+    pub observation: ManagedObservation,
+    pub terminal_events: Option<Vec<Value>>,
+}
+pub(crate) enum ManagedObservation {
+    Builtin(Accounting),
+    Provider(ProviderObservation),
+}
+impl From<ManagedOutput> for ManagedDecoded {
+    fn from(mut value: ManagedOutput) -> Self {
+        value.project_usage();
+        Self {
+            response: value.response,
+            native: value.native.into(),
+            outcome: value.outcome,
+            observation: ManagedObservation::Builtin(value.accounting),
+            terminal_events: None,
+        }
+    }
+}
+impl TryFrom<provider_plugins::ProviderOutput> for ManagedDecoded {
+    type Error = IrError;
+    fn try_from(value: provider_plugins::ProviderOutput) -> Result<Self, IrError> {
+        let state = value.state.ok_or(IrError::ContinuityMismatch)?;
+        let native = crate::ir::continuity::ProviderNativeState::new(
+            value.observation.identity.state_binding(),
+            state.format,
+            state.version,
+            state.bytes,
+        )?;
+        let outcome = match value.outcome {
+            gateway_plugin_contract::provider::Outcome::Completed => {
+                crate::continuation::Outcome::Completed
+            }
+            gateway_plugin_contract::provider::Outcome::AwaitingTools => {
+                crate::continuation::Outcome::AwaitingTools
+            }
+            gateway_plugin_contract::provider::Outcome::Incomplete => {
+                return Err(IrError::ContinuityMismatch);
+            }
+        };
+        Ok(Self {
+            response: value.response,
+            native: crate::ir::continuity::NativeState::Provider(native),
+            outcome,
+            observation: ManagedObservation::Provider(value.observation),
+            terminal_events: Some(value.terminal_events),
+        })
+    }
+}
 pub(crate) enum ManagedDispatch {
     Builtin(Box<ManagedAdapter>),
     External(Box<PreparedCodec>, gateway_usage_contract::Profile),
+    Provider(Box<PreparedProvider>),
 }
 impl ManagedDispatch {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) async fn prepare(
         binding: Option<&Binding>,
+        provider: Option<&provider_plugins::Binding>,
         request: &RequestIR,
         plan: &TranslationPlan,
         history: &VerifiedProviderHistory,
         pending: bool,
+        request_maximum: usize,
         maximum: usize,
-        profile: gateway_usage_contract::Profile,
+        profile: Option<gateway_usage_contract::Profile>,
     ) -> Result<Self, IrError> {
+        if let Some(provider) = provider {
+            if binding.is_some() || profile.is_some() {
+                return Err(IrError::UnsupportedFeature);
+            }
+            let authorized = AuthorizedProviderHistory::from_verified(history, provider)?;
+            return PreparedProvider::prepare(
+                provider,
+                request,
+                plan,
+                &authorized,
+                Some(pending),
+                ProviderLimits {
+                    request_bytes: request_maximum,
+                    output_bytes: maximum,
+                },
+            )
+            .await
+            .map(|p| Self::Provider(Box::new(p)));
+        }
+        let profile = profile.ok_or(IrError::UnsupportedFeature)?;
         if let Some(binding) = binding {
             Ok(Self::External(
                 Box::new(
@@ -288,29 +366,32 @@ impl ManagedDispatch {
             Ok(Self::Builtin(Box::new(p)))
         }
     }
-    pub(crate) fn usage_profile(&self) -> gateway_usage_contract::Profile {
+    pub(crate) fn usage_profile(&self) -> Option<gateway_usage_contract::Profile> {
         match self {
-            Self::Builtin(p) => p.usage_profile(),
-            Self::External(_, profile) => *profile,
+            Self::Builtin(p) => Some(p.usage_profile()),
+            Self::External(_, profile) => Some(*profile),
+            Self::Provider(_) => None,
         }
     }
     pub(crate) fn payload(&self) -> &Value {
         match self {
             Self::Builtin(p) => p.payload(),
             Self::External(p, _) => &p.payload,
+            Self::Provider(p) => p.payload(),
         }
     }
     pub(crate) async fn decode_bytes(
         &mut self,
         body: &[u8],
         id: &str,
-    ) -> Result<ManagedOutput, IrError> {
+    ) -> Result<ManagedDecoded, IrError> {
         match self {
-            Self::Builtin(p) => p.decode_bytes(body, id),
+            Self::Builtin(p) => p.decode_bytes(body, id).map(Into::into),
             Self::External(p, _) => match p.json(body, id).await? {
-                CodecOutput::Managed(v) => Ok(*v),
+                CodecOutput::Managed(v) => Ok((*v).into()),
                 _ => Err(IrError::InvalidEventOrder),
             },
+            Self::Provider(p) => p.json(body, id).await?.try_into(),
         }
     }
     pub(crate) async fn stream(
@@ -324,12 +405,17 @@ impl ManagedDispatch {
                 .stream(id)
                 .await
                 .map(|s| Managed::External(Box::new(s), vec![])),
+            Self::Provider(p) => p
+                .stream(id)
+                .await
+                .map(|s| Managed::Provider(Box::new(s), vec![])),
         }
     }
 }
 pub(crate) enum Managed<'a> {
     Builtin(Box<ManagedStream<'a>>),
     External(Box<CodecStream<'a>>, Vec<Value>),
+    Provider(Box<ProviderStream<'a>>, Vec<Value>),
 }
 impl Managed<'_> {
     pub(crate) async fn event(&mut self, event: SseEvent) -> Result<(), IrError> {
@@ -339,30 +425,39 @@ impl Managed<'_> {
                 *events = s.event(event).await?;
                 Ok(())
             }
+            Self::Provider(s, events) => {
+                *events = s.event(event).await?.events;
+                Ok(())
+            }
         }
     }
-    pub(crate) fn accounting(&self) -> Accounting {
+    pub(crate) fn accounting(&self) -> ManagedObservation {
         match self {
-            Self::Builtin(s) => s.accounting(),
-            Self::External(s, _) => s.accounting().expect("verified event accounting").clone(),
+            Self::Builtin(s) => ManagedObservation::Builtin(s.accounting()),
+            Self::External(s, _) => ManagedObservation::Builtin(
+                s.accounting().expect("verified event accounting").clone(),
+            ),
+            Self::Provider(s, _) => ManagedObservation::Provider(s.observation().clone()),
         }
     }
     pub(crate) fn take_progress(&mut self) -> Vec<Value> {
         match self {
             Self::Builtin(s) => s.take_progress(),
-            Self::External(_, events) => std::mem::take(events),
+            Self::External(_, events) | Self::Provider(_, events) => std::mem::take(events),
         }
     }
     pub(crate) fn is_complete(&self) -> bool {
         match self {
             Self::Builtin(s) => s.is_complete(),
             Self::External(s, _) => s.is_complete(),
+            Self::Provider(s, _) => s.is_complete(),
         }
     }
-    pub(crate) async fn finish(self) -> Result<ManagedOutput, IrError> {
+    pub(crate) async fn finish(self) -> Result<ManagedDecoded, IrError> {
         match self {
-            Self::Builtin(s) => s.finish(),
-            Self::External(s, _) => s.finish().await,
+            Self::Builtin(s) => s.finish().map(Into::into),
+            Self::External(s, _) => s.finish().await.map(Into::into),
+            Self::Provider(mut s, _) => s.finish().await?.try_into(),
         }
     }
 }

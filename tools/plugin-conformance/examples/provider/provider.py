@@ -83,16 +83,20 @@ class Provider:
         self.counter = 0
         self.started_text = False
 
+    def item_id(self, prefix, index):
+        # Replayed turns must not reuse output identities from an earlier response.
+        return f'{prefix}_{self.response_id}_{index}'
+
     def completed(self, native):
         output = []
         for index, item in enumerate(native['answer']):
             if set(item) == {'text'} and isinstance(item['text'], str):
-                output.append({'id': f'msg_{index}', 'type': 'message', 'role': 'assistant',
+                output.append({'id': self.item_id('msg', index), 'type': 'message', 'role': 'assistant',
                                'status': 'completed', 'content': [{'type': 'output_text',
                                'text': item['text'], 'annotations': []}]})
             elif set(item) == {'call', 'name', 'arguments'} and all(isinstance(item[k], str) for k in item):
                 decode(item['arguments'])
-                output.append({'id': f'fc_{index}', 'type': 'function_call', 'status': 'completed',
+                output.append({'id': self.item_id('fc', index), 'type': 'function_call', 'status': 'completed',
                                'call_id': item['call'], 'name': item['name'], 'arguments': item['arguments']})
             else:
                 raise ValueError('answer')
@@ -170,11 +174,11 @@ class Provider:
                     events = [{'type': 'response.created', 'response': {'id': self.response_id, 'object': 'response',
                               'created_at': 0, 'model': self.prepared['route']['model'], 'status': 'in_progress', 'output': []}},
                               {'type': 'response.output_item.added', 'output_index': 0, 'item': {
-                                  'id': 'msg_0', 'type': 'message', 'role': 'assistant', 'status': 'in_progress', 'content': []}},
-                              {'type': 'response.content_part.added', 'output_index': 0, 'item_id': 'msg_0',
+                                  'id': self.item_id('msg', 0), 'type': 'message', 'role': 'assistant', 'status': 'in_progress', 'content': []}},
+                              {'type': 'response.content_part.added', 'output_index': 0, 'item_id': self.item_id('msg', 0),
                                'content_index': 0, 'part': {'type': 'output_text', 'text': '', 'annotations': []}}]
                     self.started_text = True
-                events.append({'type': 'response.output_text.delta', 'output_index': 0, 'item_id': 'msg_0',
+                events.append({'type': 'response.output_text.delta', 'output_index': 0, 'item_id': self.item_id('msg', 0),
                                'content_index': 0, 'delta': native['text']})
                 self.text += native['text']
                 if len(self.text.encode()) > self.prepared['max_output_bytes']:

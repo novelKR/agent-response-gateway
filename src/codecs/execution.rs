@@ -58,12 +58,14 @@ impl PreparedCodec {
             history: history
                 .segments
                 .iter()
-                .map(|(start, (end, native))| ReplaySpan {
-                    start: *start,
-                    end: *end,
-                    native: native.clone(),
+                .map(|(start, (end, native))| {
+                    Ok(ReplaySpan {
+                        start: *start,
+                        end: *end,
+                        native: native.builtin()?.clone(),
+                    })
                 })
-                .collect(),
+                .collect::<Result<_, IrError>>()?,
             max_output_bytes: maximum,
         };
         let mut session = Session::start(binding).await?;

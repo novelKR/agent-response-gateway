@@ -168,7 +168,8 @@ impl PreparedInteractions {
             let mut position = 0;
             while position < items.len() {
                 if let Some((end, native)) = history.segments.get(&position) {
-                    let crate::ir::continuity::NativeReplay::Gemini { version: 1, steps } = native
+                    let crate::ir::continuity::NativeReplay::Gemini { version: 1, steps } =
+                        native.builtin()?
                     else {
                         return Err(IrError::ContinuityMismatch);
                     };
@@ -247,7 +248,8 @@ impl PreparedInteractions {
                 position += 1;
             }
             if let Some((end, native)) = history.segments.get(&items.len()) {
-                let crate::ir::continuity::NativeReplay::Gemini { version: 1, steps } = native
+                let crate::ir::continuity::NativeReplay::Gemini { version: 1, steps } =
+                    native.builtin()?
                 else {
                     return Err(IrError::ContinuityMismatch);
                 };

@@ -316,7 +316,9 @@ fn chat_native_assistant_replay_keeps_all_reasoning_when_tools_are_declared() {
             .unwrap();
         let output = d.response["output"].as_array().unwrap();
         let mut history = VerifiedProviderHistory::default();
-        history.segments.insert(1, (1 + output.len(), d.native));
+        history
+            .segments
+            .insert(1, (1 + output.len(), d.native.into()));
         let mut items =
             vec![json!({"type":"message","role":"user","content":"synthetic question"})];
         items.extend(output.clone());
@@ -401,7 +403,7 @@ fn earlier_assistant_reasoning_without_tools_is_preserved_before_a_later_tool_tu
             .decode_bytes(first.to_string().as_bytes(), "first")
             .unwrap();
         let out = d.response["output"].as_array().unwrap().clone();
-        history.segments.insert(1, (1 + out.len(), d.native));
+        history.segments.insert(1, (1 + out.len(), d.native.into()));
         let mut input = vec![json!({"type":"message","role":"user","content":"first"})];
         input.extend(out);
         input.push(json!({"type":"message","role":"user","content":"now use the tool"}));
@@ -417,7 +419,7 @@ fn earlier_assistant_reasoning_without_tools_is_preserved_before_a_later_tool_tu
         let start = input.len();
         history
             .segments
-            .insert(start, (start + out.len(), d.native));
+            .insert(start, (start + out.len(), d.native.into()));
         input.extend(out);
         input.push(json!({"type":"function_call_output","call_id":"call_one","output":"done"}));
         r["input"] = json!(input);

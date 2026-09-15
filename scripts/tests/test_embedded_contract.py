@@ -83,6 +83,25 @@ class EmbeddedContractTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             contract.validate_extended_manifest(wrap())
 
+    def test_managed_provider_v10_binds_record_versions_and_state_limit(self):
+        value=manifest(); value['schema']='gateway-embedded-manifest/v10'
+        caps={'schema':'gateway-plugin-capabilities/v1','apis':[],'features':['json','managed_continuation'],'requires':['provider_ipc_v1','responses_output_validation']}
+        binding={'protocol':'gateway-provider/v1','provider_protocol':'synthetic/v1','id':'synthetic','version':'1.0.0','package_sha256':'a'*64,'executable_sha256':'b'*64,'capabilities':caps,'permissions':['read_model_payload','transform_model_protocol']}
+        value['configuration']['routes'][0].update(api='plugin',provider_plugin=binding,provider_path='generate',continuation_mode='managed',provider_replay_schema='gateway-continuation/v3',provider_state_limit_bytes=1048576)
+        value['configuration'].update(continuation={'store_id':'synthetic'},replay_versions={'read':[1,2,3],'write_builtin':2,'write_provider':3})
+        def stamp(v):v['configuration_sha256']=hashlib.sha256(json.dumps(v['configuration'],ensure_ascii=False,sort_keys=True,separators=(',',':')).encode()).hexdigest()
+        stamp(value);contract.validate_manifest(value)
+        frame={**ready(value),'schema':'gateway-ready/v10'};contract.parse_ready_line(json.dumps(frame)+'\n',value)
+        for field,wrong in [('provider_replay_schema','gateway-continuation/v2'),('provider_state_limit_bytes',1048577),('continuation_mode','stateless'),('wire_contract_sha256','c'*64)]:
+            changed=copy.deepcopy(value);changed['configuration']['routes'][0][field]=wrong;stamp(changed)
+            with self.subTest(field=field),self.assertRaises(ValueError):contract.validate_manifest(changed)
+        for versions in [{'read':[1,2],'write':2},{'read':[True,2,3],'write_builtin':2,'write_provider':3}]:
+            changed=copy.deepcopy(value);changed['configuration']['replay_versions']=versions;stamp(changed)
+            with self.assertRaises(ValueError):contract.validate_manifest(changed)
+        configuration={'gateway':value,'extensions':{'schema':'gateway-extension-configuration/v4','packages':[{'schema':'gateway-extension-package/v2','id':'synthetic','version':'1.0.0','protocol':'gateway-provider/v1','provider_protocol':'synthetic/v1','capabilities':caps}]}}
+        extended={'schema':'gateway-extended-manifest/v10','configuration':configuration,'execution_sha256':hashlib.sha256(json.dumps(configuration,ensure_ascii=False,sort_keys=True,separators=(',',':')).encode()).hexdigest()}
+        frame.update(schema='gateway-extended-ready/v10',manifest_schema=extended['schema'],execution_sha256=extended['execution_sha256']);contract.parse_extended_ready_line(json.dumps(frame)+'\n',extended)
+
     def test_capability_codec_v8_preserves_declarations_and_legacy_rejection(self):
         value = manifest()
         value['schema'] = 'gateway-embedded-manifest/v8'

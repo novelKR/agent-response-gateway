@@ -1,7 +1,7 @@
 //! Explicitly selected provider semantics; the host keeps transport and durable ownership.
 pub(crate) mod execution;
 pub(crate) use execution::{
-    AuthorizedProviderHistory, PreparedProvider, ProviderLimits, ProviderStream,
+    AuthorizedProviderHistory, PreparedProvider, ProviderLimits, ProviderOutput, ProviderStream,
 };
 mod process;
 mod usage;
@@ -62,3 +62,16 @@ pub(crate) struct ProviderObservation {
 }
 #[cfg(test)]
 mod tests;
+
+impl ProviderIdentity {
+    pub(crate) fn state_binding(&self) -> crate::ir::continuity::ProviderStateBinding {
+        crate::ir::continuity::ProviderStateBinding {
+            protocol: self.protocol.clone(),
+            provider_protocol: self.provider_protocol.clone(),
+            id: self.id.clone(),
+            version: self.version.clone(),
+            package_sha256: self.package_sha256.clone(),
+            executable_sha256: self.executable_sha256.clone(),
+        }
+    }
+}

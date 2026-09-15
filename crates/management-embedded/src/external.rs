@@ -117,7 +117,7 @@ fn version(schema: &str, extended: bool) -> Result<u8> {
     let version = schema
         .strip_prefix(prefix)
         .and_then(|v| v.parse::<u8>().ok())
-        .filter(|v| (1..=9).contains(v) && (*v != 2 || extended))
+        .filter(|v| (1..=10).contains(v) && (*v != 2 || extended))
         .ok_or(Error::UnsupportedSchema)?;
     if schema != format!("{prefix}{version}") {
         return Err(Error::UnsupportedSchema);

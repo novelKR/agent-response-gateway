@@ -1,8 +1,8 @@
 //! Common managed dispatch. Durable attempts outlive HTTP connections.
 use crate::{
     adapters::sse::SseDecoder,
-    codecs::dispatch::ManagedDispatch,
-    continuation::{self, ReplayV2, Session},
+    codecs::dispatch::{ManagedDispatch, ManagedObservation},
+    continuation::{self, ReplayMetadataOwned, ReplayRecord, Session},
     error::ApiError,
     http::GatewayState,
     ir::continuity::VerifiedProviderHistory as ProviderHistory,
@@ -91,6 +91,51 @@ impl Drop for Attempt {
     }
 }
 
+async fn reserve_attempt(
+    runtime: &continuation::Runtime,
+    session: &Session,
+    input_digest: &str,
+    reserve: u64,
+) -> Result<Attempt, ApiError> {
+    let snapshot = session.clone();
+    let input_digest = input_digest.to_owned();
+    let id = runtime
+        .access(move |store, _| {
+            store.begin(
+                &snapshot.id,
+                snapshot.revision,
+                snapshot.head.as_deref(),
+                &input_digest,
+                reserve,
+            )
+        })
+        .await
+        .map_err(|_| rejected())?;
+    Ok(Attempt {
+        runtime: runtime.clone(),
+        session: session.id.clone(),
+        id,
+        finalized: false,
+    })
+}
+async fn observe_managed(
+    accounting: &mut Option<usage::Attempt>,
+    observation: &ManagedObservation,
+) -> Result<(), ()> {
+    match observation {
+        ManagedObservation::Builtin(value) => usage::observe_managed(accounting, value).await,
+        ManagedObservation::Provider(value) => {
+            if accounting.is_some()
+                || value.identity.protocol != gateway_plugin_contract::PROVIDER_PROTOCOL
+            {
+                Err(())
+            } else {
+                Ok(())
+            }
+        }
+    }
+}
+
 async fn history(
     runtime: &continuation::Runtime,
     session: &Session,
@@ -167,7 +212,8 @@ async fn history(
             .restore_record(session.clone(), token)
             .await
             .map_err(|_| rejected())?
-            .normalize();
+            .into_normalized()
+            .map_err(|_| rejected())?;
         if !seen.insert(replay.response.clone()) || replay.parent != previous {
             return Err(rejected());
         }
@@ -297,26 +343,35 @@ pub(crate) async fn responses(
     let crate::routing::AdmittedRequest::Translated { request, plan } = admitted else {
         return Err(rejected());
     };
+    // Reserve the authoritative revision before external code receives replay bytes.
+    let mut reserved = if route.provider_plugin.is_some() {
+        Some(
+            reserve_attempt(
+                &runtime,
+                &session,
+                &input_digest,
+                state.config.limits.max_response_bytes as u64,
+            )
+            .await?,
+        )
+    } else {
+        None
+    };
     let mut prepared = ManagedDispatch::prepare(
         state.config.models[&model]
             .api_codec
             .as_ref()
             .and_then(|id| state.config.codecs.get(id)),
+        route.provider_plugin.as_ref(),
         &request,
         &plan,
         &replay,
         session.pending_tools,
+        state.config.limits.max_request_bytes,
         state.config.limits.max_response_bytes,
         state
             .config
-            .resolved_usage_profile(&state.config.models[&model])
-            .ok_or_else(|| {
-                ApiError::new(
-                    StatusCode::BAD_REQUEST,
-                    "unsupported_request",
-                    "Managed provider contract is unavailable",
-                )
-            })?,
+            .resolved_usage_profile(&state.config.models[&model]),
     )
     .await
     .map_err(|_| {
@@ -327,49 +382,52 @@ pub(crate) async fn responses(
         )
     })?;
     let timestamp = usage::now();
-    let mut accounting = usage::Attempt::start(
-        state.usage.as_ref(),
-        usage::UsageEvent {
-            schema: usage::SCHEMA.into(),
-            producer_id: String::new(),
-            request_id: request_id.clone(),
-            attempt_id: uuid::Uuid::new_v4().to_string(),
-            event_id: uuid::Uuid::new_v4().to_string(),
-            revision: 0,
-            kind: usage::EventKind::AttemptStarted,
-            started_at_ms: timestamp,
-            observed_at_ms: timestamp,
-            provider: route.snapshot.provider_id.clone(),
-            model_alias: model.clone(),
-            upstream_model: route.snapshot.model.clone(),
-            reported_model: None,
-            provider_request_id: None,
-            provider_response_id: None,
-            profile: prepared.usage_profile(),
-            configuration_sha256: state.configuration_sha256.clone(),
-            upstream: UsageOutcome::Unknown,
-            gateway: UsageOutcome::Failed,
-            finality: usage::Finality::Unobserved,
-            observation_incomplete: false,
-            usage: Default::default(),
-        },
-    )
-    .await
-    .map_err(|_| crate::proxy::accounting_error())?;
-    let s = session.clone();
-    let reserve = state.config.limits.max_response_bytes as u64;
-    let attempt_id = runtime
-        .access(move |store, _| {
-            store.begin(&s.id, s.revision, s.head.as_deref(), &input_digest, reserve)
-        })
+    let mut accounting = if let Some(profile) = prepared.usage_profile() {
+        usage::Attempt::start(
+            state.usage.as_ref(),
+            usage::UsageEvent {
+                schema: usage::SCHEMA.into(),
+                producer_id: String::new(),
+                request_id: request_id.clone(),
+                attempt_id: uuid::Uuid::new_v4().to_string(),
+                event_id: uuid::Uuid::new_v4().to_string(),
+                revision: 0,
+                kind: usage::EventKind::AttemptStarted,
+                started_at_ms: timestamp,
+                observed_at_ms: timestamp,
+                provider: route.snapshot.provider_id.clone(),
+                model_alias: model.clone(),
+                upstream_model: route.snapshot.model.clone(),
+                reported_model: None,
+                provider_request_id: None,
+                provider_response_id: None,
+                profile,
+                configuration_sha256: state.configuration_sha256.clone(),
+                upstream: UsageOutcome::Unknown,
+                gateway: UsageOutcome::Failed,
+                finality: usage::Finality::Unobserved,
+                observation_incomplete: false,
+                usage: Default::default(),
+            },
+        )
         .await
-        .map_err(|_| rejected())?;
-    let mut attempt = Attempt {
-        runtime: runtime.clone(),
-        session: id,
-        id: attempt_id.clone(),
-        finalized: false,
+        .map_err(|_| crate::proxy::accounting_error())?
+    } else {
+        None
     };
+    let mut attempt = match reserved.take() {
+        Some(attempt) => attempt,
+        None => {
+            reserve_attempt(
+                &runtime,
+                &session,
+                &input_digest,
+                state.config.limits.max_response_bytes as u64,
+            )
+            .await?
+        }
+    };
+    let attempt_id = attempt.id.clone();
     let (auth_name, auth_value) = match route.auth {
         crate::config::UpstreamAuth::GoogleApiKey => (
             "x-goog-api-key",
@@ -510,7 +568,7 @@ pub(crate) async fn responses(
                         Err(_) => break 'read,
                     };
                     if adapter.event(event).await.is_err() { break 'read; }
-                    if usage::observe_managed(&mut accounting, &adapter.accounting()).await.is_err() { break 'read; }
+                    if observe_managed(&mut accounting, &adapter.accounting()).await.is_err() { break 'read; }
                     for event in adapter.take_progress() {
                         let bytes = numbered(event, &mut sequence);
                         written = written.saturating_add(bytes.len());
@@ -525,25 +583,29 @@ pub(crate) async fn responses(
                 yield Err(std::io::Error::other("Managed stream interrupted"));
             } else {
                 match adapter.finish().await {
-                    Ok(mut decoded) => {
-                        if usage::observe_managed(&mut accounting, &decoded.accounting).await.is_err() {
+                    Ok(decoded) => {
+                        if observe_managed(&mut accounting, &decoded.observation).await.is_err() {
                             yield Err(std::io::Error::other("Usage observation failed"));
                             return;
                         }
-                        decoded.project_usage();
-                        let record = ReplayV2 {
-                            schema: continuation::REPLAY_V2.into(), session: session.id.clone(),
-                            epoch: session.epoch, origin: session.origin.clone(), response: attempt_id.clone(),
-                            parent: session.head.clone(), input_len, input_sha256: input_sha256.clone(),
-                            outcome: decoded.outcome, native: decoded.native,
-                            output: public_output(&decoded.response).expect("validated output"),
+                        let output=match public_output(&decoded.response){
+                            Some(output)=>output,
+                            None=>{let _=usage::finish(&mut accounting,UsageOutcome::ConversionFailed).await;yield Err(std::io::Error::other("Unsupported continuation envelope carrier"));return;}
                         };
+                        let record=match ReplayRecord::from_native(ReplayMetadataOwned {
+                            session:session.id.clone(),epoch:session.epoch,origin:session.origin.clone(),response:attempt_id.clone(),
+                            parent:session.head.clone(),input_len,input_sha256:input_sha256.clone(),outcome:decoded.outcome,
+                        },decoded.native,output) {
+                            Ok(record)=>record,Err(_)=>{yield Err(std::io::Error::other("Invalid continuation checkpoint"));return;}
+                        };
+                        let terminal_events=decoded.terminal_events;
+                        let checked_events=terminal_events.clone();
                         let checked_response = decoded.response.clone();
                         let saved_sequence = sequence;
                         let result = runtime.finalize_checked(record, move |token| {
                             check_final_size(checked_response.clone(), token, max)?;
                             let mut next = saved_sequence;
-                            let remaining: usize = finalized_events(checked_response, token).into_iter()
+                            let remaining: usize = managed_final_events(checked_response, token, checked_events).into_iter()
                                 .map(|event| numbered(event, &mut next).len()).sum();
                             if written.saturating_add(remaining) > max { return Err(continuation::Error("stream limit")); }
                             Ok(())
@@ -555,7 +617,7 @@ pub(crate) async fn responses(
                                     yield Err(std::io::Error::other("Usage finalization failed"));
                                     return;
                                 }
-                                for event in finalized_events(decoded.response, &token) {
+                                for event in managed_final_events(decoded.response, &token, terminal_events) {
                                     yield Ok(numbered(event, &mut sequence));
                                 }
                             }
@@ -595,23 +657,24 @@ pub(crate) async fn responses(
             .decode_bytes(&bytes, &attempt_id)
             .await
             .map_err(|_| upstream())?;
-        usage::observe_managed(&mut accounting, &decoded.accounting)
+        observe_managed(&mut accounting, &decoded.observation)
             .await
             .map_err(|_| crate::proxy::accounting_error())?;
-        decoded.project_usage();
-        let record = ReplayV2 {
-            schema: continuation::REPLAY_V2.into(),
-            session: session.id,
-            epoch: session.epoch,
-            origin: session.origin,
-            response: attempt_id,
-            parent: session.head,
-            input_len,
-            input_sha256,
-            outcome: decoded.outcome,
-            native: decoded.native,
-            output: public_output(&decoded.response).ok_or_else(upstream)?,
-        };
+        let record = ReplayRecord::from_native(
+            ReplayMetadataOwned {
+                session: session.id,
+                epoch: session.epoch,
+                origin: session.origin,
+                response: attempt_id,
+                parent: session.head,
+                input_len,
+                input_sha256,
+                outcome: decoded.outcome,
+            },
+            decoded.native,
+            public_output(&decoded.response).ok_or_else(upstream)?,
+        )
+        .map_err(|_| rejected())?;
         let checked_response = decoded.response.clone();
         let token = runtime
             .finalize_checked(record, move |token| {
@@ -632,9 +695,19 @@ pub(crate) async fn responses(
     }
 }
 fn public_output(response: &Value) -> Option<Vec<Value>> {
+    let output = response["output"].as_array()?;
+    let selected = output.iter().position(|item| item["type"] == "reasoning");
+    // add_envelope selects the first reasoning item. Every empty reasoning item
+    // must receive that envelope, or history() would reject the returned response.
+    if output.iter().enumerate().any(|(index, item)| {
+        item["type"] == "reasoning"
+            && item["summary"].as_array().is_some_and(Vec::is_empty)
+            && Some(index) != selected
+    }) {
+        return None;
+    }
     Some(
-        response["output"]
-            .as_array()?
+        output
             .iter()
             .filter(|item| {
                 !(item["type"] == "reasoning"
@@ -671,6 +744,44 @@ fn finalized_events(mut response: Value, token: &str) -> Vec<Value> {
     events.push(json!({"type":"response.completed","response":response}));
     events
 }
+fn managed_final_events(
+    mut response: Value,
+    token: &str,
+    events: Option<Vec<Value>>,
+) -> Vec<Value> {
+    let Some(mut events) = events else {
+        return finalized_events(response, token);
+    };
+    let previous_len = response["output"]
+        .as_array()
+        .expect("validated output")
+        .len();
+    add_envelope(&mut response, token);
+    let output = response["output"].as_array().expect("validated output");
+    for event in &mut events {
+        if event["type"] == "response.output_item.done"
+            && let Some(index) = event["output_index"]
+                .as_u64()
+                .and_then(|v| usize::try_from(v).ok())
+            && let Some(item) = output.get(index)
+        {
+            event["item"] = item.clone();
+        }
+        if event["type"] == "response.completed" {
+            event["response"] = response.clone();
+        }
+    }
+    if output.len() > previous_len {
+        let item = output.last().expect("new envelope carrier").clone();
+        let index = events.len().saturating_sub(1);
+        events.splice(index..index,[
+            json!({"type":"response.output_item.added","output_index":previous_len,"item":{"type":"reasoning","id":item["id"],"summary":[]}}),
+            json!({"type":"response.output_item.done","output_index":previous_len,"item":item}),
+        ]);
+    }
+    events
+}
+
 fn numbered(mut value: Value, sequence: &mut u64) -> axum::body::Bytes {
     value["sequence_number"] = json!(*sequence);
     *sequence += 1;
@@ -688,4 +799,58 @@ fn check_final_size(mut response: Value, token: &str, max: usize) -> continuatio
         return Err(continuation::Error("response limit"));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod carrier_tests {
+    use super::*;
+    fn empty(id: &str) -> Value {
+        json!({"id":id,"type":"reasoning","summary":[]})
+    }
+    fn summary() -> Value {
+        json!({"id":"rs_summary","type":"reasoning","summary":[{"type":"summary_text","text":"synthetic summary"}]})
+    }
+    fn response(output: Value) -> Value {
+        json!({"id":"resp_synthetic","status":"completed","output":output})
+    }
+    #[test]
+    fn unusable_carriers_are_rejected_before_checkpoint_construction() {
+        assert!(public_output(&response(json!([empty("rs_a"), empty("rs_b")]))).is_none());
+        assert!(public_output(&response(json!([summary(), empty("rs_b")]))).is_none());
+    }
+    #[test]
+    fn zero_or_one_selected_empty_carrier_keeps_existing_projection_and_events() {
+        for items in [
+            json!([]),
+            json!([summary()]),
+            json!([empty("rs_a")]),
+            json!([empty("rs_a"), summary()]),
+        ] {
+            let original = response(items);
+            let projected = public_output(&original).unwrap();
+            assert!(
+                projected
+                    .iter()
+                    .all(|item| !item["summary"].as_array().is_some_and(Vec::is_empty))
+            );
+            let mut published = original.clone();
+            add_envelope(&mut published, "synthetic-token");
+            assert!(
+                published["output"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .filter(|item| item["type"] == "reasoning" && item["summary"] == json!([]))
+                    .all(|item| item["encrypted_content"] == "synthetic-token")
+            );
+            let events = managed_final_events(
+                original.clone(),
+                "synthetic-token",
+                Some(vec![
+                    json!({"type":"response.completed","response":original}),
+                ]),
+            );
+            assert_eq!(events.last().unwrap()["response"], published);
+        }
+    }
 }

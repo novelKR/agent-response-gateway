@@ -132,6 +132,20 @@ class ProviderExampleTests(unittest.TestCase):
         self.assertTrue(end['complete'])
         result = self.call({'operation': 'finish'})
         self.assertEqual(result['value']['response']['output'][0]['content'][0]['text'], 'hello')
+        self.assertEqual(progress['events'][-1]['item_id'], result['value']['response']['output'][0]['id'])
+
+    def test_response_scoped_message_and_tool_item_ids_do_not_collide(self):
+        ids = []
+        for response_id in ('response_1', 'response_2'):
+            self.prepare()
+            result = self.call({'operation': 'json', 'response_id': response_id,
+                                'body': json.dumps({'answer': [{'text': 'hello'},
+                                    {'call': response_id + '_call', 'name': 'lookup', 'arguments': '{}'}]})})
+            ids.append({item['id'] for item in result['value']['response']['output']})
+            self.assertEqual(len(ids[-1]), 2)
+            self.stop()
+            self.start()
+        self.assertTrue(ids[0].isdisjoint(ids[1]))
 
     def test_function_result_roundtrip_and_opaque_process_restart(self):
         self.prepare({'mode': 'managed', 'pending_tools': False, 'history': []})

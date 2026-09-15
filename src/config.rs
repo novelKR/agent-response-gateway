@@ -373,7 +373,8 @@ impl Config {
                 || model.provider_protocol.as_deref() != Some(binding.provider_protocol.as_str())
                 || model.provider_path.is_none()
                 || model.usage_profile.is_some()
-                || model.continuation_mode == Some(ContinuationMode::Managed)
+                || (model.continuation_mode == Some(ContinuationMode::Managed)
+                    && !binding.capabilities.supports("managed_continuation"))
                 || model.editing_policy.is_some()
                 || model.compatibility_policy.is_some()
             {
@@ -483,7 +484,10 @@ impl Config {
                 .ok_or_else(|| ConfigError("Unknown capability_profile".into()))?;
             if (profile.reasoning_contract.is_some() && !managed)
                 || (managed
-                    && model.api != ApiProtocol::GeminiInteractions
+                    && !matches!(
+                        model.api,
+                        ApiProtocol::GeminiInteractions | ApiProtocol::Plugin
+                    )
                     && profile.reasoning_contract.is_none())
                 || (model.api == ApiProtocol::GeminiInteractions
                     && profile.reasoning_contract.is_some())

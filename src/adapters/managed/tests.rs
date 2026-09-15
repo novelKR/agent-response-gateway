@@ -303,7 +303,7 @@ fn authenticated_native_tool_turn_replays_original_blocks_and_rejects_control_ch
     let output = d.response["output"].as_array().unwrap();
     history
         .segments
-        .insert(1, (1 + output.len(), d.native.clone()));
+        .insert(1, (1 + output.len(), d.native.clone().into()));
     let mut items = vec![json!({"type":"message","role":"user","content":"synthetic question"})];
     items.extend(output.clone());
     items.push(json!({"type":"function_call_output","call_id":"call_one","output":"done"}));

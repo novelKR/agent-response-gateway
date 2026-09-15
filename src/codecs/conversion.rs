@@ -133,7 +133,7 @@ impl Prepare {
             }
             result
                 .segments
-                .insert(span.start, (span.end, span.native.clone()));
+                .insert(span.start, (span.end, span.native.clone().into()));
             end = span.end;
         }
         Ok(result)

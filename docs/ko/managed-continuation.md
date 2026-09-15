@@ -15,6 +15,8 @@ thinking, 명시적 DeepSeek/OpenRouter Chat 계약을 지원한다. Messages와
 continuation_mode="managed", capability profile에 reasoning_contract를 지정한다.
 Gemini는 기존 managed 기본 동작을 유지한다.
 
+Provider 역할은 정확한 패키지·상태 결합과 원래 버전 인증을 포함한 별도의 [보호된 V3 연속성](provider-continuation.md)을 사용합니다. 통합 기록 수용 검증이 완료되기 전에는 운영 provider 활성화를 사용할 수 없습니다. 아래 내장 동작은 기존 계약을 유지합니다.
+
 ## 실행과 표시
 
 요청은 Responses 입력 검증, 세션·이력 검증, Request IR, 제공자 어댑터, 원본
@@ -43,7 +45,7 @@ redacted 데이터와 암호화 상세는 제공자 상태로 유지한다. 공�
 Codex에는 로컬 게이트웨이 토큰과 세션 ID만 전달한다. 제어 토큰, 제공자 자격 증명과
 독립된 안정적 256-bit 암호화 키는 호스트에 둔다.
 
-단독 관리형 manifest는 gateway-embedded-manifest/v3, readiness는 gateway-ready/v3다.
+내장 공급자만 사용하는 관리형 구성의 단독 manifest는 gateway-embedded-manifest/v3, readiness는 gateway-ready/v3다.
 replay_versions에 read [1, 2], write 2를 선언한다. 관리형 설정과 확장을 함께 켜면
 gateway-extended-manifest/v3와 gateway-extended-ready/v3를 사용한다. 중첩된 gateway
 manifest, 설정·실행 digest, 지원 replay 버전과 usage profile을 검증한다. 구버전
@@ -51,7 +53,7 @@ manifest, 설정·실행 digest, 지원 replay 버전과 usage profile을 검증
 증거가 아니다.
 
 기존 Gemini v1 기록은 원래 직렬화 형식으로 인증하고 원래 finalized digest를
-검증한 뒤 내부 형식으로 변환한다. 새 응답에는 ReplayV2를 쓰며 기존 암호문과
+검증한 뒤 내부 형식으로 변환한다. 내장 어댑터의 새 응답에는 ReplayV2를 쓰며 기존 암호문과
 Codex 이력을 보존한다. Gemini 경로 binding과 SQLite 테이블은 바뀌지 않는다.
 자동 migration은 수행하지 않는다. Messages/Chat 계약은 신규 경로 binding에
 포함되므로 제공자·모델·계약을 바꾸려면 새 세션이 필요하다.

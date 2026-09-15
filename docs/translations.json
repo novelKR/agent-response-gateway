@@ -875,8 +875,8 @@
       "order": 6,
       "source": "docs/managed-continuation.md",
       "translation": "docs/ko/managed-continuation.md",
-      "source_sha256": "455eedfa9724b835baee960e809aebef4f8c79bbca3ce30844ecb47488d4aab9",
-      "translation_sha256": "c8f3c21aa5595ed956b5ff23faec6870c3adb90aa208456513d513e16ae4a16b",
+      "source_sha256": "80bcd018dce5ca5f181383c5446db8e89919fc8dd65b3a4c1ceaa7130fe11739",
+      "translation_sha256": "6e81f2b78a93c9949e744d9b93f88053b403a1b37ceb94fcca377ee295baac6d",
       "anchors": [
         "execution-and-display",
         "host-configuration-and-compatibility",
@@ -1222,8 +1222,8 @@
       "order": 43,
       "source": "docs/provider-plugins.md",
       "translation": "docs/ko/provider-plugins.md",
-      "source_sha256": "4bc4e7c6929903d6d5e18903e37acf1d17681797f4719e3f39bd3f2da75bc0d0",
-      "translation_sha256": "b58885d655da6cd49a7b799fd2cabcce05287cef4726d3b2ae7849d072cd7306",
+      "source_sha256": "f0ba60d0a0bfadc54f6a5f05a1d0807dba3c1e12ac7d6e357920caeee321d4b9",
+      "translation_sha256": "0fade82e777b0c5a377e10354ae04945a0c5ac7acae6cc657838b9b2d630d7ce",
       "anchors": [
         "independent-example-and-verification",
         "process-and-message-lifecycle",
@@ -1235,6 +1235,28 @@
         "프로세스와-메시지-수명-주기"
       ],
       "route": "/guide/provider-plugins"
+    },
+    {
+      "id": "provider-continuation",
+      "section": "integration",
+      "order": 44,
+      "source": "docs/provider-continuation.md",
+      "translation": "docs/ko/provider-continuation.md",
+      "source_sha256": "666ff6dedb55176172a30b1c445930195f6ba0412f5bc2a11e3eb41a98e6db75",
+      "translation_sha256": "019f6e47b4fdbbf45fed4f785e5465646d95fa618eb504bc3ac990461919a7c7",
+      "anchors": [
+        "protected-provider-continuation",
+        "replay-versions-and-durable-barriers",
+        "replay-버전과-durable-장벽",
+        "restore-repair-and-rollback",
+        "rust-source-compatibility",
+        "rust-소스-호환성",
+        "state-and-exact-binding",
+        "보호된-provider-연속성",
+        "복원복구롤백",
+        "상태와-정확한-결합"
+      ],
+      "route": "/guide/provider-continuation"
     }
   ]
 }
