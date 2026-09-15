@@ -45,7 +45,7 @@ def run(binary):
         cleanup.callback(stop)
         def start():
             nonlocal child,url
-            child=subprocess.Popen([str(binary),'serve','--config',str(config)],env=env,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,text=True)
+            child=base.start_process([str(binary),'serve','--config',str(config)],env=env,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,text=True)
             url=base.embedded_contract.read_ready(child,manifest)['base_url']
         def post(body,session=None,credential=None,path='/responses'):
             headers={'Authorization':'Bearer '+(credential or token),'Content-Type':'application/json'}

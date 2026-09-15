@@ -10,7 +10,9 @@ import os
 from pathlib import Path
 import queue
 import secrets
+import signal
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -461,17 +463,78 @@ class RpcClient:
         raise AssertionError("Codex control request timed out")
 
 
-def stop_process(process):
-    if process.poll() is None:
-        process.terminate()
+def start_process(*arguments, **options):
+    # Only processes launched here own a group that cleanup may signal.
+    require('start_new_session' not in options, 'Harness controls process ownership')
+    process = subprocess.Popen(*arguments, **options, start_new_session=os.name == 'posix')
+    process._conformance_group = process.pid if os.name == 'posix' else None
+    return process
+
+
+def linux_group_has_live_members(group, deadline):
+    # Reparented zombies cannot write and cannot be waitpid'ed by this harness.
+    # Inspect only PGID/state; inaccessible or malformed process metadata fails closed.
+    found = False
+    for entry in Path('/proc').iterdir():
+        require(time.monotonic() < deadline, 'Harness process group cleanup timed out')
+        if not entry.name.isdecimal():
+            continue
         try:
-            process.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            process.kill()
-            process.wait(timeout=5)
-    for stream in (process.stdin, process.stdout):
-        if stream:
-            stream.close()
+            raw = (entry / 'stat').read_text()
+        except FileNotFoundError:
+            continue  # Process exited between directory enumeration and stat read.
+        prefix, closing, suffix = raw.rpartition(')')
+        fields = suffix.split()
+        require(closing and '(' in prefix and prefix.split(' ', 1)[0] == entry.name
+                and len(fields) >= 3 and fields[2].isdecimal(), 'Invalid cleanup process metadata')
+        if int(fields[2]) == group:
+            found = True
+            if fields[0] != 'Z':
+                return True
+    if found:
+        return False
+    try:
+        os.killpg(group, 0)
+    except ProcessLookupError:
+        return False
+    raise AssertionError('Owned process group is not visible to cleanup')
+
+
+def stop_process(process):
+    if process.__dict__.get('_conformance_cleaned', False):
+        return
+    try:
+        if process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=5)
+    finally:
+        try:
+            group = process.__dict__.get('_conformance_group')
+            if group is not None:
+                # An exited parent may leave background writers in its owned group.
+                try:
+                    os.killpg(group, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                deadline = time.monotonic() + 5
+                while True:
+                    try:
+                        os.killpg(group, 0)
+                    except ProcessLookupError:
+                        break
+                    if sys.platform == 'linux' and not linux_group_has_live_members(group, deadline):
+                        break
+                    require(time.monotonic() < deadline, 'Harness process group cleanup timed out')
+                    time.sleep(0.01)
+        finally:
+            for stream in (process.stdin, process.stdout):
+                if stream:
+                    stream.close()
+    process._conformance_cleaned = True
 
 
 def run_scenario(name, binary, gateway_binary, api="responses", managed_contract=None, native_custom=False, profile_packs=False, codec_binary=None, editing=False, code_mode=False, normalization=False, operations=False, file_conflict=False, embedded_binary=None):
@@ -535,7 +598,7 @@ def run_scenario(name, binary, gateway_binary, api="responses", managed_contract
             config.write_text(encoded)
             gateway_args += ['--extensions-lock',str(codec_lock)]
         manifest = embedded_contract.inspect_manifest(gateway_binary, config, env, gateway_args[2:])
-        gateway = subprocess.Popen(([str(embedded_binary), str(config)] if embedded_binary else [str(gateway_binary), "serve", *gateway_args]), env=gateway_env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+        gateway = start_process(([str(embedded_binary), str(config)] if embedded_binary else [str(gateway_binary), "serve", *gateway_args]), env=gateway_env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
         cleanup.callback(stop_process, gateway)
         ready = embedded_contract.read_ready(gateway, manifest)
         if codec_binary: manifest=manifest["configuration"]["gateway"]
@@ -552,7 +615,7 @@ def run_scenario(name, binary, gateway_binary, api="responses", managed_contract
             path=home/'config.toml';content=path.read_text()
             content=content.replace('[features]', '[features]\ncode_mode=true\ncode_mode_only=true\napps=false')
             path.write_text(content)
-        codex = subprocess.Popen([str(binary), "app-server"], cwd=workspace, env=codex_env, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, bufsize=1)
+        codex = start_process([str(binary), "app-server"], cwd=workspace, env=codex_env, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, bufsize=1)
         cleanup.callback(stop_process, codex)
         rpc = RpcClient(codex)
         rpc.call("initialize", {"clientInfo": {"name": "arg_conformance", "version": "0.1.0"}, "capabilities": {"experimentalApi": True}})

@@ -2,6 +2,7 @@
 import hashlib
 import io
 import json
+import re
 from pathlib import Path
 import sys
 import tarfile
@@ -72,3 +73,26 @@ class PreparedTests(unittest.TestCase):
         archive,digest=self.rewrite(rename)
         with self.assertRaises(ValueError):p.unpack(self.destination,archive,digest)
         self.assertFalse((self.root/'outside').exists())
+
+
+class PreparedWorkflowTests(unittest.TestCase):
+    def test_consumers_bind_current_prepare_artifact_id_and_receipt(self):
+        source=(ROOT/'.github/workflows/ci.yml').read_text()
+        jobs=dict(re.findall(r'^  ([a-z][a-z-]+):\n(.*?)(?=^  [a-z][a-z-]+:\n|\Z)',source,re.M|re.S))
+        prepare=jobs['conformance-prepare']
+        for variant,consumer in [('native','codex-conformance'),('codec','api-codecs')]:
+            with self.subTest(variant=variant):
+                self.assertIn(variant+'-artifact-id: ${{ steps.upload-'+variant+'.outputs.artifact-id }}',prepare)
+                upload=prepare.split('      - id: upload-'+variant+'\n',1)[1].split('      - ',1)[0]
+                self.assertIn('uses: actions/upload-artifact@',upload)
+                self.assertIn('name: conformance-prepared-'+variant+'-${{ github.run_attempt }}',upload)
+                self.assertIn('path: .local/prepared/'+variant+'.tar.gz',upload)
+                job=jobs[consumer]
+                download=job.split('      - uses: actions/download-artifact@',1)[1].split('      - ',1)[0]
+                self.assertIn('artifact-ids: ${{ needs.conformance-prepare.outputs.'+variant+'-artifact-id }}',download)
+                self.assertNotRegex(download,r'(?m)^          (name|pattern):')
+                self.assertIn('digest-mismatch: error',download)
+                self.assertIn('skip-decompress: false',download)
+                self.assertIn('path: .local/prepared',download)
+                self.assertIn('PREPARED_SHA: ${{ needs.conformance-prepare.outputs.'+variant+'-sha256 }}',job)
+                self.assertIn('prepared_inputs.py unpack .local/prepared/'+variant+'.tar.gz --variant '+variant+' --sha256 "$PREPARED_SHA"',job)
