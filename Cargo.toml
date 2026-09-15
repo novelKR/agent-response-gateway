@@ -19,7 +19,7 @@ gateway-plugin-contract = { path = "crates/plugin-contract" }
 gateway-usage-contract = { path = "crates/usage-contract" }
 async-stream = "0.3"
 axum = "0.8"
-base64 = "=0.22.1"
+base64 = "=0.23.1"
 bytes = "1"
 clap = { version = "4", features = ["derive"] }
 futures-util = "0.3"
