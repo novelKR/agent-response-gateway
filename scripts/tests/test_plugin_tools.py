@@ -46,6 +46,37 @@ class PluginToolsTests(unittest.TestCase):
                 '--expected-sha256', sha, '--target', 'macos-arm64'],
                 cwd=root, check=True, capture_output=True)
 
+    def test_relocated_archive_conformance_reports_public_v2(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            archive_path = root / 'tools.tar'
+            source = SCRIPT.parents[1] / 'tools/plugin-conformance/conformance.py'
+            m.assemble(archive_path, BASE, source)
+            extracted = root / 'tools'; extracted.mkdir()
+            with tarfile.open(archive_path) as archive:
+                archive.extractall(extracted, filter='data')
+            package = root / 'package'; package.mkdir()
+            data = {'extension': b'inert synthetic fixture', 'LICENSE.txt': b'Synthetic notice'}
+            for name, raw in data.items():
+                (package / name).write_bytes(raw)
+            manifest = {'schema':'gateway-extension-package/v1','id':'sample','version':'1.0.0',
+                        'target':'linux-x64','protocol':'gateway-observer/v1',
+                        'permissions':['observe_http_metadata','write_private_state'],
+                        'state_schema':'observer-state/v1',
+                        'files':{name:hashlib.sha256(raw).hexdigest() for name,raw in data.items()}}
+            raw = json.dumps(manifest,sort_keys=True,separators=(',',':')).encode()+b'\n'
+            (package/'extension.json').write_bytes(raw)
+            process = subprocess.run([sys.executable,'-I','-B',str(extracted/'plugin_conformance.py'),
+                '--package',str(package),'--expected-sha256',hashlib.sha256(raw).hexdigest()],
+                cwd=root,check=True,capture_output=True,timeout=15)
+            report=json.loads(process.stdout)
+            self.assertEqual(report['schema'],'gateway-plugin-conformance-report/v2')
+            self.assertEqual(report['tool_version'],'2.0.0')
+            self.assertEqual(report['tool_sha256'],hashlib.sha256(source.read_bytes()).hexdigest())
+            self.assertEqual(report['status'],'not-run')
+            self.assertEqual(report['exit_code'],0)
+            self.assertNotIn(str(root),process.stdout.decode())
+
     def test_base_must_be_immutable_and_output_is_not_overwritten(self):
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary) / 'tools.tar'

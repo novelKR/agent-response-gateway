@@ -76,11 +76,11 @@ def run(binary, gateway, mode, deny=False, capture=None, declarations=None):
         config.write_text(f'[providers.mock]\nbase_url="http://127.0.0.1:{server.server_port}/v1"\napi_key_env="ARG_MOCK_KEY"\n[models."gpt-5.4"]\nprovider="mock"\nupstream_model="synthetic-model"\n')
         gateway_env = {**env, "ARG_LOCAL_TOKEN": token, "ARG_MOCK_KEY": "synthetic-upstream-key"}
         manifest = c.embedded_contract.inspect_manifest(gateway, config, gateway_env)
-        process = subprocess.Popen([str(gateway), "serve", "--config", str(config)], env=gateway_env, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+        process = c.start_process([str(gateway), "serve", "--config", str(config)], env=gateway_env, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
         cleanup.callback(c.stop_process, process)
         ready = c.embedded_contract.read_ready(process, manifest)
         (home / "config.toml").write_text(f'model="gpt-5.4"\nmodel_provider="gateway"\nweb_search="disabled"\nmodel_context_window=32768\nmodel_auto_compact_token_limit=24576\n[features]\napps=false\nmulti_agent=false\ncode_mode={str(mode == "code_mode").lower()}\ncode_mode_only={str(mode == "code_mode").lower()}\n[model_providers.gateway]\nname="Synthetic gateway"\nbase_url="{ready["base_url"]}"\nwire_api="responses"\nenv_key="ARG_CODEX_TEST_TOKEN"\nrequires_openai_auth=false\nsupports_websockets=false\nrequest_max_retries=0\nstream_max_retries=0\n')
-        child = subprocess.Popen([str(binary), "app-server"], cwd=workspace,
+        child = c.start_process([str(binary), "app-server"], cwd=workspace,
                                  env={**env, "HOME": str(home), "CODEX_HOME": str(home), "ARG_CODEX_TEST_TOKEN": token},
                                  stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, bufsize=1)
         cleanup.callback(c.stop_process, child)

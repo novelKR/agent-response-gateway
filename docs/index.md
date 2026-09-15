@@ -87,6 +87,7 @@ cargo run --locked -- check-config --config config.local.toml
 | Capability | Current contract |
 |---|---|
 | JSON and SSE | Native forwarding and explicitly profiled API conversion |
+| External plugins | Explicitly installed Observer, Recorder, codec and provider executables; JSON/SSE and protected provider continuity over host-owned HTTP |
 | Credentials | Local Bearer authentication with separate provider credentials |
 | Tools and approvals | Executed and authorized by your application |
 | Continuity | Host-owned history, local compaction and recovery |

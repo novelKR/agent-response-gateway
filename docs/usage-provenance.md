@@ -8,9 +8,9 @@ Usage event versions distinguish the interpreter of provider semantics. Existing
 builtin adapters continue to produce `gateway-usage-event/v1`; their original
 normalization, canonical bytes, event hashes and ACK meaning are preserved.
 `gateway-usage-event/v2` records an explicitly trusted provider plugin's numeric
-interpretation without representing it as builtin parser verification. Provider
-route activation remains unavailable until continuity and recording acceptance
-are integrated. Installing a Recorder v2 package does not enable provider routes.
+interpretation without representing it as builtin parser verification. Explicit
+provider routes preserve this identity through continuity and recording barriers.
+Installing a Recorder v2 package does not enable provider routes.
 
 The [event schema](../schemas/gateway-usage-event-v2.schema.json) and
 [Recorder schema](../schemas/gateway-usage-recorder-v2.schema.json) describe the

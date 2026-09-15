@@ -165,10 +165,99 @@ mod native {
             *value.pointer_mut(pointer).unwrap() = json!("another/v1");
             assert!(super::super::process::validate_ready(&binding, value).is_err());
         }
+        for (field, changed) in [
+            ("features", json!(["json"])),
+            ("requires", json!(["provider_ipc_v1"])),
+            ("apis", json!(["responses"])),
+        ] {
+            let mut value = ready.clone();
+            value["value"]["capabilities"][field] = changed;
+            assert!(super::super::process::validate_ready(&binding, value).is_err());
+        }
         let mut value = ready;
         value["headers"] = json!({});
         assert!(super::super::process::validate_ready(&binding, value).is_err());
     }
+    #[tokio::test]
+    async fn provider_session_partial_eof_and_timeout_poison_without_losing_usage_and_reap_child() {
+        use std::{
+            fs,
+            os::unix::fs::{MetadataExt, PermissionsExt},
+            process::{Command, Stdio},
+            time::{Duration, Instant},
+        };
+        let python = std::env::var("MANAGEMENT_TEST_PYTHON").unwrap_or_else(|_| "python3".into());
+        let resolved = Command::new(python)
+            .args(["-I", "-c", "import sys; print(sys.executable)"])
+            .output()
+            .unwrap();
+        assert!(resolved.status.success());
+        let interpreter = String::from_utf8(resolved.stdout).unwrap();
+        let root =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(".local/provider-session-tests");
+        fs::create_dir_all(&root).unwrap();
+        for timeout in [false, true] {
+            let temp = tempfile::tempdir_in(&root).unwrap();
+            fs::set_permissions(temp.path(), fs::Permissions::from_mode(0o700)).unwrap();
+            let mut binding = binding();
+            let ready = json!({"protocol":binding.protocol,"sequence":0,"value":{"result":"ready","provider_protocol":binding.provider_protocol,"capabilities":binding.capabilities}});
+            let reply = json!({"protocol":binding.protocol,"sequence":1,"value":{"result":"progress","events":[],"complete":false,"usage":snapshot(json!({"input_tokens":7,"output_tokens":2}))}});
+            let ending = if timeout {
+                "time.sleep(30)"
+            } else {
+                "sys.stdout.buffer.write(b'\\x00\\x00\\x00\\x20{}');sys.stdout.buffer.flush()"
+            };
+            let script = format!(
+                r##"#!{python}
+import json,os,sys,time
+open('pid','w').write(str(os.getpid()))
+def send(raw):
+    data=raw.encode();sys.stdout.buffer.write(len(data).to_bytes(4,'big')+data);sys.stdout.buffer.flush()
+def receive():
+    length=int.from_bytes(sys.stdin.buffer.read(4),'big');sys.stdin.buffer.read(length)
+send({ready:?})
+receive()
+send({reply:?})
+receive()
+{ending}
+"##,
+                python = interpreter.trim(),
+                ready = ready.to_string(),
+                reply = reply.to_string()
+            );
+            binding.directory = temp.path().canonicalize().unwrap();
+            binding.executable = binding.directory.join("extension");
+            fs::write(&binding.executable, script.as_bytes()).unwrap();
+            fs::set_permissions(&binding.executable, fs::Permissions::from_mode(0o700)).unwrap();
+            binding.owner = fs::metadata(&binding.directory).unwrap().uid();
+            binding.executable_sha256 =
+                crate::continuation::hex(&crate::digest::sha256(script.as_bytes()));
+            let mut session = super::super::process::Session::start(&binding)
+                .await
+                .unwrap();
+            let pid = fs::read_to_string(binding.directory.join("pid")).unwrap();
+            session.call(Operation::Finish).await.unwrap();
+            let observed = session.attempted_usage().unwrap().clone();
+            assert_eq!(observed.value("input_tokens"), Some(7));
+            let began = Instant::now();
+            assert!(session.call(Operation::Finish).await.is_err());
+            assert!(began.elapsed() < Duration::from_secs(5));
+            assert_eq!(session.attempted_usage(), Some(&observed));
+            let began = Instant::now();
+            assert!(session.call(Operation::Finish).await.is_err());
+            assert!(began.elapsed() < Duration::from_secs(1));
+            drop(session);
+            assert!(
+                !Command::new("/bin/kill")
+                    .args(["-0", pid.trim()])
+                    .stderr(Stdio::null())
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        }
+    }
+
     #[tokio::test]
     async fn json_unknown_vendor_shape_preserves_host_identity_and_rejects_wrong_output() {
         for wrong_model in [false, true] {

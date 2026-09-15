@@ -51,7 +51,7 @@ class ConformanceTests(unittest.TestCase):
 
     def assert_failure(self, report, code):
         self.assertEqual(report['status'], 'fail', report)
-        self.assertEqual(report['checks'][-1]['code'], code, report)
+        self.assertTrue(any(c.get('code') == code and c['status']=='fail' for c in report['checks']), report)
 
     def test_external_project_build_and_execution_without_repo(self):
         copied = self.root / 'independent-project'
@@ -73,8 +73,8 @@ class ConformanceTests(unittest.TestCase):
         self.assertEqual(report['status'], 'pass')
         self.assertEqual(report['package_sha256'], checksum)
         self.assertEqual(report['contract'], 'gateway-observer/v1')
-        self.assertEqual(report['tool_version'], '1.2.0')
-        self.assertEqual(report['checks'][-1]['id'], 'role.execution')
+        self.assertEqual(report['tool_version'], '2.0.0')
+        self.assertEqual(next(c for c in report['checks'] if c['id']=='role.execution')['status'], 'pass')
         self.assertFalse(list(self.root.glob('observer-*')))
 
     def test_declared_sibling_resource_is_available(self):
@@ -101,7 +101,7 @@ class ConformanceTests(unittest.TestCase):
         checksum = self.package_source('raise SystemExit(42)', protocol='gateway-api-codec/v2')
         report = runner.run(self.package, checksum, True, self.root)
         self.assertEqual(report['status'], 'not-run')
-        self.assertEqual(report['checks'][-1]['code'], 'role_runner_unavailable')
+        self.assertEqual(next(c for c in report['checks'] if c['id']=='role.execution')['code'], 'role_runner_unavailable')
 
     def test_cross_target_static_acceptance_execution_rejection(self):
         target = next(value for value in sorted(runner.TARGETS) if value != runner.host_target())
@@ -187,18 +187,6 @@ class ConformanceTests(unittest.TestCase):
                 checksum = self.write_manifest(case['value'])
                 report = runner.run(self.package, checksum)
                 self.assertEqual(report['checks'][0]['status'] == 'pass', case['valid'], report)
-
-    def test_provider_declaration_execution_is_explicitly_unavailable(self):
-        corpus = json.loads((ROOT / 'schemas/plugin-capabilities-vectors.json').read_text())
-        manifest = next(case['value'] for case in corpus['cases'] if case['id'] == 'provider-declaration-only')
-        legacy = json.loads((ROOT / 'schemas/plugin-vectors.json').read_text())['canonical_package']
-        for name, data in legacy['files_utf8'].items():
-            (self.package / name).write_text(data)
-        checksum = self.write_manifest(manifest)
-        report = runner.run(self.package, checksum, True, self.root)
-        self.assertEqual(report['status'], 'not-run')
-        self.assertEqual(report['checks'][-1]['code'], 'provider_runtime_unavailable')
-        self.assertFalse(list(self.root.glob('observer-*')))
 
     def test_legacy_capability_and_new_protocol_reinterpretation_rejected(self):
         checksum = self.package_source('')

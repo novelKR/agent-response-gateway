@@ -111,7 +111,9 @@ fn unsupported_capabilities_and_role_confusion_fail_before_execution() {
         json!(["provider_ipc_v1", "responses_output_validation"]);
     assert!(parse(&provider).is_ok());
     let (_temp, lock) = fixture(&provider);
-    assert!(ExtensionPlan::load(&lock).is_err());
+    let plan = ExtensionPlan::load(&lock).unwrap();
+    // Loading declarations and starting Observers must not execute provider code.
+    drop(ExtensionRuntime::start(&plan).unwrap());
 }
 
 #[test]

@@ -13,13 +13,12 @@ These possibilities do not grant the current observer protocol new permissions.
 
 Current observers and the Usage Recorder have different delivery contracts.
 Observers receive best-effort numeric HTTP metadata; the recorder receives usage
-events and can require local commit acknowledgements. Future providers, brokers
-and continuity modules need role-specific interfaces. They must preserve common
-capability admission, origin binding, item identity, event order and terminal
-validation. This does not require dynamic adapter registration or a particular
-repository or process layout.
+events and can require local commit acknowledgements. The external provider role
+interprets JSON/SSE and opaque continuity state through a separate public contract.
+The host preserves capability admission, origin binding, item identity, event order
+and terminal validation. Credential brokers and new transports remain separate work.
 
-The gateway supports explicitly installed, trusted native metadata observers and an optional usage recorder. This design keeps model transport in a small Rust core and separates package management from process execution. Account pooling, credential plugins and additional protocol registration remain separate work. [External API codecs](api-codecs.md) have their own payload-aware role and versioned IPC; they are not capabilities of the observer protocol.
+The gateway supports explicitly installed, trusted native observers, usage recorders, codecs and provider parsers. Model transport remains in the Rust core; package management is separate from process execution. [External API codecs](api-codecs.md) adapt built-in API contracts and [provider plugins](provider-plugins.md) add explicitly routed provider semantics over existing HTTP. Neither role extends observer permissions. Account pooling, credential plugins and new transports remain separate work.
 
 <a id="선택한-방식과-대안"></a>
 
@@ -28,6 +27,8 @@ The gateway supports explicitly installed, trusted native metadata observers and
 Use internal Rust modules for code organization and separately installed executables for optional functionality. A Cargo feature controls a build; it is not a user installation mechanism. The first public package role is a numeric metadata observer. It proves installation, permission approval, activation, identity binding and failure handling before any credential-bearing interface is opened.
 
 Subprocesses allow independent package selection and avoid exposing Rust internal data layouts as a plugin ABI. This is not a guarantee that every later feature can update independently of the core. A new transport or security semantic can require a new core and protocol version. Native dynamic libraries, a WASM runtime, remote package discovery, hot reload and a public marketplace are not implemented. Consider sandboxed policies only after concrete extensions establish the required interfaces.
+
+The source manager uses Python for portable offline JSON, digest and filesystem operations without adding a Python dependency to the Rust gateway process. The packaged management application also offers native lifecycle operations over the same package and activation contracts. Python is a tooling choice, not the plugin ABI: plugins may use any language that provides the declared native entrypoint and wire behavior. Installation never bootstraps its language runtime.
 
 One installable feature can contain several internal modules. A future account-pool package need not make users install authentication, refresh, quota and scheduling components separately. Keep tightly coupled credential ownership within one reviewed lifecycle.
 

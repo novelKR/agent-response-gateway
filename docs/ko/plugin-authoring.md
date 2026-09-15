@@ -4,7 +4,7 @@
 
 [English](../plugin-authoring.md) | [한국어](plugin-authoring.md)
 
-이 명세는 현재 설치 가능한 네이티브 역할을 설명합니다. 아래 프로세스·바이트 계약을 구현할 수 있는 언어라면 독립 저장소에서 플러그인을 제작할 수 있습니다. 호환 실행 파일 설치에는 게이트웨이 재빌드가 필요하지 않습니다. Rust ABI나 게이트웨이 라이브러리 의존성이 필요하지 않습니다. 기존 역할의 계약은 유지하며 codec API 부분집합에는 아래의 명시적인 기능 계약을 사용합니다. Provider 패키지 선언은 provider 실행을 활성화하지 않습니다.
+이 명세는 현재 설치 가능한 네이티브 역할을 설명합니다. 아래 프로세스·바이트 계약을 구현할 수 있는 언어라면 독립 저장소에서 플러그인을 제작할 수 있습니다. 호환 실행 파일 설치에는 게이트웨이 재빌드가 필요하지 않습니다. Rust ABI나 게이트웨이 라이브러리 의존성이 필요하지 않습니다. 기존 역할의 계약은 유지하며 codec API 부분집합에는 아래의 명시적인 기능 계약을 사용합니다. Provider 실행에는 추가로 명시적인 활성화·권한 부여·모델 경로가 필요합니다.
 
 이 명세와 함께 [설치 안내](extensions.md), [신뢰·수명 계약](extensions-design.md), [codec 동작](api-codecs.md), [사용량 의미](usage-accounting.md)를 읽으십시오. 네이티브 플러그인은 호스트 사용자 권한으로 실행하는 신뢰된 프로그램입니다. 제한된 IPC 인터페이스와 비워진 상속 환경은 OS 샌드박스가 아닙니다.
 
@@ -96,7 +96,7 @@ Recorder v2의 역할별 기능, 두 이벤트 버전과 정확한 Ready 계약�
 
 선택한 모델 API는 `apis`에 포함되어야 합니다. 요청한 각 기능은 준비 전에 선언되어야 합니다. 스트리밍에는 `streaming`, 관리형 실행에는 `managed_continuation`, 편집에는 `editing`이 필요합니다. 이 검사는 경로 기능 프로파일과 권한 검사에 추가되며, 선언이 호스트 승인을 넓힐 수 없습니다. 오프라인 inspect/install은 handshake를 실행하지 않습니다. 미지원 요구사항이나 시작 선언 불일치는 명시적인 오류이며, 기능 축소나 암묵적 프로토콜 선택은 없습니다.
 
-Provider 패키지는 `gateway-provider/v1`, 동일한 payload 권한, `provider-request-memory/v1`, 빈 `apis`, 정확히 `provider_ipc_v1`과 `responses_output_validation`인 요구사항을 선언합니다. 추가로 `[a-z][a-z0-9._-]{0,63}/v[1-9][0-9]{0,5}`에 맞는 `provider_protocol`이 필수입니다. Codec 패키지는 null을 포함해 해당 필드를 금지합니다. Provider 선언은 검사·설치·목록 조회가 가능하지만 provider 활성화와 런타임 실행은 사용할 수 없습니다. 선언한 provider 기능은 호스트의 provider 지원 구현 증거가 아닙니다. Codec v3를 통해 provider 역할 메시지나 새로운 공급자 라우팅을 허용하지 않습니다.
+Provider 패키지는 `gateway-provider/v1`, 동일한 payload 권한, `provider-request-memory/v1`, 빈 `apis`, 정확히 `provider_ipc_v1`과 `responses_output_validation`인 요구사항을 선언합니다. 추가로 `[a-z][a-z0-9._-]{0,63}/v[1-9][0-9]{0,5}`에 맞는 `provider_protocol`이 필수입니다. Codec 패키지는 null을 포함해 해당 필드를 금지합니다. Provider 선언은 실행 없이 검사·설치·목록 조회가 가능합니다. 명시적인 활성화와 모델 경로 설정으로 [provider 런타임](provider-plugins.md)을 사용하며 선언한 기능은 Ready 및 승인한 각 요청과 일치해야 합니다. Codec v3를 통해 provider 역할 메시지나 새로운 공급자 라우팅을 허용하지 않습니다.
 
 [기능 선언 벡터](../../schemas/plugin-capabilities-vectors.json)는 유효한 선언, 정렬, 누락·미지원 요구사항, 기존 규격 재해석 금지 및 v3 ready 형식을 다룹니다. 정확한 manifest/ready 일치, 경로 포함 여부와 기능 제한에는 런타임 시험도 필요하며, 스키마 유효성만으로 호환성을 입증하지 못합니다.
 

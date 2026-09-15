@@ -5,15 +5,56 @@
 [English](../provider-plugins.md) | [한국어](provider-plugins.md)
 
 `gateway-provider/v1` 계약은 공급자의 JSON·SSE 의미를 별도로 구현한 파서를 설명합니다.
-패키지 선언을 검사·설치하고 독립 프로토콜 예제를 시험할 수 있습니다.
-**운영 provider 경로 활성화는 아직 사용할 수 없습니다.** 보호된 연속성과 사용량 출처를
-결합한 뒤에 provider 경로를 지원 기능으로 공개해야 합니다. Codec v3는 기존 내장 API
+호환 패키지를 게이트웨이 재빌드 없이 설치하고 필요한 권한을 명시적으로 부여하여
+활성화한 뒤 모델 경로에서 선택할 수 있습니다. JSON, SSE, 함수 결과 왕복과 관리형
+연속성에는 동일한 호스트 검증·기록 장벽을 적용합니다. Codec v3는 기존 내장 API
 의미를 유지하며 이 역할을 구현하지 않습니다.
 
 [Wire 스키마](../../schemas/gateway-provider-v1.schema.json)와
 [이식 가능한 타입](../../crates/plugin-contract/src/provider.rs)은 동일한 언어 독립 메시지를
 설명합니다. 스키마 유효성만으로 메시지 순서, 숫자 유효성, 호스트 호환성, 출력 유효성이나
 실행 신뢰를 입증할 수 없습니다. 패키지 v2 선언은 [작성 명세](plugin-authoring.md)를 따릅니다.
+
+<a id="explicit-model-routing"></a>
+
+## 명시적인 모델 경로
+
+정확한 패키지를 검사·설치한 뒤 `read_model_payload`와 `transform_model_protocol` 권한을 모두 부여하여 활성화하고 생성된 `--extensions-lock`으로 게이트웨이를 시작합니다. 아래 합성 설정에는 선언한 주소에서 별도로 시작한 loopback fixture가 필요하며 실제 공급자의 자격 검증이 아닙니다. Profile 값은 해당 fixture만 설명합니다.
+
+```toml
+listen = "127.0.0.1:0"
+
+[providers.synthetic]
+base_url = "http://127.0.0.1:12345/vendor"
+api_key_env = "SYNTHETIC_KEY"
+
+[models.demo]
+provider = "synthetic"
+upstream_model = "synthetic-model"
+api = "plugin"
+auth = "bearer"
+provider_plugin = "synthetic-provider"
+provider_protocol = "synthetic-provider/v1"
+provider_path = "generate"
+capability_profile = "synthetic"
+continuation_mode = "stateless"
+
+[capability_profiles.synthetic]
+version = "1"
+provider = "synthetic"
+upstream_model = "synthetic-model"
+api = "plugin"
+context_window = 32768
+max_output_tokens = 1024
+tested_codex_version = "synthetic-only"
+
+[capability_profiles.synthetic.support]
+function_tools = "native"
+tool_choice = "native"
+max_output_tokens = "native"
+```
+
+호스트는 설정한 base URL과 고정 `provider_path`를 결합하며 플러그인은 이를 바꾸거나 자격증명을 선택할 수 없습니다. Provider 경로에는 명시적인 auth·provider protocol·capability profile이 필요합니다. `continuation_mode = "managed"`를 선택하려면 추가로 패키지의 managed 기능, 초기화한 연속성 저장소, 안정적인 키와 [보호된 연속성](provider-continuation.md)의 호스트 승인 세션이 필요합니다. 선택한 Recorder는 v2여야 하며 Recorder v1 조합은 모델 요청 전에 거절합니다.
 
 <a id="process-and-message-lifecycle"></a>
 
@@ -80,7 +121,7 @@ Span은 시작·끝 index와 불투명 상태를 담습니다. 상태 결과는 
 호스트가 decoded 1 MiB 한도를 검사합니다. 스키마 정규식만으로 canonical pad bit나 decoded
 크기를 증명하지 못합니다. 보호·영속화·정확한 경로·세션·패키지 결합은 호스트가 소유합니다.
 이 계약은 세션 승인이나 패키지 저장 상태를 이행할 권한을 제공하지 않습니다.
-호스트는 provider 활성화 제한 아래에서 [보호된 V3 영속화와 재개](provider-continuation.md)를 구현합니다. 통합 수용 검증이 끝날 때까지 일반 시작은 provider 활성화를 계속 거절합니다. 선언과 독립 예제만으로 보호된 재시작 지원이 입증되지는 않습니다.
+호스트는 명시적으로 설정한 관리형 경로에 [보호된 V3 영속화와 재개](provider-continuation.md)를 제공합니다. 선언만으로 세션이 승인되지는 않으며 호스트는 상태를 전달하기 전에 영속 revision·origin·정확한 패키지를 검사합니다.
 
 <a id="independent-example-and-verification"></a>
 
@@ -95,5 +136,6 @@ Span은 시작·끝 index와 불투명 상태를 담습니다. 상태 결과는 
 예제는 고유 `query`/`answer` 형식, SSE 텍스트 조각, 함수 호출 결과, 명시적 unknown/0
 사용량, 버전이 있는 불투명 counter를 사용합니다. Wire 재시작 시험은 호스트 암호화
 영속화와 별개입니다. 시험은 합성 입력만 사용하며 실제 공급자, 네이티브 샌드박스나 운영
-경로의 자격 검증이 아닙니다. 독립 적합성 runner는 현재 provider 실행을 사용 불가로
-보고하며 정적 패키지 검증 결과는 provider 실행 인증서가 아닙니다.
+경로의 자격 검증이 아닙니다. 독립 runner는 일반 Ready 검사와 명시적인
+`synthetic-provider/v1` 의미 검증 profile을 구분합니다. 호스트 설치·암호화 영속화·Recorder
+결합에는 [플러그인 검증](plugin-verification.md)에 설명한 별도의 설치 수용 절차가 필요합니다.

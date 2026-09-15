@@ -15,7 +15,7 @@ thinking, 명시적 DeepSeek/OpenRouter Chat 계약을 지원한다. Messages와
 continuation_mode="managed", capability profile에 reasoning_contract를 지정한다.
 Gemini는 기존 managed 기본 동작을 유지한다.
 
-Provider 역할은 정확한 패키지·상태 결합과 원래 버전 인증을 포함한 별도의 [보호된 V3 연속성](provider-continuation.md)을 사용합니다. 통합 기록 수용 검증이 완료되기 전에는 운영 provider 활성화를 사용할 수 없습니다. 아래 내장 동작은 기존 계약을 유지합니다.
+Provider 역할은 정확한 패키지·상태 결합과 원래 버전 인증을 포함한 별도의 [보호된 V3 연속성](provider-continuation.md)을 사용합니다. 명시적인 provider 경로에는 동일한 호스트 세션 권한과 버전별 기록 장벽을 적용합니다. 아래 내장 동작은 기존 계약을 유지합니다.
 
 ## 실행과 표시
 

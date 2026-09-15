@@ -54,8 +54,8 @@ runtime observation or claim that a restart happened.
 
 Native inventory includes package v2 capability declarations for codec v3 and
 provider v1. Static validation and installation do not execute ready. A provider
-package can be installed and inspected, but enabling or selecting it for execution
-fails explicitly while provider runtime is unavailable. Codec v3 selection requires
+package can be installed, inspected, explicitly enabled and selected. Its model
+route and runtime must also accept its declared capabilities. Codec v3 selection requires
 compatible declared APIs/features and an exact runtime handshake; installed,
 selected and observed-effective remain distinct states.
 

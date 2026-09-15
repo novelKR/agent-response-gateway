@@ -306,8 +306,8 @@
       "order": 0,
       "source": "docs/integration.md",
       "translation": "docs/ko/integration.md",
-      "source_sha256": "12298a8652fda58ffee98bbfd3bc847b281581dd1d44354cadb6f7a8e922569b",
-      "translation_sha256": "2523205115b88a58226928e591100b54f4fa0bb4c7469e785d519c4d32c0fa75",
+      "source_sha256": "be6707e38a899e80f6fb4a2e7841b9768c7b44351b99d3b8838b28036f3ce235",
+      "translation_sha256": "7ed049a710c1515813fa4b1649c56082faf559e7cf770a83117faacbb3d4504a",
       "anchors": [
         "application-integration",
         "calling-from-a-backend-service",
@@ -694,8 +694,8 @@
         "하나의-진입점-명시적인-경로",
         "현재-지원-범위"
       ],
-      "source_sha256": "c9fdf1c9a07f4282e0f2f7c188af9881eeeb499a384a0eb5f895ab420810777b",
-      "translation_sha256": "56644921f9304c65f244b6bfb7f0b65a671b901012ddee2e1364f612b6c2c551"
+      "source_sha256": "5ccd1ae7a0a39ed0da81f520630ca00e657b77a993f286440cb95df9115e1f9a",
+      "translation_sha256": "102e96bd3eb0c081b5022535ae4b494d45f7b7532a43a0d1a6660de286bc40e7"
     },
     {
       "id": "usage",
@@ -780,8 +780,8 @@
         "패키지와-권한-계약",
         "프로세스-수명과-장애-정책"
       ],
-      "source_sha256": "4aa5a3f313df2e9d4ea98a7157bb3e18b9d08282d3bafc47e28e3847cf656014",
-      "translation_sha256": "d5b6cb4d6f50db2f0f10e6d4c1184339cf321f6d02dde00a950fc60c3675574f"
+      "source_sha256": "28621ceb496a3ca4ccf137b70ef634793b17a5adab7de4b7a2490f50cfbd2648",
+      "translation_sha256": "194e2811ea2997c80b540766da6ff4115427c2759682e8bf86de8c44bafbaf7d"
     },
     {
       "id": "extensions",
@@ -875,8 +875,8 @@
       "order": 6,
       "source": "docs/managed-continuation.md",
       "translation": "docs/ko/managed-continuation.md",
-      "source_sha256": "80bcd018dce5ca5f181383c5446db8e89919fc8dd65b3a4c1ceaa7130fe11739",
-      "translation_sha256": "6e81f2b78a93c9949e744d9b93f88053b403a1b37ceb94fcca377ee295baac6d",
+      "source_sha256": "48253fa969d9ba2afc720ea14388c3a53dae4cd9ffeaaa03896066f4bc9a6f4e",
+      "translation_sha256": "1ce4edba672145335b079c74ff0bb6a28f596fdc63fe7347ad0b84639a5aebe5",
       "anchors": [
         "execution-and-display",
         "host-configuration-and-compatibility",
@@ -921,8 +921,8 @@
       "order": 32,
       "source": "docs/api-codecs.md",
       "translation": "docs/ko/api-codecs.md",
-      "source_sha256": "82dc3f10b6e54f106ff620c0dad2ba6cfea156eec9eb98e1b918443153e34be2",
-      "translation_sha256": "603417ecdc835ec081268a3681bd2699c7eb5a54b6ec73f848f5bfeb0f405efc",
+      "source_sha256": "bebce4cb8dc06e0b4f9d0fc066482ddbcced8262a8ce20ae4ef36bb1b429639f",
+      "translation_sha256": "30fe219b8dde4d6bfe9e25e8caa1bafc40876a40c232fc241bfa6bd1e4afa211",
       "anchors": [
         "change-and-recovery",
         "external-api-codecs",
@@ -1039,8 +1039,8 @@
         "설치선택실제-적용-상태",
         "저장소와-원본의-소유권"
       ],
-      "source_sha256": "b8084993161b7dcc3fbf6a356b35b8fca89f500579d4f0e0a852f47ef832d8d5",
-      "translation_sha256": "68a1194b2523806a9a4f369dfa7b9aca97ac02bb8f11e40e1e8efe28a8b1fbac"
+      "source_sha256": "486e22efc9bf521e1f7d15004b91ca095b5dab12398c92f7fe631911a5723c01",
+      "translation_sha256": "24f8d08fc4f09ad763ecacb866ee984878d275528c7ef30a94b77d5161f165d6"
     },
     {
       "id": "management-api",
@@ -1192,8 +1192,8 @@
       "order": 25,
       "source": "docs/plugin-authoring.md",
       "translation": "docs/ko/plugin-authoring.md",
-      "source_sha256": "b9eac678e92cbcf95ea648bf79e64718ed44406fb9a6d962e75b3eb58f3af306",
-      "translation_sha256": "409aaaf7cf97d0eabc39c226b628a6a6ac817912d2a6671a49ce4898fcee398e",
+      "source_sha256": "a24db4c9c6954950e8360d2ea8371e5c6b4e3d36853998198d0a4c9260f0c2f4",
+      "translation_sha256": "0157eb13f157970119933634350a9b4a77c94d27ad9731e0df7f497f9e3eabed",
       "anchors": [
         "choose-a-supported-role",
         "codec-messages-and-state-machine",
@@ -1222,15 +1222,17 @@
       "order": 43,
       "source": "docs/provider-plugins.md",
       "translation": "docs/ko/provider-plugins.md",
-      "source_sha256": "f0ba60d0a0bfadc54f6a5f05a1d0807dba3c1e12ac7d6e357920caeee321d4b9",
-      "translation_sha256": "0fade82e777b0c5a377e10354ae04945a0c5ac7acae6cc657838b9b2d630d7ce",
+      "source_sha256": "4fc6539723b55a18a3a8308a49befe644b617133aea3a61caffb6ac8ce24e07b",
+      "translation_sha256": "c77eb2446201a72347ddd8301fcd1c35f8a4927cdafeac388e4c3a077800fa27",
       "anchors": [
+        "explicit-model-routing",
         "independent-example-and-verification",
         "process-and-message-lifecycle",
         "provider-plugin-contract",
         "provider-플러그인-계약",
         "usage-and-state-values",
         "독립-예제와-검증",
+        "명시적인-모델-경로",
         "사용량과-상태-값",
         "프로세스와-메시지-수명-주기"
       ],
@@ -1242,8 +1244,8 @@
       "order": 44,
       "source": "docs/provider-continuation.md",
       "translation": "docs/ko/provider-continuation.md",
-      "source_sha256": "784b0067c8b4fb511f71fe65fb8d48ff5b505946116d3bc68cf3c357666fe087",
-      "translation_sha256": "a1f8391f02bac2b40a71d2981f580c72f6aff98ec1bfaeb0084b4239d661ae7c",
+      "source_sha256": "2a6c3301a0e049c9fab0c2c56b3aee192fbbd29bccb60cd2ef4a2f1b7ed097c0",
+      "translation_sha256": "6b386e01f05c4f6bd922d278c589018a485f3089b6b7103a49a24684b10b5cc8",
       "anchors": [
         "protected-provider-continuation",
         "replay-versions-and-durable-barriers",
@@ -1264,8 +1266,8 @@
       "order": 45,
       "source": "docs/usage-provenance.md",
       "translation": "docs/ko/usage-provenance.md",
-      "source_sha256": "19e67559ad9ba4634bf47c10c13bedd69c140dfb293ec4e964d7a8172bb1c535",
-      "translation_sha256": "0b7394d1e48192298c9f2a846af9f1dd7d8841b0ae96357937576c93840119eb",
+      "source_sha256": "a9cf9e5783e8d3cedc1d481d8fcaea8fa74d479417b7c38369384b4c1bc102e6",
+      "translation_sha256": "f0d11c2e2f1b536af974f9f399cc825ee7bd13014b01cfd7a74ccc83e535193d",
       "anchors": [
         "evidence-and-event-identity",
         "external-recorder-state-and-query-support",
@@ -1279,6 +1281,32 @@
         "저장내보내기복구-경계"
       ],
       "route": "/guide/usage-provenance"
+    },
+    {
+      "id": "plugin-verification",
+      "section": "reference",
+      "order": 26,
+      "source": "docs/plugin-verification.md",
+      "translation": "docs/ko/plugin-verification.md",
+      "source_sha256": "23080bae47f064bd50a0b0e86d3f2bbb7ccc49e92102fb44947b7b6f66b9be93",
+      "translation_sha256": "1d07352824cd5ebde02a7830af5a031a53d145c6f14ab4bf353a0ad1db6b4614",
+      "anchors": [
+        "installed-gateway-acceptance",
+        "interpret-versioned-evidence",
+        "platforms-and-offline-containers",
+        "plugin-verification",
+        "prepare-independent-artifacts",
+        "recorder-consumers-and-rollback",
+        "recorder-소비자와-롤백",
+        "standalone-protocol-profiles",
+        "독립-산출물-준비",
+        "독립-프로토콜-프로필",
+        "버전별-증거-해석",
+        "설치된-게이트웨이-수용-검증",
+        "플랫폼과-오프라인-컨테이너",
+        "플러그인-검증"
+      ],
+      "route": "/guide/plugin-verification"
     }
   ]
 }

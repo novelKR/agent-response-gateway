@@ -10,7 +10,10 @@ import os
 from pathlib import Path
 import queue
 import secrets
+import selectors
+import signal
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -461,17 +464,132 @@ class RpcClient:
         raise AssertionError("Codex control request timed out")
 
 
-def stop_process(process):
-    if process.poll() is None:
-        process.terminate()
+def start_process(*arguments, **options):
+    # Only processes launched here own a group that cleanup may signal.
+    require('start_new_session' not in options, 'Harness controls process ownership')
+    process = subprocess.Popen(*arguments, **options, start_new_session=os.name == 'posix')
+    process._conformance_group = process.pid if os.name == 'posix' else None
+    return process
+
+
+def linux_group_has_live_members(group, deadline):
+    # Reparented zombies cannot write and cannot be waitpid'ed by this harness.
+    # Inspect only PGID/state; inaccessible or malformed process metadata fails closed.
+    found = False
+    for entry in Path('/proc').iterdir():
+        require(time.monotonic() < deadline, 'Harness process group cleanup timed out')
+        if not entry.name.isdecimal():
+            continue
         try:
-            process.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            process.kill()
-            process.wait(timeout=5)
-    for stream in (process.stdin, process.stdout):
-        if stream:
-            stream.close()
+            raw = (entry / 'stat').read_text()
+        except FileNotFoundError:
+            continue  # Process exited between directory enumeration and stat read.
+        prefix, closing, suffix = raw.rpartition(')')
+        fields = suffix.split()
+        require(closing and '(' in prefix and prefix.split(' ', 1)[0] == entry.name
+                and len(fields) >= 3 and fields[2].isdecimal(), 'Invalid cleanup process metadata')
+        if int(fields[2]) == group:
+            found = True
+            if fields[0] != 'Z':
+                return True
+    if found:
+        return False
+    try:
+        os.killpg(group, 0)
+    except ProcessLookupError:
+        return False
+    raise AssertionError('Owned process group is not visible to cleanup')
+
+
+def darwin_group_snapshot(deadline):
+    # Fixed OS tool and numeric group/state columns only; never collect command lines.
+    child = subprocess.Popen(['/bin/ps', '-A', '-o', 'pgid=,state='],
+                             env={'LC_ALL': 'C'}, stdin=subprocess.DEVNULL,
+                             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    raw = bytearray()
+    try:
+        with selectors.DefaultSelector() as selector:
+            selector.register(child.stdout, selectors.EVENT_READ)
+            while True:
+                remaining = deadline - time.monotonic()
+                require(remaining > 0 and bool(selector.select(remaining)), 'Cleanup process inspection timed out')
+                chunk = os.read(child.stdout.fileno(), 65536)
+                if not chunk:
+                    break
+                raw.extend(chunk)
+                require(len(raw) <= 1024 * 1024, 'Cleanup process metadata exceeds limit')
+        remaining = deadline - time.monotonic()
+        require(remaining > 0, 'Cleanup process inspection timed out')
+        require(child.wait(timeout=remaining) == 0, 'Cleanup process inspection failed')
+        return bytes(raw)
+    finally:
+        if child.poll() is None:
+            child.kill()
+        try:
+            child.wait(timeout=1)
+        finally:
+            child.stdout.close()
+
+
+def darwin_group_has_live_members(group, deadline):
+    # XNU killpg excludes SZOMB and reports EPERM for an existing zombie-only group.
+    # EPERM alone proves nothing: inspect every row before accepting quiescence.
+    rows = darwin_group_snapshot(deadline).decode('ascii').splitlines()
+    require(bool(rows), 'Missing cleanup process metadata')
+    live = False
+    for row in rows:
+        fields = row.split()
+        require(len(fields) == 2 and fields[0].isdecimal()
+                and fields[1] and fields[1].isascii(), 'Invalid cleanup process metadata')
+        if int(fields[0]) == group and not fields[1].startswith('Z'):
+            live = True
+    return live
+
+
+def stop_process(process):
+    if process.__dict__.get('_conformance_cleaned', False):
+        return
+    try:
+        if process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=5)
+    finally:
+        try:
+            group = process.__dict__.get('_conformance_group')
+            if group is not None:
+                # An exited parent may leave background writers in its owned group.
+                deadline = time.monotonic() + 5
+                quiescent = False
+                try:
+                    os.killpg(group, signal.SIGKILL)
+                except ProcessLookupError:
+                    quiescent = True
+                except PermissionError:
+                    if sys.platform != 'darwin' or darwin_group_has_live_members(group, deadline):
+                        raise
+                    quiescent = True
+                while not quiescent:
+                    try:
+                        os.killpg(group, 0)
+                    except ProcessLookupError:
+                        break
+                    except PermissionError:
+                        if sys.platform != 'darwin' or darwin_group_has_live_members(group, deadline):
+                            raise
+                        break
+                    if sys.platform == 'linux' and not linux_group_has_live_members(group, deadline):
+                        break
+                    require(time.monotonic() < deadline, 'Harness process group cleanup timed out')
+                    time.sleep(0.01)
+        finally:
+            for stream in (process.stdin, process.stdout):
+                if stream:
+                    stream.close()
+    process._conformance_cleaned = True
 
 
 def run_scenario(name, binary, gateway_binary, api="responses", managed_contract=None, native_custom=False, profile_packs=False, codec_binary=None, editing=False, code_mode=False, normalization=False, operations=False, file_conflict=False, embedded_binary=None):
@@ -535,7 +653,7 @@ def run_scenario(name, binary, gateway_binary, api="responses", managed_contract
             config.write_text(encoded)
             gateway_args += ['--extensions-lock',str(codec_lock)]
         manifest = embedded_contract.inspect_manifest(gateway_binary, config, env, gateway_args[2:])
-        gateway = subprocess.Popen(([str(embedded_binary), str(config)] if embedded_binary else [str(gateway_binary), "serve", *gateway_args]), env=gateway_env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+        gateway = start_process(([str(embedded_binary), str(config)] if embedded_binary else [str(gateway_binary), "serve", *gateway_args]), env=gateway_env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
         cleanup.callback(stop_process, gateway)
         ready = embedded_contract.read_ready(gateway, manifest)
         if codec_binary: manifest=manifest["configuration"]["gateway"]
@@ -552,7 +670,7 @@ def run_scenario(name, binary, gateway_binary, api="responses", managed_contract
             path=home/'config.toml';content=path.read_text()
             content=content.replace('[features]', '[features]\ncode_mode=true\ncode_mode_only=true\napps=false')
             path.write_text(content)
-        codex = subprocess.Popen([str(binary), "app-server"], cwd=workspace, env=codex_env, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, bufsize=1)
+        codex = start_process([str(binary), "app-server"], cwd=workspace, env=codex_env, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, bufsize=1)
         cleanup.callback(stop_process, codex)
         rpc = RpcClient(codex)
         rpc.call("initialize", {"clientInfo": {"name": "arg_conformance", "version": "0.1.0"}, "capabilities": {"experimentalApi": True}})

@@ -420,7 +420,6 @@ def enable(root, package_id, package_version, sha, grants, recorder=None, *, con
         directory = installed_dir(root, package_id, package_version, sha)
         package, _ = inspect_package(directory, sha, private=True)
         require((package['id'], package['version']) == (package_id, package_version), 'Installed identity mismatch')
-        require(package['protocol'] != PROVIDER_PROTOCOL, 'Provider runtime activation is not available')
         require(sorted(grants) == package['permissions'], 'Package grants mismatch')
         lock = read_lock(root)
         entries = [entry for entry in lock['extensions'] if entry['id'] != package_id]

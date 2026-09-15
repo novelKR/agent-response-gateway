@@ -18,7 +18,8 @@ of the base image or third-party redistribution rights.
 ```sh
 mkdir -p .local
 python3.14 -B scripts/build_plugin_tools.py \
-  --output .local/plugin-tools.tar
+  --output .local/plugin-tools.tar \
+  --conformance tools/plugin-conformance/conformance.py
 ```
 
 The output SHA-256 and `SHA256SUMS` identify the distributed source. Retain the
@@ -36,7 +37,12 @@ docker build --network=none --pull=false -t plugin-tools:local .
 
 The generated Dockerfile copies only explicitly included files. A standalone
 standard-library conformance script can be added with `--conformance PATH`;
-without it no conformance implementation is claimed. Language compilers belong
+without it no conformance implementation is claimed. The current explicit tool
+uses version `2.0.0` and `gateway-plugin-conformance-report/v2`; its `wire`,
+`synthetic-provider/v1` and `recorder-events/v2` profiles retain separate coverage.
+Distribute the matching public report schema and specification alongside reports
+when a consumer needs machine validation; the runner has no schema download or
+checkout dependency. Language compilers belong
 in separately selected build environments; this image packages already-built
 artifacts and does not compile arbitrary plugin source.
 

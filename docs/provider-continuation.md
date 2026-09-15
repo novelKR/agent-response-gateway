@@ -5,11 +5,10 @@
 [English](provider-continuation.md) | [한국어](ko/provider-continuation.md)
 
 The host implements authenticated, versioned persistence for opaque
-`gateway-provider/v1` state alongside existing native replay. **Production provider
-route activation remains unavailable.** Synthetic qualification can exercise this
-machinery; public operation still requires integrated continuity, usage provenance
-and Recorder acceptance. A plugin's managed capability declaration alone does not
-activate a route or authorize a session.
+`gateway-provider/v1` state alongside existing native replay. Explicitly enabled
+provider packages can use managed model routes with host-owned continuity and
+versioned usage provenance. A plugin's managed capability declaration alone does
+not activate a route or authorize a session.
 
 Read the [provider wire contract](provider-plugins.md),
 [managed execution and recovery contract](managed-continuation.md), and
@@ -73,7 +72,7 @@ manifest remains v10. The replay declaration is:
 Builtin-only managed configurations retain their existing read/write declaration.
 A host must understand the complete declared schema and exact configuration and
 execution digests; an unknown version is an error, never an implicit downgrade.
-The version declaration does not waive the production provider activation gate.
+The version declaration does not replace exact package selection, grants or session authorization.
 
 The existing attempt reservation and SQLite finalization barrier are reused.
 The host checks current session revision, origin, epoch and parent before finalizing.

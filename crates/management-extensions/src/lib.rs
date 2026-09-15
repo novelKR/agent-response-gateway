@@ -310,9 +310,6 @@ impl Manager {
                 }
                 match &self.registration.driver {
                     Driver::Native(_) => {
-                        if installed["package"]["protocol"] == "gateway-provider/v1" {
-                            return Err(Error::Unsupported);
-                        }
                         let active = inventory.inventory["activation"]["extensions"]
                             .as_array()
                             .ok_or(Error::InvalidStore)?

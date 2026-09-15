@@ -185,12 +185,12 @@ def run(binary, gateway_binary):
             nonlocal gateway, codex
             current = base.embedded_contract.inspect_manifest(gateway_binary, config, env)
             base.require(current == manifest, "gateway configuration changed before restart")
-            gateway = subprocess.Popen([str(gateway_binary), "serve", "--config", str(config)], env=gateway_env,
+            gateway = base.start_process([str(gateway_binary), "serve", "--config", str(config)], env=gateway_env,
                                        stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
             ready = base.embedded_contract.read_ready(gateway, manifest)
             (home / "config.toml").write_text(f'model="gpt-5.4"\nmodel_provider="gateway"\nweb_search="disabled"\nmodel_context_window=32768\nmodel_auto_compact_token_limit=24576\n[model_providers.gateway]\nname="Synthetic continuity"\nbase_url="{ready["base_url"]}"\nwire_api="responses"\nenv_key="ARG_CODEX_TEST_TOKEN"\nrequires_openai_auth=false\nsupports_websockets=false\nrequest_max_retries=0\nstream_max_retries=0\n')
             base.embedded_contract.validate_credential_split(manifest, gateway_env, codex_env, "ARG_CODEX_TEST_TOKEN", home)
-            codex = subprocess.Popen([str(binary), "app-server"], cwd=workspace, env=codex_env,
+            codex = base.start_process([str(binary), "app-server"], cwd=workspace, env=codex_env,
                                      stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, bufsize=1)
             rpc = base.RpcClient(codex)
             rpc.call("initialize", {"clientInfo": {"name": "arg_continuity", "version": "0.1.0"}, "capabilities": {"experimentalApi": True}})

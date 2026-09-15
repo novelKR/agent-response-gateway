@@ -145,6 +145,27 @@ jobs:
       - name: Verify profile packs alongside native observers
         if: runner.os != 'Windows'
         run: python -B scripts/extension_smoke.py --binary target/debug/agent-response-gateway --observer target/debug/examples/metadata_observer --profile-packs
+      - name: Build the shipped Recorder for query compatibility rejection
+        if: runner.os != 'Windows'
+        run: cargo +1.98.0 build -p gateway-usage-recorder --locked
+      - name: Exercise independently installed provider and Recorder contracts
+        if: runner.os != 'Windows'
+        run: >-
+          python -B scripts/provider_acceptance.py
+          --binary target/debug/agent-response-gateway
+          --manager scripts/extension_manager.py
+          --provider-example tools/plugin-conformance/examples/provider
+          --recorder-example tools/plugin-conformance/examples/recorder
+          --query-recorder target/debug/gateway-usage-recorder
+          --output .local/provider-acceptance-report.json
+      - name: Preserve the synthetic installed acceptance report
+        if: ${{ always() && runner.os != 'Windows' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: provider-acceptance-${{ matrix.target }}
+          path: .local/provider-acceptance-report.json
+          archive: true
+          if-no-files-found: error
       - name: Exercise native CLI, four protocols, durable restart and graceful shutdown
         env:
           GATEWAY_EXECUTABLE: ${{ matrix.executable }}
@@ -219,7 +240,9 @@ jobs:
     timeout-minutes: 25
     outputs:
       native-sha256: ${{ steps.seal-native.outputs.sha256 }}
+      native-artifact-id: ${{ steps.upload-native.outputs.artifact-id }}
       codec-sha256: ${{ steps.seal-codec.outputs.sha256 }}
+      codec-artifact-id: ${{ steps.upload-codec.outputs.artifact-id }}
     env:
       CARGO_HOME: ${{ github.workspace }}/.local/cargo-home
       CARGO_TARGET_DIR: ${{ github.workspace }}/target
@@ -258,19 +281,21 @@ jobs:
       - run: python3 -B scripts/prepared_evidence.py .local/prepared/evidence.tar.gz
       - id: seal-native
         run: python3 -B scripts/prepared_inputs.py pack .local/prepared/native.tar.gz --variant native
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - id: upload-native
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           archive: true
-          name: conformance-prepared-native
+          name: conformance-prepared-native-${{ github.run_attempt }}
           path: .local/prepared/native.tar.gz
           if-no-files-found: error
           retention-days: 3
       - id: seal-codec
         run: python3 -B scripts/prepared_inputs.py pack .local/prepared/codec.tar.gz --variant codec
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - id: upload-codec
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           archive: true
-          name: conformance-prepared-codec
+          name: conformance-prepared-codec-${{ github.run_attempt }}
           path: .local/prepared/codec.tar.gz
           if-no-files-found: error
           retention-days: 3
@@ -299,7 +324,7 @@ jobs:
         with:
           skip-decompress: false
           digest-mismatch: error
-          name: conformance-prepared-codec
+          artifact-ids: ${{ needs.conformance-prepare.outputs.codec-artifact-id }}
           path: .local/prepared
       - name: Verify the exact same-run prepared inputs
         env:
@@ -348,7 +373,7 @@ jobs:
         with:
           skip-decompress: false
           digest-mismatch: error
-          name: conformance-prepared-native
+          artifact-ids: ${{ needs.conformance-prepare.outputs.native-artifact-id }}
           path: .local/prepared
       - name: Verify the exact same-run prepared inputs
         env:

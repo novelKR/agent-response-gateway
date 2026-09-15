@@ -167,6 +167,7 @@ def commands(root, plan, policy):
     suffix = '.exe' if os.name == 'nt' else ''
     values['{gateway-bin}'] = ['target/debug/agent-response-gateway' + suffix]
     values['{observer-bin}'] = ['target/debug/examples/metadata_observer' + suffix]
+    values['{recorder-bin}'] = ['target/debug/gateway-usage-recorder' + suffix]
     if plan['scope'] == 'range' and 'boundary' in plan['checks']:
         values['{scope}'] = ['--base', plan['base_sha'], '--head', plan['head_sha']]
     # The fixture consumes built assets; run it only after the production Web build.

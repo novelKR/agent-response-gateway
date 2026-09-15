@@ -100,13 +100,13 @@ def run(binary,gateway_binary, resume_only=False, legacy_gateway=None):
         def start():
             nonlocal gateway,codex,session,url,manifest
             manifest=base.embedded_contract.inspect_manifest(current_gateway,config,env)
-            gateway=subprocess.Popen([str(current_gateway),'serve','--config',str(config)],env=gateway_env,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,text=True)
+            gateway=base.start_process([str(current_gateway),'serve','--config',str(config)],env=gateway_env,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,text=True)
             url=base.embedded_contract.read_ready(gateway,manifest)['base_url']
             if session is None:session=ih.create_session(url,control_token,manifest)
             (home/'config.toml').write_text(f'model="gpt-5.4"\nmodel_provider="gateway"\nweb_search="disabled"\nmodel_context_window=32768\nmodel_auto_compact_token_limit=24576\n[model_providers.gateway]\nname="Synthetic Interactions"\nbase_url="{url}"\nwire_api="responses"\nenv_key="ARG_CODEX_TEST_TOKEN"\nrequires_openai_auth=false\nsupports_websockets=false\nrequest_max_retries=0\nstream_max_retries=0\nhttp_headers={{"x-gateway-session"="{session["id"]}"}}\n')
             base.prepare_converted_profile(binary,home,codex_env)
             base.embedded_contract.validate_credential_split(manifest,gateway_env,codex_env,'ARG_CODEX_TEST_TOKEN',home)
-            codex=subprocess.Popen([str(binary),'app-server'],cwd=workspace,env=codex_env,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,text=True,bufsize=1)
+            codex=base.start_process([str(binary),'app-server'],cwd=workspace,env=codex_env,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,text=True,bufsize=1)
             rpc=base.RpcClient(codex);rpc.call('initialize',{'clientInfo':{'name':'arg_interactions','version':'0.1.0'},'capabilities':{'experimentalApi':True}});rpc.send({'method':'initialized','params':{}});return rpc
         def transition(kind,portable=None):
             current=ih.control(url,control_token,'/__continuation/sessions/'+session['id'])

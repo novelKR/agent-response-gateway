@@ -14,8 +14,12 @@ Use the actual execution target. A target label does not cross-compile Python or
 provision the pinned interpreter elsewhere. The script prints the exact manifest
 SHA-256 for independent static inspection/install. The package must be explicitly
 trusted: the process has the invoking user's native privileges and is not sandboxed.
-The host provider route remains unavailable until continuity and usage integration
-are enabled; successful example wire tests do not claim production support.
+Explicit manager activation and a configured model route select the provider.
+Managed routes additionally require host continuity configuration; usage recording
+requires a compatible Recorder contract. Follow the [verification procedure](../../../../docs/plugin-verification.md)
+for standalone profiles and ordinary installed-host acceptance. Successful example
+wire tests alone do not establish host persistence, consumer compatibility or
+actual-provider operational qualification.
 
 The executable uses big-endian four-byte length-prefixed JSON on stdin/stdout,
 with a one-MiB example frame limit. Ready repeats the exact packaged capabilities.

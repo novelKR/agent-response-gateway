@@ -105,7 +105,7 @@ v3 선택에는 `gateway-embedded-manifest/v8`, `gateway-ready/v8`,
 `gateway-extended-manifest/v8`, `gateway-extended-ready/v8`를 사용한다.
 패키지 projection은 `gateway-extension-configuration/v3`를 사용하며 정확한 기능을
 결합한다. 기존 선택만 사용하는 경우 기존 스키마를 유지한다. Provider v1 패키지
-선언은 설치할 수 있지만 provider 활성화·런타임은 사용할 수 없다.
+선언은 별도의 [provider 런타임](provider-plugins.md)과 명시적 모델 경로를 사용한다.
 Codec v3는 새로운 공급자 API 계약을 추가하지 않는다.
 
 ## IPC 수명 주기와 검증

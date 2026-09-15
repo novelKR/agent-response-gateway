@@ -33,8 +33,6 @@ pub struct Config {
     #[serde(skip)]
     pub(crate) provider_plugins: BTreeMap<String, crate::provider_plugins::Binding>,
     #[serde(skip)]
-    pub(crate) provider_qualification: bool,
-    #[serde(skip)]
     pub(crate) codecs: BTreeMap<String, crate::codecs::Binding>,
     #[serde(default)]
     pub(crate) capability_profile_imports: BTreeMap<String, crate::profile_packs::CapabilityImport>,
@@ -355,11 +353,6 @@ impl Config {
 impl Config {
     pub(crate) fn validate_route(&self, model: &Model) -> Result<(), ConfigError> {
         if model.api == ApiProtocol::Plugin {
-            if !(cfg!(test) && self.provider_qualification) {
-                return Err(ConfigError(
-                    "Provider plugin runtime is not available".into(),
-                ));
-            }
             let binding = model
                 .provider_plugin
                 .as_ref()

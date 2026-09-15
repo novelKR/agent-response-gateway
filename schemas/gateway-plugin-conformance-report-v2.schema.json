@@ -1,0 +1,310 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Gateway plugin conformance report v2",
+  "description": "Local profile-scoped evidence, not attestation or gateway integration. Check IDs must be unique; the runner verifies profile coverage.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "tool_version",
+    "package_sha256",
+    "tool_sha256",
+    "fixture_sha256",
+    "package_schema",
+    "contract",
+    "target",
+    "host_target",
+    "profile",
+    "status",
+    "exit_code",
+    "checks"
+  ],
+  "properties": {
+    "schema": {
+      "const": "gateway-plugin-conformance-report/v2"
+    },
+    "tool_version": {
+      "const": "2.0.0"
+    },
+    "package_sha256": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])"
+    },
+    "tool_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])"
+    },
+    "fixture_sha256": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])"
+    },
+    "package_schema": {
+      "enum": [
+        null,
+        "gateway-extension-package/v1",
+        "gateway-extension-package/v2"
+      ]
+    },
+    "contract": {
+      "enum": [
+        null,
+        "gateway-observer/v1",
+        "gateway-api-codec/v1",
+        "gateway-api-codec/v2",
+        "gateway-api-codec/v3",
+        "gateway-provider/v1",
+        "gateway-usage-recorder/v1",
+        "gateway-usage-recorder/v2"
+      ]
+    },
+    "target": {
+      "enum": [
+        null,
+        "linux-x64",
+        "linux-arm64",
+        "macos-x64",
+        "macos-arm64"
+      ]
+    },
+    "host_target": {
+      "enum": [
+        "linux-x64",
+        "linux-arm64",
+        "macos-x64",
+        "macos-arm64",
+        "unsupported"
+      ]
+    },
+    "profile": {
+      "enum": [
+        "wire",
+        "synthetic-provider/v1",
+        "recorder-events/v2"
+      ]
+    },
+    "status": {
+      "enum": [
+        "pass",
+        "fail",
+        "not-run"
+      ]
+    },
+    "exit_code": {
+      "enum": [
+        0,
+        1,
+        2
+      ]
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "status",
+          "required"
+        ],
+        "properties": {
+          "id": {
+            "enum": [
+              "package.static",
+              "role.execution",
+              "host.integration",
+              "harness.teardown",
+              "provider.ready",
+              "provider.prepare",
+              "provider.json",
+              "provider.sse",
+              "provider.tools",
+              "provider.state_wire",
+              "provider.usage_wire",
+              "recorder.ready",
+              "recorder.v1_ack",
+              "recorder.v2_ack",
+              "recorder.invalid_observation",
+              "recorder.duplicate",
+              "recorder.restart",
+              "observer.ready",
+              "observer.ack_sequence"
+            ]
+          },
+          "status": {
+            "enum": [
+              "pass",
+              "fail",
+              "not-run"
+            ]
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "code": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{0,63}(?![\\s\\S])"
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "id": {
+                  "const": "host.integration"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "required": {
+                  "const": false
+                },
+                "status": {
+                  "const": "not-run"
+                },
+                "code": {
+                  "const": "separate_host_qualification"
+                }
+              },
+              "required": [
+                "code"
+              ]
+            },
+            "else": {
+              "properties": {
+                "required": {
+                  "const": true
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "pass"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "exit_code": {
+            "enum": [
+              0
+            ]
+          },
+          "checks": {
+            "items": {
+              "not": {
+                "properties": {
+                  "required": {
+                    "const": true
+                  },
+                  "status": {
+                    "enum": [
+                      "fail",
+                      "not-run"
+                    ]
+                  }
+                },
+                "required": [
+                  "required",
+                  "status"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "fail"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "exit_code": {
+            "enum": [
+              1
+            ]
+          },
+          "checks": {
+            "contains": {
+              "properties": {
+                "status": {
+                  "const": "fail"
+                }
+              },
+              "required": [
+                "status"
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "not-run"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "exit_code": {
+            "enum": [
+              0,
+              2
+            ]
+          },
+          "checks": {
+            "items": {
+              "not": {
+                "properties": {
+                  "status": {
+                    "const": "fail"
+                  }
+                },
+                "required": [
+                  "status"
+                ]
+              }
+            },
+            "contains": {
+              "properties": {
+                "required": {
+                  "const": true
+                },
+                "status": {
+                  "const": "not-run"
+                }
+              },
+              "required": [
+                "required",
+                "status"
+              ]
+            }
+          }
+        }
+      }
+    }
+  ]
+}

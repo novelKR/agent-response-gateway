@@ -117,10 +117,26 @@ class ImpactTests(unittest.TestCase):
     def test_extension_commands_resolve_current_platform_executables(self):
         plan=self.plan(['scripts/extension_manager.py'])
         policy,_=v.read_policy(ROOT)
-        command=[c for name,c in v.commands(ROOT,plan,policy) if name=='extension'][-1]
+        command=next(c for name,c in v.commands(ROOT,plan,policy) if name=='extension' and 'scripts/extension_smoke.py' in c)
         suffix='.exe' if v.os.name=='nt' else ''
         self.assertIn('target/debug/agent-response-gateway'+suffix,command)
         self.assertIn('target/debug/examples/metadata_observer'+suffix,command)
+
+    def test_plugin_acceptance_and_report_changes_select_native_consumers(self):
+        for path in ('scripts/provider_acceptance.py',
+                     'scripts/tests/test_provider_acceptance.py',
+                     'scripts/tests/test_plugin_conformance_v2.py',
+                     'schemas/gateway-plugin-conformance-report-v2.schema.json',
+                     'schemas/plugin-conformance-report-vectors.json'):
+            plan = self.plan([path])
+            self.assertIn('extension', plan['checks'])
+            self.assertIn('rust', plan['jobs'])
+            policy, _ = v.read_policy(ROOT)
+            commands = [c for name, c in v.commands(ROOT, plan, policy) if name == 'extension']
+            native = next(c for c in commands if 'scripts/provider_acceptance.py' in c)
+            suffix = '.exe' if v.os.name == 'nt' else ''
+            self.assertIn('target/debug/gateway-usage-recorder' + suffix, native)
+            self.assertIn(['cargo', 'build', '--locked', '-p', 'gateway-usage-recorder'], commands)
 
     def test_range_plan_is_not_executed_against_unrelated_worktree(self):
         with self.assertRaises(v.ValidationError):
