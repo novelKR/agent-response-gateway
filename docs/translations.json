@@ -1215,6 +1215,26 @@
         "패키지-바이트와-실행"
       ],
       "route": "/guide/plugin-authoring"
+    },
+    {
+      "id": "provider-plugins",
+      "section": "integration",
+      "order": 43,
+      "source": "docs/provider-plugins.md",
+      "translation": "docs/ko/provider-plugins.md",
+      "source_sha256": "4bc4e7c6929903d6d5e18903e37acf1d17681797f4719e3f39bd3f2da75bc0d0",
+      "translation_sha256": "b58885d655da6cd49a7b799fd2cabcce05287cef4726d3b2ae7849d072cd7306",
+      "anchors": [
+        "independent-example-and-verification",
+        "process-and-message-lifecycle",
+        "provider-plugin-contract",
+        "provider-플러그인-계약",
+        "usage-and-state-values",
+        "독립-예제와-검증",
+        "사용량과-상태-값",
+        "프로세스와-메시지-수명-주기"
+      ],
+      "route": "/guide/provider-plugins"
     }
   ]
 }

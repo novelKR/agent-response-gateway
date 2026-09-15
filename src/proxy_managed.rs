@@ -309,7 +309,14 @@ pub(crate) async fn responses(
         state.config.limits.max_response_bytes,
         state
             .config
-            .resolved_usage_profile(&state.config.models[&model]),
+            .resolved_usage_profile(&state.config.models[&model])
+            .ok_or_else(|| {
+                ApiError::new(
+                    StatusCode::BAD_REQUEST,
+                    "unsupported_request",
+                    "Managed provider contract is unavailable",
+                )
+            })?,
     )
     .await
     .map_err(|_| {

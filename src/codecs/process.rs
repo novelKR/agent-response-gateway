@@ -44,95 +44,29 @@ fn validate_ready(binding: &Binding, value: serde_json::Value) -> Result<(), IrE
 #[cfg(unix)]
 mod native {
     use super::*;
-    use std::{
-        os::fd::OwnedFd,
-        process::{Child, Command, Stdio},
-        time::Duration,
-    };
-    use tokio::io::{AsyncReadExt, AsyncWriteExt};
-
+    use crate::extensions::framed_process::{Executable, FramedProcess};
     pub(crate) struct Session {
-        child: Child,
-        socket: tokio::net::UnixStream,
+        process: FramedProcess,
         sequence: u64,
         failed: bool,
         protocol: String,
     }
-    impl Drop for Session {
-        fn drop(&mut self) {
-            let _ = self.child.kill();
-            let _ = self.child.wait();
-        }
-    }
     impl Session {
         pub(crate) async fn start(binding: &Binding) -> Result<Self, IrError> {
-            let bytes = crate::extensions::filesystem::read(
-                &binding.executable,
-                128 * 1024 * 1024,
-                binding.owner,
-            )
-            .map_err(|_| IrError::UnsupportedVersion)?;
-            if crate::continuation::hex(&crate::digest::sha256(&bytes)) != binding.executable_sha256
-            {
-                return Err(IrError::UnsupportedVersion);
-            }
-            crate::extensions::filesystem::private_dir(&binding.directory, Some(binding.owner))
-                .map_err(|_| IrError::UnsupportedVersion)?;
-            let (parent, child) =
-                std::os::unix::net::UnixStream::pair().map_err(|_| IrError::InvalidEventOrder)?;
-            parent
-                .set_nonblocking(true)
-                .map_err(|_| IrError::InvalidEventOrder)?;
-            let input: OwnedFd = child
-                .try_clone()
-                .map_err(|_| IrError::InvalidEventOrder)?
-                .into();
-            let output: OwnedFd = child.into();
-            let socket =
-                tokio::net::UnixStream::from_std(parent).map_err(|_| IrError::InvalidEventOrder)?;
-            let child = Command::new(&binding.executable)
-                .env_clear()
-                .current_dir(&binding.directory)
-                .stdin(Stdio::from(input))
-                .stdout(Stdio::from(output))
-                .stderr(Stdio::null())
-                .spawn()
-                .map_err(|_| IrError::InvalidEventOrder)?;
-            let mut session = Self {
-                child,
-                socket,
+            let (process, ready) = FramedProcess::start(Executable {
+                path: &binding.executable,
+                directory: &binding.directory,
+                sha256: &binding.executable_sha256,
+                owner: binding.owner,
+            })
+            .await?;
+            super::validate_ready(binding, ready)?;
+            Ok(Self {
+                process,
                 sequence: 0,
                 failed: false,
                 protocol: binding.protocol.clone(),
-            };
-            let value = tokio::time::timeout(Duration::from_secs(3), session.read_frame())
-                .await
-                .map_err(|_| IrError::InvalidEventOrder)??;
-            super::validate_ready(binding, value)?;
-            Ok(session)
-        }
-        async fn read_frame(&mut self) -> Result<serde_json::Value, IrError> {
-            let length = self
-                .socket
-                .read_u32()
-                .await
-                .map_err(|_| IrError::InvalidEventOrder)? as usize;
-            if length == 0 || length > MAX_FRAME {
-                return Err(IrError::SizeLimit);
-            }
-            let mut bytes = vec![0; length];
-            self.socket
-                .read_exact(&mut bytes)
-                .await
-                .map_err(|_| IrError::InvalidEventOrder)?;
-            crate::adapters::json::decode(&bytes)
-        }
-        async fn read(&mut self) -> Result<ResultValue, IrError> {
-            let reply = decode_reply(self.read_frame().await?)?;
-            if reply.protocol != self.protocol || reply.sequence != self.sequence {
-                return Err(IrError::UnsupportedVersion);
-            }
-            Ok(reply.value)
+            })
         }
         pub(crate) async fn call(&mut self, operation: Operation) -> Result<ResultValue, IrError> {
             if self.failed {
@@ -144,26 +78,17 @@ mod native {
                 sequence: self.sequence,
                 operation,
             })?;
-            if bytes.len() > MAX_FRAME {
-                self.failed = true;
-                return Err(IrError::SizeLimit);
+            let result = async {
+                let reply = decode_reply(self.process.exchange(&bytes).await?)?;
+                if reply.protocol != self.protocol || reply.sequence != self.sequence {
+                    return Err(IrError::UnsupportedVersion);
+                }
+                Ok(reply.value)
             }
-            let result = tokio::time::timeout(Duration::from_secs(3), async {
-                self.socket
-                    .write_u32(bytes.len() as u32)
-                    .await
-                    .map_err(|_| IrError::InvalidEventOrder)?;
-                self.socket
-                    .write_all(&bytes)
-                    .await
-                    .map_err(|_| IrError::InvalidEventOrder)?;
-                self.read().await
-            })
-            .await
-            .map_err(|_| IrError::InvalidEventOrder)
-            .and_then(|v| v);
+            .await;
             if result.is_err() || matches!(result, Ok(ResultValue::Rejected)) {
                 self.failed = true;
+                self.process.poison();
             }
             result
         }
@@ -171,20 +96,16 @@ mod native {
     #[cfg(test)]
     mod tests {
         use super::*;
-        use std::io::{Read, Write};
+        use std::{
+            io::{Read, Write},
+            process::{Command, Stdio},
+            time::Duration,
+        };
         fn pair() -> (Session, std::os::unix::net::UnixStream) {
-            let (left, right) = std::os::unix::net::UnixStream::pair().unwrap();
-            left.set_nonblocking(true).unwrap();
-            let child = Command::new("/bin/sleep")
-                .arg("30")
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .spawn()
-                .unwrap();
+            let (process, right) = FramedProcess::test_pair();
             (
                 Session {
-                    child,
-                    socket: tokio::net::UnixStream::from_std(left).unwrap(),
+                    process,
                     sequence: 0,
                     failed: false,
                     protocol: PROTOCOL.into(),
@@ -200,7 +121,7 @@ mod native {
                 b"{\"protocol\":\"gateway-api-codec/v1\",\"sequence\":1,\"sequence\":1,\"value\":{\"result\":\"finished\"}}".to_vec(),
                 b"{\"protocol\":\"gateway-api-codec/v1\",\"sequence\":1,\"value\":{\"result\":\"get_credentials\"}}".to_vec(),
             ] {
-                let (mut session,mut peer)=pair();let pid=session.child.id();
+                let (mut session,mut peer)=pair();let pid=session.process.test_pid();
                 let thread=std::thread::spawn(move||{let mut length=[0;4];peer.read_exact(&mut length).unwrap();let mut input=vec![0;u32::from_be_bytes(length) as usize];peer.read_exact(&mut input).unwrap();peer.write_all(&(response.len() as u32).to_be_bytes()).unwrap();peer.write_all(&response).unwrap();});
                 assert!(session.call(Operation::Finish).await.is_err());assert!(session.failed);assert!(session.call(Operation::Finish).await.is_err());thread.join().unwrap();drop(session);
                 assert!(!Command::new("/bin/kill").args(["-0",&pid.to_string()]).stderr(Stdio::null()).status().unwrap().success());

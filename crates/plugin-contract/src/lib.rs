@@ -1,6 +1,8 @@
 //! Portable codec wire types. Nested role values follow the published schemas.
 //! This crate has no gateway, transport, storage, or credential dependencies.
 //! Deserialization alone is not semantic validation; hosts validate role values.
+pub mod provider;
+
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::BTreeMap;

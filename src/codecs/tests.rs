@@ -252,3 +252,24 @@ fn portable_managed_reply_keeps_semantics_without_widening_core_validation() {
     changed["value"]["value"]["accounting"]["host_secret"] = json!(true);
     assert!(decode_reply(changed).is_err());
 }
+
+#[test]
+fn generic_provider_api_cannot_enter_legacy_codec_wire() {
+    for protocol in [
+        PROTOCOL,
+        EDITING_PROTOCOL,
+        gateway_plugin_contract::CAPABILITIES_PROTOCOL,
+    ] {
+        let mut operation = prepare();
+        operation["value"]["route"]["api"] = json!("plugin");
+        let value = json!({"protocol":protocol,"sequence":1,"operation":operation});
+        assert!(decode_request(value.clone()).is_err());
+        // Core deserialization can represent Plugin, but the old wire cannot.
+        let internal: Request = serde_json::from_value(value).unwrap();
+        assert!(encode_request(&internal).is_err());
+        let value = json!({"protocol":protocol,"sequence":0,"value":{"result":"ready","apis":["plugin"],"replay_versions":[1]}});
+        assert!(decode_reply(value.clone()).is_err());
+        let internal: Reply = serde_json::from_value(value).unwrap();
+        assert!(encode_reply(&internal).is_err());
+    }
+}

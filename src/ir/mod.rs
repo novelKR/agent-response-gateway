@@ -29,6 +29,7 @@ pub enum ApiProtocol {
     Messages,
     ChatCompletions,
     GeminiInteractions,
+    Plugin,
 }
 
 /// Static diagnostics never contain prompts, tool arguments, or opaque state.

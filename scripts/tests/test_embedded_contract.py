@@ -25,6 +25,64 @@ def ready(value):
 
 
 class EmbeddedContractTests(unittest.TestCase):
+    def test_provider_v9_binding_and_readiness_are_explicit(self):
+        value = manifest()
+        value['schema'] = 'gateway-embedded-manifest/v9'
+        capabilities = {'schema': 'gateway-plugin-capabilities/v1', 'apis': [], 'features': ['json'],
+                        'requires': ['provider_ipc_v1', 'responses_output_validation']}
+        binding = {'protocol': 'gateway-provider/v1', 'provider_protocol': 'synthetic.vendor/v1',
+                   'id': 'synthetic', 'version': '1.0.0', 'package_sha256': 'a' * 64,
+                   'executable_sha256': 'b' * 64, 'capabilities': capabilities,
+                   'permissions': ['read_model_payload', 'transform_model_protocol']}
+        value['configuration']['routes'][0].update(api='plugin', provider_plugin=binding, provider_path='models/a/generate')
+        def stamp(v):
+            v['configuration_sha256'] = hashlib.sha256(json.dumps(v['configuration'], ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+        stamp(value)
+        contract.validate_manifest(value)
+        frame = {**ready(value), 'schema': 'gateway-ready/v9'}
+        self.assertEqual(contract.parse_ready_line(json.dumps(frame) + '\n', value), frame)
+        for field, invalid in [('provider_path', '../escape'), ('api', 'responses'),
+                               ('api_codec', {}), ('usage_profile', 'responses/v1')]:
+            changed = copy.deepcopy(value)
+            changed['configuration']['routes'][0][field] = invalid
+            stamp(changed)
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                contract.validate_manifest(changed)
+        for field, invalid in [('provider_protocol', 'https://other/v1'), ('permissions', ['read_credentials']),
+                               ('package_sha256', 'bad'), ('protocol', 'gateway-api-codec/v3')]:
+            changed = copy.deepcopy(value)
+            changed['configuration']['routes'][0]['provider_plugin'][field] = invalid
+            stamp(changed)
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                contract.validate_manifest(changed)
+        for version in (8, 10):
+            changed = copy.deepcopy(value)
+            changed['schema'] = f'gateway-embedded-manifest/v{version}'
+            with self.assertRaises(ValueError):
+                contract.validate_manifest(changed)
+        config = {'gateway': value, 'extensions': {'schema': 'gateway-extension-configuration/v4',
+                  'packages': [{'schema': 'gateway-extension-package/v2', 'id': 'synthetic', 'version': '1.0.0',
+                                'protocol': 'gateway-provider/v1', 'provider_protocol': 'synthetic.vendor/v1',
+                                'capabilities': copy.deepcopy(capabilities)}]}}
+        def wrap():
+            return {'schema': 'gateway-extended-manifest/v9', 'configuration': config,
+                    'execution_sha256': hashlib.sha256(json.dumps(config, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode()).hexdigest()}
+        extended = wrap()
+        frame.update(schema='gateway-extended-ready/v9', manifest_schema=extended['schema'], execution_sha256=extended['execution_sha256'])
+        self.assertEqual(contract.parse_extended_ready_line(json.dumps(frame) + '\n', extended), frame)
+        config['extensions']['packages'][0]['provider_protocol'] = 'another/v1'
+        with self.assertRaisesRegex(ValueError, 'binding mismatch'):
+            contract.validate_extended_manifest(wrap())
+        config['gateway'] = manifest()
+        contract.validate_extended_manifest(wrap())
+        config['extensions']['packages'][0]['capabilities']['features'] = ['unknown']
+        with self.assertRaises(ValueError):
+            contract.validate_extended_manifest(wrap())
+        config['extensions']['packages'][0]['capabilities']['features'] = ['json']
+        config['usage_contract'] = 'gateway-usage-event/v1'
+        with self.assertRaises(ValueError):
+            contract.validate_extended_manifest(wrap())
+
     def test_capability_codec_v8_preserves_declarations_and_legacy_rejection(self):
         value = manifest()
         value['schema'] = 'gateway-embedded-manifest/v8'

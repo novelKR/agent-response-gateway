@@ -63,6 +63,7 @@ impl EmbeddedManifest {
                 Some("gateway-extended-manifest/v5") => "gateway-extended-ready/v5",
                 Some("gateway-extended-manifest/v6") => "gateway-extended-ready/v6",
                 Some("gateway-extended-manifest/v7") => "gateway-extended-ready/v7",
+                Some("gateway-extended-manifest/v9") => "gateway-extended-ready/v9",
                 Some("gateway-extended-manifest/v8") => "gateway-extended-ready/v8",
                 _ => return Err(ConfigError("Unsupported readiness schema".into())),
             };
@@ -84,6 +85,7 @@ impl EmbeddedManifest {
     pub fn ready_schema(&self) -> &'static str {
         match self.schema {
             "gateway-embedded-manifest/v7" => "gateway-ready/v7",
+            "gateway-embedded-manifest/v9" => "gateway-ready/v9",
             "gateway-embedded-manifest/v8" => "gateway-ready/v8",
             "gateway-embedded-manifest/v6" => "gateway-ready/v6",
             "gateway-embedded-manifest/v5" => "gateway-ready/v5",
@@ -154,6 +156,11 @@ impl Config {
             });
             if let Some(editing) = &route.editing {
                 route_projection["editing"] = json!({"id": self.models[&route.alias].editing_policy, "contract":"gateway-editing-policy/v1", "policy":editing});
+            }
+            if let Some(id) = &self.models[&route.alias].provider_plugin {
+                route_projection["provider_plugin"] = self.provider_plugins[id].projection();
+                route_projection["provider_path"] =
+                    serde_json::json!(self.models[&route.alias].provider_path);
             }
             if let Some(id) = &self.models[&route.alias].api_codec {
                 route_projection["api_codec"] = self.codecs[id].projection();
@@ -233,7 +240,9 @@ impl Config {
             .map(|byte| format!("{byte:02x}"))
             .collect();
         Ok(EmbeddedManifest {
-            schema: if self
+            schema: if self.models.values().any(|m| m.provider_plugin.is_some()) {
+                "gateway-embedded-manifest/v9"
+            } else if self
                 .models
                 .values()
                 .filter_map(|m| m.api_codec.as_ref())

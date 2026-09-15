@@ -202,12 +202,14 @@ pub struct Reply {
 pub(crate) fn decode_request(value: Value) -> Result<Request, IrError> {
     let wire: gateway_plugin_contract::Request =
         serde_json::from_value(value).map_err(|_| IrError::UnsupportedVersion)?;
+    validate_request_apis(&wire)?;
     transcode(&wire)
 }
 #[cfg(any(unix, test))]
 pub(crate) fn decode_reply(value: Value) -> Result<Reply, IrError> {
     let wire: gateway_plugin_contract::Reply =
         serde_json::from_value(value).map_err(|_| IrError::UnsupportedVersion)?;
+    validate_reply_apis(&wire)?;
     transcode(&wire)
 }
 fn transcode<S: Serialize, D: serde::de::DeserializeOwned>(value: &S) -> Result<D, IrError> {
@@ -217,9 +219,31 @@ fn transcode<S: Serialize, D: serde::de::DeserializeOwned>(value: &S) -> Result<
 #[cfg(any(unix, test))]
 pub(crate) fn encode_request(value: &Request) -> Result<Vec<u8>, IrError> {
     let wire: gateway_plugin_contract::Request = transcode(value)?;
+    validate_request_apis(&wire)?;
     serde_json::to_vec(&wire).map_err(|_| IrError::InvalidEventOrder)
 }
 pub(crate) fn encode_reply(value: &Reply) -> Result<Vec<u8>, IrError> {
     let wire: gateway_plugin_contract::Reply = transcode(value)?;
+    validate_reply_apis(&wire)?;
     serde_json::to_vec(&wire).map_err(|_| IrError::InvalidEventOrder)
+}
+
+// The host IR can gain protocols without expanding an existing codec contract.
+fn validate_request_apis(wire: &gateway_plugin_contract::Request) -> Result<(), IrError> {
+    if let gateway_plugin_contract::Operation::Prepare { value } = &wire.operation
+        && !gateway_plugin_contract::CODEC_APIS.contains(&value.route.api.as_str())
+    {
+        return Err(IrError::UnsupportedVersion);
+    }
+    Ok(())
+}
+fn validate_reply_apis(wire: &gateway_plugin_contract::Reply) -> Result<(), IrError> {
+    if let gateway_plugin_contract::ResultValue::Ready { apis, .. } = &wire.value
+        && apis
+            .iter()
+            .any(|api| !gateway_plugin_contract::CODEC_APIS.contains(&api.as_str()))
+    {
+        return Err(IrError::UnsupportedVersion);
+    }
+    Ok(())
 }
