@@ -5,17 +5,58 @@
 [English](provider-plugins.md) | [한국어](ko/provider-plugins.md)
 
 The `gateway-provider/v1` contract describes a separately implemented parser for a
-provider's JSON and SSE semantics. Package declarations can be inspected and
-installed, and independent protocol examples can be tested. **Production provider
-route activation remains unavailable.** Protected continuity and usage provenance
-must be integrated before a provider route is exposed as supported. Codec v3 keeps
-its existing built-in API meanings; it does not implement this role.
+provider's JSON and SSE semantics. A compatible package can be installed without
+rebuilding the gateway, explicitly enabled with its required grants, and selected
+by a model route. JSON, SSE, function-result round trips and managed continuity use
+the same host validation and recording barriers. Codec v3 keeps its existing
+built-in API meanings; it does not implement this role.
 
 The [wire schema](../schemas/gateway-provider-v1.schema.json) and
 [portable types](../crates/plugin-contract/src/provider.rs) describe the same
 language-independent messages. Schema validity alone does not establish message
 order, numeric validity, host compatibility, output validity or execution trust.
 Package v2 declarations follow the [authoring specification](plugin-authoring.md).
+
+<a id="명시적인-모델-경로"></a>
+
+## Explicit model routing
+
+After inspecting and installing the exact package, enable it with both `read_model_payload` and `transform_model_protocol` grants and start the gateway with the resulting `--extensions-lock`. The following synthetic configuration requires a separately started loopback fixture at the declared address; it is not a real-provider qualification. The profile values describe that fixture only.
+
+```toml
+listen = "127.0.0.1:0"
+
+[providers.synthetic]
+base_url = "http://127.0.0.1:12345/vendor"
+api_key_env = "SYNTHETIC_KEY"
+
+[models.demo]
+provider = "synthetic"
+upstream_model = "synthetic-model"
+api = "plugin"
+auth = "bearer"
+provider_plugin = "synthetic-provider"
+provider_protocol = "synthetic-provider/v1"
+provider_path = "generate"
+capability_profile = "synthetic"
+continuation_mode = "stateless"
+
+[capability_profiles.synthetic]
+version = "1"
+provider = "synthetic"
+upstream_model = "synthetic-model"
+api = "plugin"
+context_window = 32768
+max_output_tokens = 1024
+tested_codex_version = "synthetic-only"
+
+[capability_profiles.synthetic.support]
+function_tools = "native"
+tool_choice = "native"
+max_output_tokens = "native"
+```
+
+The host joins the configured base URL with the fixed `provider_path`; the plugin cannot replace either or select credentials. A provider route requires explicit auth, provider protocol and capability profile. Selecting `continuation_mode = "managed"` additionally requires the package managed capability, an initialized continuation store, stable key and host-authorized session described in [protected continuity](provider-continuation.md). A selected Recorder must use v2; a Recorder v1 combination is rejected before model requests.
 
 <a id="프로세스와-메시지-수명-주기"></a>
 
@@ -89,7 +130,7 @@ padded standard base64. The host enforces a one-MiB decoded bound; schema patter
 validation does not prove canonical pad bits or the decoded size. The host owns
 protection, persistence and exact route/session/package binding. This contract
 provides no authority to approve sessions or migrate a package's stored state.
-The host implements [protected V3 persistence and resume](provider-continuation.md) behind the provider activation gate. Normal startup still rejects provider activation until integrated acceptance is complete. The declaration and independent example alone do not establish protected restart support.
+The host implements [protected V3 persistence and resume](provider-continuation.md) for explicitly configured managed routes. The declaration alone does not authorize a session; the host verifies the persisted revision, origin and exact package before disclosing state.
 
 <a id="독립-예제와-검증"></a>
 
@@ -105,5 +146,7 @@ The example uses arbitrary `query`/`answer` shapes, SSE text pieces, function-ca
 results, explicit unknown/zero usage values and a versioned opaque counter. Its
 wire restart test is separate from host-encrypted persistence. Tests use only
 synthetic inputs and do not qualify any real provider, native sandbox or production
-route. The standalone conformance runner currently reports provider execution as
-unavailable; its static package result is not a provider execution certificate.
+route. The standalone runner separates a generic Ready probe from the explicit
+`synthetic-provider/v1` semantic profile. Host installation, encrypted persistence
+and Recorder integration require the separate installed acceptance procedure
+described in [plugin verification](plugin-verification.md).

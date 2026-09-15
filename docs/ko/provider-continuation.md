@@ -5,10 +5,9 @@
 [English](../provider-continuation.md) | [한국어](provider-continuation.md)
 
 호스트는 기존 native replay와 함께 불투명 `gateway-provider/v1` 상태를 위한 인증된
-버전별 영속화를 구현합니다. **운영 provider 경로 활성화는 아직 사용할 수 없습니다.**
-합성 qualification에서 이 구조를 검증할 수 있으며 공개 운영에는 연속성·사용량 출처·Recorder
-수용 검증의 결합이 필요합니다. 플러그인의 managed 기능 선언만으로 경로가 활성화되거나
-세션이 승인되지는 않습니다.
+버전별 영속화를 구현합니다. 명시적으로 활성화한 provider 패키지는 호스트가 소유하는
+연속성과 버전별 사용량 출처를 적용한 관리형 모델 경로를 사용할 수 있습니다. 플러그인의
+managed 기능 선언만으로 경로가 활성화되거나 세션이 승인되지는 않습니다.
 
 [Provider wire 계약](provider-plugins.md), [관리형 실행·복구 계약](managed-continuation.md),
 [호스트 소유 이력 계약](continuity.md)을 함께 읽으십시오. 플러그인은 공급자 상태를 해석하고,
@@ -65,7 +64,7 @@ manifest는 v10을 유지합니다. Replay 선언은 다음과 같습니다.
 
 내장 공급자만 사용하는 managed 구성은 기존 read/write 선언을 유지합니다. 호스트는 선언된
 전체 스키마와 정확한 configuration·execution digest를 이해해야 합니다. 미지원 버전은
-오류이며 암묵적 하향은 없습니다. 버전 선언이 운영 provider 활성화 제한을 해제하지 않습니다.
+오류이며 암묵적 하향은 없습니다. 버전 선언은 정확한 패키지 선택·권한 부여·세션 승인을 대신하지 않습니다.
 
 기존 attempt 예약과 SQLite finalization 장벽을 재사용합니다. 호스트는 finalize 전에 현재
 session revision, origin, epoch와 parent를 검사합니다. 인증된 parent는 같은 상태 결합의

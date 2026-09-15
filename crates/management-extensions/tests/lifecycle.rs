@@ -408,6 +408,17 @@ fn adapter_ownership_and_reopen_invalidate_old_preflight_without_repair() {
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 #[test]
 fn native_local_driver_checks_real_packages_and_fresh_grants_without_execution() {
+    native_role_lifecycle(false);
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+#[test]
+fn native_provider_enable_select_preserves_grants_and_effective_observation() {
+    native_role_lifecycle(true);
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+fn native_role_lifecycle(provider: bool) {
     use gateway_management_extensions::NativeDriver;
     use std::process::Command as Process;
     let root = temp();
@@ -460,8 +471,9 @@ fn native_local_driver_checks_real_packages_and_fresh_grants_without_execution()
         fs::write(
             &capabilities,
             serde_json::to_vec(&json!({
-                "schema":"gateway-plugin-capabilities/v1", "apis":["messages"],
-                "features":["json"], "requires":["codec_ipc_v3","responses_output_validation"]
+                "schema":"gateway-plugin-capabilities/v1",
+                "apis": if provider { json!([]) } else { json!(["messages"]) },
+                "features":["json"], "requires":[if provider { "provider_ipc_v1" } else { "codec_ipc_v3" },"responses_output_validation"]
             }))
             .unwrap(),
         )
@@ -482,7 +494,15 @@ fn native_local_driver_checks_real_packages_and_fresh_grants_without_execution()
                 "--version",
                 version,
                 "--role",
-                "api_codec",
+                if provider { "provider" } else { "api_codec" },
+            ]);
+        if provider {
+            command
+                .args(["--provider-protocol", "synthetic.vendor/v1"])
+                .arg("--capabilities")
+                .arg(&capabilities);
+        } else {
+            command.args([
                 "--codec-protocol",
                 if source == "first" {
                     "gateway-api-codec/v2"
@@ -490,8 +510,9 @@ fn native_local_driver_checks_real_packages_and_fresh_grants_without_execution()
                     "gateway-api-codec/v3"
                 },
             ]);
-        if source == "second" {
-            command.arg("--capabilities").arg(&capabilities);
+            if source == "second" {
+                command.arg("--capabilities").arg(&capabilities);
+            }
         }
         let output = command.output().unwrap();
         assert!(output.status.success());
@@ -571,6 +592,13 @@ fn native_local_driver_checks_real_packages_and_fresh_grants_without_execution()
         .state,
         State::Succeeded
     );
+    let observed = EffectiveSelection {
+        instance: id("synthetic-run"),
+        observed_at_ms: 1,
+        configuration_sha256: Digest::of(b"config"),
+        execution_sha256: None,
+        packages: vec![selections[0].clone()],
+    };
     let replacement = Command::Enable {
         package: selections[1].clone(),
         grants: grants.clone(),
@@ -595,6 +623,13 @@ fn native_local_driver_checks_real_packages_and_fresh_grants_without_execution()
         .state,
         State::Succeeded
     );
+    let selected = manager.status(Some(observed)).unwrap();
+    assert_eq!(
+        selected.store.inventory["activation"]["extensions"][0]["version"],
+        "2.0.0"
+    );
+    assert_eq!(selected.effective.unwrap().packages[0].version, "1.0.0");
+    assert!(manager.status(None).unwrap().effective.is_none());
     assert_eq!(
         apply(
             &mut manager,
@@ -631,7 +666,11 @@ fn native_local_driver_checks_real_packages_and_fresh_grants_without_execution()
         .unwrap();
     assert_eq!(
         installed_v3["package"]["capabilities"]["apis"],
-        json!(["messages"])
+        if provider {
+            json!([])
+        } else {
+            json!(["messages"])
+        }
     );
     assert_eq!(
         installed_v3["package"]["schema"],

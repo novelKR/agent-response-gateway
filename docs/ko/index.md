@@ -82,6 +82,7 @@ cargo run --locked -- check-config --config config.local.toml
 | 기능 | 현재 계약 |
 |---|---|
 | JSON과 SSE | Responses 원형 전달과 명시한 프로필에 따른 API 변환 |
+| 외부 플러그인 | 명시적으로 설치한 Observer·Recorder·codec·provider 실행 파일; 호스트 소유 HTTP 위의 JSON/SSE와 보호된 provider 연속성 |
 | 자격 증명 | 로컬 Bearer 인증과 별도의 공급자 자격 증명 |
 | 도구와 승인 | 애플리케이션이 실행하고 승인 |
 | 연속성 | 호스트가 소유하는 이력, 로컬 압축과 복구 |

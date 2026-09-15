@@ -114,8 +114,8 @@ Selecting v3 uses `gateway-embedded-manifest/v8`, `gateway-ready/v8`,
 `gateway-extended-manifest/v8` and `gateway-extended-ready/v8`. Its package
 projection uses `gateway-extension-configuration/v3` and binds exact capabilities.
 Legacy-only selections retain their existing schemas. Provider v1 package
-declarations may be installed, but provider activation/runtime remains unavailable;
-codec v3 does not add new supplier API contracts.
+declarations use the separate [provider runtime](provider-plugins.md) and explicit
+model routing; codec v3 does not add new supplier API contracts.
 
 ## IPC lifecycle and validation
 

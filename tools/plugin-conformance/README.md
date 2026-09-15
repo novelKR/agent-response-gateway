@@ -24,14 +24,44 @@ untrusted input does not authenticate its publisher. Installation must separatel
 reverify the package and enforce its private-store ownership and permissions.
 The package directory must remain unchanged during inspection.
 
-Execution requires explicit `--execute`. Only the Observer v1 executable runner
-is currently supplied. Static checks support Observer v1, Recorder v1/v2 and codec
-v1/v2/v3 and provider v1 declarations. Package v2 validates sorted API/features,
-exact required host contracts and role-specific provider identity; legacy package
-v1 cannot be reinterpreted as v2. Provider execution reports the explicit
-`provider_runtime_unavailable` code. Other role execution reports `not-run`, never a successful conformance
-claim. Additional runners register by exact protocol in `RUNNERS`; changing the
-report or wire contract requires an explicitly versioned change.
+Execution requires explicit `--execute`. Tool version `2.0.0` provides three
+profiles; none installs or selects a package in a gateway:
+
+| Profile | Executable checks | Coverage limits |
+|---|---|---|
+| `wire` (default) | Observer v1 Ready and ACKs; provider v1 exact Ready; Recorder v2 Ready and event checks with an explicit state fixture | Generic provider semantics remain `not-run`; codec and Recorder v1 executable runners are unavailable |
+| `synthetic-provider/v1` | Exact Ready, JSON, incremental SSE, function calls/results, numeric unknown/zero/invalid values and opaque state messages | Requires the explicitly selected synthetic example contract; state wire round trips are not host persistence or recovery |
+| `recorder-events/v2` | Exact Ready, canonical V1/V2/invalid-observation ACKs, duplicate ACKs and restart | Requires a disposable initialized fixture; restart proves stable producer and repeat ACK, not payload retrieval or power-loss durability |
+
+Static checks support Observer v1, Recorder v1/v2, codec v1/v2/v3 and provider
+v1. Package v2 validates sorted API/features, exact required host contracts and
+role-specific provider identity; legacy package v1 cannot be reinterpreted as v2.
+An unsupported requested role or missing fixture produces `not-run`, never pass.
+
+```sh
+python3 -B conformance.py --package /absolute/provider-package \
+  --expected-sha256 TRUSTED_MANIFEST_SHA256 --execute \
+  --state-root /absolute/private-scratch --profile synthetic-provider/v1
+python3 -B conformance.py --package /absolute/recorder-package \
+  --expected-sha256 TRUSTED_MANIFEST_SHA256 --execute \
+  --state-root /absolute/private-scratch --profile recorder-events/v2 \
+  --recorder-state-fixture /absolute/private-disposable-fixture
+```
+
+Initialize the Recorder fixture according to its own documented contract. For
+this repository's independent Recorder, run its built executable with `init` in
+an empty private directory. The runner does not guess initialization commands or
+open operational storage. It copies a flat fixture of at most 64 regular files
+and 32 MiB into disposable state, rejects links and overlapping package/scratch
+locations, and never writes back to the supplied fixture. Its digest covers the
+copied bytes and event vectors. The provider suite digest binds its suite version
+and exact tool bytes. Python script examples require an explicitly provisioned
+interpreter at the build-time absolute path; nothing downloads a runtime.
+
+Provider frames are bounded to 1 MiB within the host's larger contract ceiling;
+startup and complete exchanges have three-second deadlines. Recorder line frames
+and exchanges are bounded too. Synthetic assertions are specific to the selected
+fixture contract, not a universal test of an arbitrary supplier's semantics.
 
 The Observer runner copies all verified payload files into a temporary package directory,
 uses a separate temporary working directory, clears the environment and connects
@@ -48,16 +78,25 @@ OS authority. Do not provide real credentials, operational data or Docker socket
 Use an isolated verification environment for code that has not been reviewed.
 The harness does not certify publisher identity, descendant-process containment,
 private-store installation, observer persistence, actual gateway integration,
-provider behavior or production suitability.
+arbitrary provider behavior or production suitability. Windows native plugin
+execution is unsupported; static target recognition is separate evidence.
 
-Each invocation emits one JSON report with stable identifiers, the selected
-package digest, tool version, package/role contracts, package target, host target
-and individual `pass`, `fail` or `not-run` checks. Diagnostics are fixed codes;
-paths, package stdout/stderr and fixture bodies are not included. Overall
-`not-run` means runtime coverage is incomplete, including static-only invocation.
-Exit codes are 0 for successful requested static checks or successful execution,
-1 for failed checks, and 2 for requested but unavailable role execution. Reports
-are local test evidence, not signatures or externally published attestations.
+Each invocation emits `gateway-plugin-conformance-report/v2`, described by the
+[report schema](../../schemas/gateway-plugin-conformance-report-v2.schema.json)
+and [vectors](../../schemas/plugin-conformance-report-vectors.json). It records
+package/tool/fixture digests, tool version, package/role contracts, target, host
+and explicit profile, with per-check `pass`, `fail` or `not-run` and `required`.
+The `host.integration` check is always non-required and `not-run`: standalone
+protocol success never establishes installed gateway execution. Every required
+check must pass for overall pass. A failed attempted check remains failed when
+later checks cannot run. Cleanup pass is recorded only after process and temporary
+state cleanup finish. Report v1 consumers must explicitly adopt this v2 shape.
+
+Diagnostics are fixed codes; paths, package stdout/stderr, credentials and fixture
+bodies are excluded. Static-only invocation reports incomplete runtime coverage
+and exits 0 when requested static checks pass. Exit 1 denotes failure; exit 2
+denotes requested but incomplete execution. These are local profile-scoped test
+reports, not signatures or externally published attestations.
 
 ## Independent Observer example
 
@@ -84,5 +123,5 @@ frames, deadlines, early exits, empty environment, digest/inventory errors and
 cross-target behavior:
 
 ```sh
-python3.14 -B -m unittest discover -s scripts/tests -p test_plugin_conformance.py -v
+python3.14 -B -m unittest discover -s scripts/tests -p 'test_plugin_conformance*.py' -v
 ```

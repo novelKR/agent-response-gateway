@@ -1,0 +1,267 @@
+{
+  "schema": "gateway-plugin-conformance-report-vectors/v1",
+  "report_schema": "gateway-plugin-conformance-report-v2.schema.json",
+  "cases": [
+    {
+      "id": "static-incomplete",
+      "valid": true,
+      "value": {
+        "schema": "gateway-plugin-conformance-report/v2",
+        "tool_version": "2.0.0",
+        "package_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "tool_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "fixture_sha256": null,
+        "package_schema": "gateway-extension-package/v1",
+        "contract": "gateway-observer/v1",
+        "target": "linux-x64",
+        "host_target": "linux-x64",
+        "profile": "wire",
+        "status": "not-run",
+        "exit_code": 0,
+        "checks": [
+          {
+            "id": "package.static",
+            "status": "pass",
+            "required": true
+          },
+          {
+            "id": "role.execution",
+            "status": "not-run",
+            "required": true,
+            "code": "execution_not_requested"
+          },
+          {
+            "id": "host.integration",
+            "status": "not-run",
+            "required": false,
+            "code": "separate_host_qualification"
+          }
+        ]
+      }
+    },
+    {
+      "id": "unknown-report",
+      "valid": false,
+      "value": {
+        "schema": "gateway-plugin-conformance-report/v3",
+        "tool_version": "2.0.0",
+        "package_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "tool_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "fixture_sha256": null,
+        "package_schema": "gateway-extension-package/v1",
+        "contract": "gateway-observer/v1",
+        "target": "linux-x64",
+        "host_target": "linux-x64",
+        "profile": "wire",
+        "status": "not-run",
+        "exit_code": 0,
+        "checks": [
+          {
+            "id": "package.static",
+            "status": "pass",
+            "required": true
+          },
+          {
+            "id": "role.execution",
+            "status": "not-run",
+            "required": true,
+            "code": "execution_not_requested"
+          },
+          {
+            "id": "host.integration",
+            "status": "not-run",
+            "required": false,
+            "code": "separate_host_qualification"
+          }
+        ]
+      }
+    },
+    {
+      "id": "raw-path",
+      "valid": false,
+      "value": {
+        "schema": "gateway-plugin-conformance-report/v2",
+        "tool_version": "2.0.0",
+        "package_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "tool_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "fixture_sha256": null,
+        "package_schema": "gateway-extension-package/v1",
+        "contract": "gateway-observer/v1",
+        "target": "linux-x64",
+        "host_target": "linux-x64",
+        "profile": "wire",
+        "status": "not-run",
+        "exit_code": 0,
+        "checks": [
+          {
+            "id": "package.static",
+            "status": "pass",
+            "required": true
+          },
+          {
+            "id": "role.execution",
+            "status": "not-run",
+            "required": true,
+            "code": "execution_not_requested"
+          },
+          {
+            "id": "host.integration",
+            "status": "not-run",
+            "required": false,
+            "code": "separate_host_qualification"
+          }
+        ],
+        "local_path": "/synthetic/private"
+      }
+    },
+    {
+      "id": "wrong-digest",
+      "valid": false,
+      "value": {
+        "schema": "gateway-plugin-conformance-report/v2",
+        "tool_version": "2.0.0",
+        "package_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "tool_sha256": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "fixture_sha256": null,
+        "package_schema": "gateway-extension-package/v1",
+        "contract": "gateway-observer/v1",
+        "target": "linux-x64",
+        "host_target": "linux-x64",
+        "profile": "wire",
+        "status": "not-run",
+        "exit_code": 0,
+        "checks": [
+          {
+            "id": "package.static",
+            "status": "pass",
+            "required": true
+          },
+          {
+            "id": "role.execution",
+            "status": "not-run",
+            "required": true,
+            "code": "execution_not_requested"
+          },
+          {
+            "id": "host.integration",
+            "status": "not-run",
+            "required": false,
+            "code": "separate_host_qualification"
+          }
+        ]
+      }
+    },
+    {
+      "id": "false-pass",
+      "valid": false,
+      "value": {
+        "schema": "gateway-plugin-conformance-report/v2",
+        "tool_version": "2.0.0",
+        "package_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "tool_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "fixture_sha256": null,
+        "package_schema": "gateway-extension-package/v1",
+        "contract": "gateway-observer/v1",
+        "target": "linux-x64",
+        "host_target": "linux-x64",
+        "profile": "wire",
+        "status": "pass",
+        "exit_code": 0,
+        "checks": [
+          {
+            "id": "package.static",
+            "status": "pass",
+            "required": true
+          },
+          {
+            "id": "role.execution",
+            "status": "not-run",
+            "required": true,
+            "code": "execution_not_requested"
+          },
+          {
+            "id": "host.integration",
+            "status": "not-run",
+            "required": false,
+            "code": "separate_host_qualification"
+          }
+        ]
+      }
+    },
+    {
+      "id": "invalid-profile",
+      "valid": false,
+      "value": {
+        "schema": "gateway-plugin-conformance-report/v2",
+        "tool_version": "2.0.0",
+        "package_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "tool_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "fixture_sha256": null,
+        "package_schema": "gateway-extension-package/v1",
+        "contract": "gateway-observer/v1",
+        "target": "linux-x64",
+        "host_target": "linux-x64",
+        "profile": "arbitrary",
+        "status": "not-run",
+        "exit_code": 0,
+        "checks": [
+          {
+            "id": "package.static",
+            "status": "pass",
+            "required": true
+          },
+          {
+            "id": "role.execution",
+            "status": "not-run",
+            "required": true,
+            "code": "execution_not_requested"
+          },
+          {
+            "id": "host.integration",
+            "status": "not-run",
+            "required": false,
+            "code": "separate_host_qualification"
+          }
+        ]
+      }
+    },
+    {
+      "id": "failed-static",
+      "valid": true,
+      "value": {
+        "schema": "gateway-plugin-conformance-report/v2",
+        "tool_version": "2.0.0",
+        "package_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "tool_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "fixture_sha256": null,
+        "package_schema": "gateway-extension-package/v1",
+        "contract": "gateway-observer/v1",
+        "target": "linux-x64",
+        "host_target": "linux-x64",
+        "profile": "wire",
+        "status": "fail",
+        "exit_code": 1,
+        "checks": [
+          {
+            "id": "package.static",
+            "status": "fail",
+            "required": true,
+            "code": "manifest_digest"
+          },
+          {
+            "id": "role.execution",
+            "status": "not-run",
+            "required": true,
+            "code": "execution_not_requested"
+          },
+          {
+            "id": "host.integration",
+            "status": "not-run",
+            "required": false,
+            "code": "separate_host_qualification"
+          }
+        ]
+      }
+    }
+  ]
+}

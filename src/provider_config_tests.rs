@@ -135,15 +135,14 @@ fn provider_host_paths_never_escape_origin_or_prefix() {
 }
 
 #[test]
-fn provider_configuration_is_explicit_frozen_and_unavailable_by_default() {
+fn provider_configuration_is_explicit_frozen_and_activated() {
     let value = package("synthetic.vendor/v1", b"inert fixture");
     let (_temp, lock) = fixture(&value);
-    assert!(ExtensionPlan::load(&lock).is_err());
-    let plan = ExtensionPlan::load_provider_qualification(&lock).unwrap();
+    let plan = ExtensionPlan::load(&lock).unwrap();
     // An inert provider entry must not be launched as an Observer at host startup.
     drop(crate::extensions::ExtensionRuntime::start(&plan).unwrap());
-    assert!(Config::parse_startup(&config(), None, Some(&plan)).is_err());
-    let valid = Config::parse_provider_qualification(&config(), &plan).unwrap();
+    assert!(Config::parse_startup(&config(), None, None).is_err());
+    let valid = Config::parse_startup(&config(), None, Some(&plan)).unwrap();
     let model = &valid.models["example/chat"];
     assert_eq!(valid.resolved_usage_profile(model), None);
     assert_eq!(model.resolved_usage_profile(), None);
@@ -188,8 +187,8 @@ fn provider_configuration_is_explicit_frozen_and_unavailable_by_default() {
     let mut changed_package = value.clone();
     changed_package["capabilities"]["features"] = json!(["json", "streaming"]);
     let (_other_temp, other_lock) = fixture(&changed_package);
-    let other_plan = ExtensionPlan::load_provider_qualification(&other_lock).unwrap();
-    let other = Config::parse_provider_qualification(&config(), &other_plan).unwrap();
+    let other_plan = ExtensionPlan::load(&other_lock).unwrap();
+    let other = Config::parse_startup(&config(), None, Some(&other_plan)).unwrap();
     assert_ne!(
         other
             .resolve_route("example/chat")
@@ -204,10 +203,11 @@ fn provider_configuration_is_explicit_frozen_and_unavailable_by_default() {
     );
     let vendor = package("second.vendor/v2", b"inert fixture");
     let (_vendor_temp, vendor_lock) = fixture(&vendor);
-    let vendor_plan = ExtensionPlan::load_provider_qualification(&vendor_lock).unwrap();
-    let vendor_config = Config::parse_provider_qualification(
+    let vendor_plan = ExtensionPlan::load(&vendor_lock).unwrap();
+    let vendor_config = Config::parse_startup(
         &config().replace("synthetic.vendor/v1", "second.vendor/v2"),
-        &vendor_plan,
+        None,
+        Some(&vendor_plan),
     )
     .unwrap();
     assert_eq!(
@@ -223,9 +223,10 @@ fn provider_configuration_is_explicit_frozen_and_unavailable_by_default() {
         serde_json::to_value(valid.manifest().unwrap()).unwrap(),
         before
     );
-    let changed = Config::parse_provider_qualification(
+    let changed = Config::parse_startup(
         &config().replace("provider_path = \"generate\"", "provider_path = \"next\""),
-        &plan,
+        None,
+        Some(&plan),
     )
     .unwrap();
     assert_ne!(
@@ -248,7 +249,7 @@ fn provider_configuration_is_explicit_frozen_and_unavailable_by_default() {
         "capability_profile = \"chat-profile\"\n",
     ] {
         assert!(
-            Config::parse_provider_qualification(&config().replace(line, ""), &plan).is_err(),
+            Config::parse_startup(&config().replace(line, ""), None, Some(&plan)).is_err(),
             "{line}"
         );
     }
@@ -276,7 +277,7 @@ fn provider_configuration_is_explicit_frozen_and_unavailable_by_default() {
             );
         }
         assert!(
-            Config::parse_provider_qualification(&raw, &plan).is_err(),
+            Config::parse_startup(&raw, None, Some(&plan)).is_err(),
             "{replacement}"
         );
     }

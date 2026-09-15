@@ -123,23 +123,30 @@ fn package_patched(inert_transport_fields: bool, patch: Option<(&str, &str)>) ->
         "--expected-sha256",
         &digest,
     ]);
-    // Only this internal qualification harness selects the unavailable role.
-    let state = store.join("state/synthetic-provider").join(&digest);
-    fs::create_dir_all(&state).unwrap();
-    for p in state.ancestors().take_while(|p| p.starts_with(&store)) {
-        fs::set_permissions(p, fs::Permissions::from_mode(0o700)).unwrap();
-    }
+    command(&[
+        root.join("scripts/extension_manager.py").to_str().unwrap(),
+        "enable",
+        "--store",
+        store.to_str().unwrap(),
+        "--id",
+        "synthetic-provider",
+        "--version",
+        "1.0.0",
+        "--package-sha256",
+        &digest,
+        "--grant",
+        "read_model_payload",
+        "--grant",
+        "transform_model_protocol",
+    ]);
     let lock = store.join("active.json");
-    let value = json!({"schema":"gateway-extension-lock/v1","generation":1,"extensions":[{"id":"synthetic-provider","version":"1.0.0","package_sha256":digest,"grants":["read_model_payload","transform_model_protocol"]}]});
-    fs::write(&lock, format!("{value}\n")).unwrap();
-    fs::set_permissions(&lock, fs::Permissions::from_mode(0o600)).unwrap();
     Package {
         _directory: directory,
         lock,
     }
 }
 fn configuration(package: &Package, upstream: &str) -> Config {
-    let plan = ExtensionPlan::load_provider_qualification(&package.lock).unwrap();
+    let plan = ExtensionPlan::load(&package.lock).unwrap();
     let text = format!(
         r#"
 [providers.synthetic]
@@ -168,7 +175,7 @@ tool_choice="native"
 max_output_tokens="native"
 "#
     );
-    let config = Config::parse_provider_qualification(&text, &plan).unwrap();
+    let config = Config::parse_startup(&text, None, Some(&plan)).unwrap();
     assert!(
         config
             .resolved_usage_profile(&config.models["demo"])
@@ -1246,4 +1253,91 @@ async fn managed_provider_v2_sse_tool_output_waits_for_final_ack_after_checkpoin
         host.close().await;
         worker.abort();
     }
+}
+
+#[tokio::test]
+async fn provider_disconnect_after_first_delta_reaps_child_and_cancels_upstream() {
+    struct CancelSignal(Arc<tokio::sync::Notify>);
+    impl Drop for CancelSignal {
+        fn drop(&mut self) {
+            self.0.notify_one();
+        }
+    }
+    let local = Path::new(env!("CARGO_MANIFEST_DIR")).join(".local/provider-cancel-tests");
+    fs::create_dir_all(&local).unwrap();
+    let evidence = tempfile::tempdir_in(local.canonicalize().unwrap()).unwrap();
+    let pid_file = evidence.path().join("provider.pid");
+    let replacement = format!(
+        "    import os\n    with open({:?}, 'w') as marker:\n        marker.write(str(os.getpid()))\n    provider = Provider()",
+        pid_file.to_str().unwrap()
+    );
+    let package = package_patched(false, Some(("    provider = Provider()", &replacement)));
+    let cancelled = Arc::new(tokio::sync::Notify::new());
+    let upstream_cancelled = cancelled.clone();
+    let server = upstream(Router::new().route(
+        "/vendor/generate",
+        post(move || {
+            let guard = CancelSignal(upstream_cancelled.clone());
+            async move {
+                let stream = async_stream::stream! {
+                    let _guard = guard;
+                    yield Ok::<_, std::io::Error>(axum::body::Bytes::from_static(
+                        b"event: piece\ndata: {\"text\":\"before cancellation\"}\n\n"));
+                    std::future::pending::<()>().await;
+                };
+                (
+                    [(header::CONTENT_TYPE, "text/event-stream")],
+                    Body::from_stream(stream),
+                )
+                    .into_response()
+            }
+        }),
+    ))
+    .await;
+    let (_gateway, response) = request(
+        gateway(&package, &server.url),
+        json!({"model":"demo","input":"synthetic input","stream":true}),
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let mut chunks = response.bytes_stream();
+    let mut received = Vec::new();
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while let Some(chunk) = chunks.next().await {
+            received.extend_from_slice(&chunk.unwrap());
+            if String::from_utf8_lossy(&received).contains("response.output_text.delta") {
+                return;
+            }
+        }
+        panic!("provider stream ended before its first delta");
+    })
+    .await
+    .unwrap();
+    assert!(!String::from_utf8_lossy(&received).contains("response.completed"));
+    let pid = fs::read_to_string(pid_file).unwrap();
+    assert!(
+        Command::new("/bin/kill")
+            .args(["-0", pid.trim()])
+            .stderr(std::process::Stdio::null())
+            .status()
+            .unwrap()
+            .success()
+    );
+    drop(chunks);
+    tokio::time::timeout(Duration::from_secs(5), cancelled.notified())
+        .await
+        .unwrap();
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while Command::new("/bin/kill")
+            .args(["-0", pid.trim()])
+            .stderr(std::process::Stdio::null())
+            .status()
+            .unwrap()
+            .success()
+        {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+    })
+    .await
+    .unwrap();
 }

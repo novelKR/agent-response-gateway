@@ -145,6 +145,27 @@ jobs:
       - name: Verify profile packs alongside native observers
         if: runner.os != 'Windows'
         run: python -B scripts/extension_smoke.py --binary target/debug/agent-response-gateway --observer target/debug/examples/metadata_observer --profile-packs
+      - name: Build the shipped Recorder for query compatibility rejection
+        if: runner.os != 'Windows'
+        run: cargo +1.98.0 build -p gateway-usage-recorder --locked
+      - name: Exercise independently installed provider and Recorder contracts
+        if: runner.os != 'Windows'
+        run: >-
+          python -B scripts/provider_acceptance.py
+          --binary target/debug/agent-response-gateway
+          --manager scripts/extension_manager.py
+          --provider-example tools/plugin-conformance/examples/provider
+          --recorder-example tools/plugin-conformance/examples/recorder
+          --query-recorder target/debug/gateway-usage-recorder
+          --output .local/provider-acceptance-report.json
+      - name: Preserve the synthetic installed acceptance report
+        if: ${{ always() && runner.os != 'Windows' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: provider-acceptance-${{ matrix.target }}
+          path: .local/provider-acceptance-report.json
+          archive: true
+          if-no-files-found: error
       - name: Exercise native CLI, four protocols, durable restart and graceful shutdown
         env:
           GATEWAY_EXECUTABLE: ${{ matrix.executable }}

@@ -336,7 +336,7 @@ class ExtensionManagerTests(unittest.TestCase):
         with self.assertRaises(m.ExtensionError):
             m.inspect_package(package, sha)
 
-    def test_provider_static_install_preserves_identity_but_activation_is_unavailable(self):
+    def test_provider_install_and_activation_preserve_identity_and_explicit_grants(self):
         package = self.root / 'provider'
         sha = m.package_binary(self.binary, self.license, package, 'provider', '1.0.0',
                                'provider', capabilities=self.provider_capabilities(),
@@ -349,9 +349,15 @@ class ExtensionManagerTests(unittest.TestCase):
         m.install(self.store, package, sha)
         self.assertEqual(m.inventory(self.store)['inventory']['installed'][0]['package'], value)
         with self.assertRaises(m.ExtensionError):
-            m.enable(self.store, 'provider', '1.0.0', sha, m.CODEC_PERMISSIONS)
+            m.enable(self.store, 'provider', '1.0.0', sha, m.PERMISSIONS)
         self.assertEqual(m.read_lock(self.store)['extensions'], [])
         self.assertFalse((self.store / 'state' / 'provider').exists())
+        m.enable(self.store, 'provider', '1.0.0', sha, m.CODEC_PERMISSIONS)
+        self.assertEqual(m.read_lock(self.store)['extensions'], [{
+            'id': 'provider', 'version': '1.0.0', 'package_sha256': sha,
+            'grants': m.CODEC_PERMISSIONS}])
+        self.assertTrue((self.store / 'state' / 'provider' / sha).is_dir())
+        self.assertEqual(m.inventory(self.store)['inventory']['installed'][0]['package'], value)
 
     def test_capability_schema_and_arrays_reject_noncanonical_or_unsupported_values(self):
         for field, replacement in [

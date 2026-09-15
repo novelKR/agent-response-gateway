@@ -65,21 +65,6 @@ impl Config {
         packs: Option<crate::profile_packs::ProfilePackPlan>,
         extensions: Option<&crate::extensions::ExtensionPlan>,
     ) -> Result<Self, ConfigError> {
-        Self::parse_startup_inner(raw, packs, extensions, false)
-    }
-    #[cfg(all(test, unix))]
-    pub(crate) fn parse_provider_qualification(
-        raw: &str,
-        extensions: &crate::extensions::ExtensionPlan,
-    ) -> Result<Self, ConfigError> {
-        Self::parse_startup_inner(raw, None, Some(extensions), true)
-    }
-    fn parse_startup_inner(
-        raw: &str,
-        packs: Option<crate::profile_packs::ProfilePackPlan>,
-        extensions: Option<&crate::extensions::ExtensionPlan>,
-        qualification: bool,
-    ) -> Result<Self, ConfigError> {
         let mut config: Self = toml::from_str(raw).map_err(|_| {
             ConfigError("Invalid TOML configuration or unknown configuration field".into())
         })?;
@@ -94,7 +79,6 @@ impl Config {
             BTreeMap::new,
             crate::extensions::ExtensionPlan::provider_bindings,
         );
-        config.provider_qualification = qualification;
         config.validate()?;
         Ok(config)
     }

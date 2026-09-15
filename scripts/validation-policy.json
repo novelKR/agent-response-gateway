@@ -232,6 +232,28 @@
           "{gateway-bin}",
           "--observer",
           "{observer-bin}"
+        ],
+        [
+          "cargo",
+          "build",
+          "--locked",
+          "-p",
+          "gateway-usage-recorder"
+        ],
+        [
+          "{python}",
+          "-B",
+          "scripts/provider_acceptance.py",
+          "--binary",
+          "{gateway-bin}",
+          "--manager",
+          "scripts/extension_manager.py",
+          "--provider-example",
+          "tools/plugin-conformance/examples/provider",
+          "--recorder-example",
+          "tools/plugin-conformance/examples/recorder",
+          "--query-recorder",
+          "{recorder-bin}"
         ]
       ]
     }
@@ -374,6 +396,47 @@
       ]
     },
     {
+      "name": "plugin-tooling",
+      "patterns": [
+        "tools/plugin-conformance/**",
+        "scripts/tests/test_plugin_conformance.py",
+        "tooling/plugin-tools/**",
+        "scripts/build_plugin_tools.py",
+        "scripts/tests/test_plugin_tools.py",
+        "scripts/tests/test_provider_example.py",
+        "scripts/tests/test_recorder_example.py",
+        "scripts/tests/test_plugin_conformance_v2.py",
+        "scripts/provider_acceptance.py",
+        "scripts/tests/test_provider_acceptance.py",
+        "schemas/gateway-plugin-conformance-report-v2.schema.json",
+        "schemas/plugin-conformance-report-vectors.json"
+      ],
+      "ci": [
+        "targets",
+        "format",
+        "rust",
+        "publication",
+        "licenses",
+        "codex-conformance",
+        "package-smoke",
+        "docs",
+        "usage-recorder",
+        "api-codecs",
+        "management-web"
+      ],
+      "local": [
+        "boundary",
+        "scripts",
+        "rust",
+        "licenses",
+        "docs",
+        "web",
+        "web-api",
+        "extension"
+      ],
+      "full": true
+    },
+    {
       "name": "core",
       "patterns": [
         "src/**",
@@ -453,42 +516,6 @@
         "scripts/package_smoke.py",
         "scripts/tests/test_release*",
         "scripts/tests/test_optional_package.py"
-      ],
-      "ci": [
-        "targets",
-        "format",
-        "rust",
-        "publication",
-        "licenses",
-        "codex-conformance",
-        "package-smoke",
-        "docs",
-        "usage-recorder",
-        "api-codecs",
-        "management-web"
-      ],
-      "local": [
-        "boundary",
-        "scripts",
-        "rust",
-        "licenses",
-        "docs",
-        "web",
-        "web-api",
-        "extension"
-      ],
-      "full": true
-    },
-    {
-      "name": "plugin-tooling",
-      "patterns": [
-        "tools/plugin-conformance/**",
-        "scripts/tests/test_plugin_conformance.py",
-        "tooling/plugin-tools/**",
-        "scripts/build_plugin_tools.py",
-        "scripts/tests/test_plugin_tools.py",
-        "scripts/tests/test_provider_example.py",
-        "scripts/tests/test_recorder_example.py"
       ],
       "ci": [
         "targets",

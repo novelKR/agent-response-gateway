@@ -120,12 +120,13 @@ integration or new endpoint.
 |---|---|
 | Business data and approval records | Backend application |
 | Conversation history and recovery | Host under the current continuity contract |
-| Provider-specific continuation | Opt-in gateway continuation under host-owned origin and recovery contracts; independent module deployment remains future work |
+| Provider-specific continuation | Opt-in gateway continuation under host-owned origin and recovery contracts, including external provider state; a separate continuation service remains future work |
 | Public Response objects and lineage | Future optional service with access and retention contracts |
 | Usage ledger and delivery outbox | Optional Usage Recorder |
 
-Dynamic credential leases, tenant-specific selection, account pools and provider
-continuity are extension directions, not capabilities enabled by this example.
+Dynamic credential leases, tenant-specific selection and account pools remain
+extension directions. Provider continuity requires its explicit model/session
+configuration; this embedding example does not enable it automatically.
 Standalone applications may eventually supply these modules themselves; an
 external policy service is not a mandatory controller of the core. See the
 [product overview](index.md) for composition choices.

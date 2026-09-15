@@ -15,7 +15,7 @@ Messages and Chat remain stateless by default. Database configuration alone does
 not enable reasoning: select continuation_mode="managed" and a reasoning_contract
 on the capability profile. Gemini retains its existing managed default.
 
-The provider role uses separate [protected V3 continuation](provider-continuation.md), including exact package/state binding and original-version authentication. Production provider activation remains unavailable while integrated recording acceptance is pending. Builtin behavior below retains its existing contracts.
+The provider role uses separate [protected V3 continuation](provider-continuation.md), including exact package/state binding and original-version authentication. Explicit provider routes use the same host session authority and versioned recording barriers. Builtin behavior below retains its existing contracts.
 
 ## Execution and display
 

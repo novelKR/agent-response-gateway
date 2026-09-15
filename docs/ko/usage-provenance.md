@@ -7,8 +7,8 @@
 사용량 이벤트 버전은 공급자 의미를 해석한 주체를 구분합니다. 기존 내장 어댑터는
 `gateway-usage-event/v1`을 계속 생성하며 원래 정규화, canonical 바이트, 이벤트 hash와
 ACK 의미를 보존합니다. `gateway-usage-event/v2`는 명시적으로 신뢰한 provider 플러그인의
-숫자 해석을 기록하며 내장 파서 검증으로 표시하지 않습니다. 연속성과 기록 수용 검증을
-결합하기 전에는 provider 경로 활성화를 사용할 수 없습니다. Recorder v2 패키지 설치가
+숫자 해석을 기록하며 내장 파서 검증으로 표시하지 않습니다. 명시적으로 선택한 provider
+경로는 연속성과 기록 장벽을 통과하며 이 정체성을 보존합니다. Recorder v2 패키지 설치가
 provider 경로를 활성화하지는 않습니다.
 
 [이벤트 스키마](../../schemas/gateway-usage-event-v2.schema.json)와

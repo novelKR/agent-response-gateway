@@ -129,13 +129,22 @@ class RecorderExampleTests(unittest.TestCase):
 
     def test_invalid_evidence_preserves_unknown_and_zero(self):
         value = self.event(2)
+        value["request_id"] = "synthetic-request-1"
         counters = value['usage']['counters']
         counters['input_tokens'] = {'source': 'invalid', 'value': None}
         counters['output_tokens'] = {'source': 'reported', 'value': 0}
         counters['total_tokens'] = {'source': 'not_reported', 'value': None}
         value['usage']['violations'] = ['invalid_counter']
         raw = self.send(value)
-        self.assertNotIn(b'-1', raw)
+        with sqlite3.connect(self.root / 'events.sqlite3') as db:
+            payload, checksum = db.execute('SELECT payload,sha256 FROM events WHERE event_id=?',
+                                           (value['event_id'],)).fetchone()
+        self.assertEqual(payload, raw)
+        self.assertEqual(checksum, hashlib.sha256(payload).hexdigest())
+        stored = json.loads(payload)
+        self.assertEqual(stored['request_id'], 'synthetic-request-1')
+        self.assertEqual(stored['usage']['counters'], counters)
+        self.assertEqual(stored['usage']['violations'], ['invalid_counter'])
 
     def test_malformed_negative_value_is_not_recorded(self):
         value = self.event(2)

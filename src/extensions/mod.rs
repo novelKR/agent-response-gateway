@@ -272,14 +272,6 @@ pub struct ExtensionPlan {
 impl ExtensionPlan {
     #[cfg(unix)]
     pub fn load(path: &std::path::Path) -> Result<Self, ConfigError> {
-        Self::load_inner(path, false)
-    }
-    #[cfg(all(test, unix))]
-    pub(crate) fn load_provider_qualification(path: &std::path::Path) -> Result<Self, ConfigError> {
-        Self::load_inner(path, true)
-    }
-    #[cfg(unix)]
-    fn load_inner(path: &std::path::Path, qualification: bool) -> Result<Self, ConfigError> {
         host_target()?;
         filesystem::no_links(path)?;
         let root = path.parent().ok_or_else(invalid)?.to_path_buf();
@@ -301,13 +293,6 @@ impl ExtensionPlan {
             }
             let package: Package = decode(&raw)?;
             package.validate()?;
-            if package.protocol == gateway_plugin_contract::PROVIDER_PROTOCOL
-                && !(cfg!(test) && qualification)
-            {
-                return Err(ConfigError(
-                    "Provider plugin runtime is not available".into(),
-                ));
-            }
             if package.id != entry.id || package.version != entry.version {
                 return Err(invalid());
             }
