@@ -101,6 +101,17 @@ class EmbeddedContractTests(unittest.TestCase):
         configuration={'gateway':value,'extensions':{'schema':'gateway-extension-configuration/v4','packages':[{'schema':'gateway-extension-package/v2','id':'synthetic','version':'1.0.0','protocol':'gateway-provider/v1','provider_protocol':'synthetic/v1','capabilities':caps}]}}
         extended={'schema':'gateway-extended-manifest/v10','configuration':configuration,'execution_sha256':hashlib.sha256(json.dumps(configuration,ensure_ascii=False,sort_keys=True,separators=(',',':')).encode()).hexdigest()}
         frame.update(schema='gateway-extended-ready/v10',manifest_schema=extended['schema'],execution_sha256=extended['execution_sha256']);contract.parse_extended_ready_line(json.dumps(frame)+'\n',extended)
+        # Recorder v2 wraps the same managed-provider v10 base without downgrading replay.
+        combined=copy.deepcopy(configuration)
+        combined['extensions']['schema']='gateway-extension-configuration/v5'
+        combined['extensions']['packages'].append({'schema':'gateway-extension-package/v2','id':'recorder','version':'1.0.0','protocol':'gateway-usage-recorder/v2','state_schema':'usage-store/v2','permissions':['export_usage','observe_usage','write_usage_store'],'capabilities':{'schema':'gateway-plugin-capabilities/v1','apis':[],'features':['usage_event_v1','usage_event_v2'],'requires':['usage_recorder_ipc_v2']}})
+        combined.update(usage_event_schemas=['gateway-usage-event/v1','gateway-usage-event/v2'],usage_profiles=['responses/v1','chat/v1','messages/v1','gemini_interactions/v1','deepseek/v1'])
+        outer={'schema':'gateway-extended-manifest/v11','configuration':combined,'execution_sha256':hashlib.sha256(json.dumps(combined,ensure_ascii=False,sort_keys=True,separators=(',',':')).encode()).hexdigest()}
+        contract.validate_extended_manifest(outer)
+        combined_ready={**frame,'schema':'gateway-extended-ready/v11','manifest_schema':outer['schema'],'execution_sha256':outer['execution_sha256']}
+        contract.parse_extended_ready_line(json.dumps(combined_ready)+'\n',outer)
+        wrong=copy.deepcopy(outer);wrong['configuration']['gateway']['configuration']['replay_versions']={'read':[1,2],'write':2}
+        with self.assertRaises(ValueError):contract.validate_extended_manifest(wrong)
 
     def test_capability_codec_v8_preserves_declarations_and_legacy_rejection(self):
         value = manifest()
@@ -313,6 +324,35 @@ class EmbeddedContractTests(unittest.TestCase):
             child.wait(timeout=5)
             child.stdout.close()
         self.assertIsNotNone(child.returncode)
+
+
+    def test_recorder_v11_requires_exact_versioned_selection(self):
+        caps = {'schema': 'gateway-plugin-capabilities/v1', 'apis': [],
+                'features': ['usage_event_v1', 'usage_event_v2'], 'requires': ['usage_recorder_ipc_v2']}
+        package = {'schema': 'gateway-extension-package/v2', 'id': 'recorder', 'version': '1.0.0',
+                   'protocol': 'gateway-usage-recorder/v2', 'state_schema': 'usage-store/v2',
+                   'permissions': ['export_usage', 'observe_usage', 'write_usage_store'], 'capabilities': caps}
+        configuration = {'gateway': manifest(), 'extensions': {'schema': 'gateway-extension-configuration/v5', 'packages': [package]},
+                         'usage_event_schemas': ['gateway-usage-event/v1', 'gateway-usage-event/v2'],
+                         'usage_profiles': ['responses/v1', 'chat/v1', 'messages/v1']}
+        def wrapped(configuration):
+            return {'schema': 'gateway-extended-manifest/v11', 'configuration': configuration,
+                    'execution_sha256': hashlib.sha256(json.dumps(configuration, sort_keys=True, separators=(',', ':'), ensure_ascii=False).encode()).hexdigest()}
+        contract.validate_extended_manifest(wrapped(configuration))
+        for field, value in [('protocol', 'gateway-usage-recorder/v1'), ('capabilities', {}), ('state_schema', 'usage-store/v1')]:
+            changed = copy.deepcopy(configuration)
+            changed['extensions']['packages'][0][field] = value
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                contract.validate_extended_manifest(wrapped(changed))
+        changed = copy.deepcopy(configuration)
+        changed['extensions']['packages'] = []
+        with self.assertRaises(ValueError):
+            contract.validate_extended_manifest(wrapped(changed))
+        changed = copy.deepcopy(configuration)
+        changed['usage_contract'] = 'gateway-usage-event/v2'
+        del changed['usage_event_schemas']
+        with self.assertRaises(ValueError):
+            contract.validate_extended_manifest(wrapped(changed))
 
 
 if __name__ == "__main__":

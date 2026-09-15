@@ -487,7 +487,8 @@
         "tooling/plugin-tools/**",
         "scripts/build_plugin_tools.py",
         "scripts/tests/test_plugin_tools.py",
-        "scripts/tests/test_provider_example.py"
+        "scripts/tests/test_provider_example.py",
+        "scripts/tests/test_recorder_example.py"
       ],
       "ci": [
         "targets",

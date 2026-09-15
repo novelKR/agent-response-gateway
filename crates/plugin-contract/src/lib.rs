@@ -32,6 +32,20 @@ pub struct Capabilities {
 impl Capabilities {
     pub fn validate_for(&self, protocol: &str) -> bool {
         let sorted = |values: &[String]| values.windows(2).all(|v| v[0] < v[1]);
+        if protocol == "gateway-usage-recorder/v2" {
+            return self.schema == CAPABILITIES_SCHEMA
+                && self.apis.is_empty()
+                && self
+                    .features
+                    .iter()
+                    .map(String::as_str)
+                    .eq(["usage_event_v1", "usage_event_v2"])
+                && self
+                    .requires
+                    .iter()
+                    .map(String::as_str)
+                    .eq(["usage_recorder_ipc_v2"]);
+        }
         self.schema == CAPABILITIES_SCHEMA
             && sorted(&self.apis)
             && sorted(&self.features)

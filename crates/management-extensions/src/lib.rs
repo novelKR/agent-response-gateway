@@ -332,8 +332,10 @@ impl Manager {
                         if installed["package"]["permissions"] != json!(grants) {
                             return Err(Error::Forbidden);
                         }
-                        let is_recorder =
-                            installed["package"]["protocol"] == "gateway-usage-recorder/v1";
+                        let is_recorder = matches!(
+                            installed["package"]["protocol"].as_str(),
+                            Some("gateway-usage-recorder/v1" | "gateway-usage-recorder/v2")
+                        );
                         if is_recorder != recorder.is_some() {
                             return Err(Error::InvalidInput);
                         }

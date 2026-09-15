@@ -655,6 +655,11 @@ pub enum Destination {
         url: String,
         bearer_file: String,
     },
+    HttpV2 {
+        id: String,
+        url: String,
+        bearer_file: String,
+    },
     Postgres {
         id: String,
         connection_file: String,
@@ -665,7 +670,7 @@ pub enum Destination {
 impl Destination {
     pub fn id(&self) -> &str {
         match self {
-            Self::Http { id, .. } | Self::Postgres { id, .. } => id,
+            Self::Http { id, .. } | Self::HttpV2 { id, .. } | Self::Postgres { id, .. } => id,
         }
     }
 }
@@ -697,3 +702,6 @@ pub struct BatchReceipt {
     pub schema: String,
     pub receipts: Vec<Receipt>,
 }
+
+mod versioned;
+pub use versioned::*;

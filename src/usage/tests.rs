@@ -108,8 +108,12 @@ function_tools="native"
     let observed = events.clone();
     let worker = tokio::spawn(async move {
         while let Some(d) = receiver.recv().await {
-            let accepted = ack && !(fail_final && d.event.kind == EventKind::AttemptFinished);
-            observed.lock().unwrap().push(d.event);
+            let accepted =
+                ack && !(fail_final && d.event.view().kind == EventKind::AttemptFinished);
+            observed
+                .lock()
+                .unwrap()
+                .push(d.event.as_v1().expect("legacy test event").clone());
             let _ = d.ack.send(accepted);
         }
     });
@@ -118,6 +122,7 @@ function_tools="native"
         mode: Mode::DurableLocal,
         timeout: Duration::from_millis(200),
         producer: "producer".into(),
+        supports_v2: false,
         dropped: Arc::new(AtomicU64::new(0)),
     };
     let gateway =

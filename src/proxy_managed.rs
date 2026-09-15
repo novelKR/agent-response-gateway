@@ -120,18 +120,21 @@ async fn reserve_attempt(
 }
 async fn observe_managed(
     accounting: &mut Option<usage::Attempt>,
+    provider: &mut Option<usage::ProviderAttempt>,
     observation: &ManagedObservation,
 ) -> Result<(), ()> {
     match observation {
-        ManagedObservation::Builtin(value) => usage::observe_managed(accounting, value).await,
-        ManagedObservation::Provider(value) => {
-            if accounting.is_some()
-                || value.identity.protocol != gateway_plugin_contract::PROVIDER_PROTOCOL
-            {
-                Err(())
-            } else {
-                Ok(())
+        ManagedObservation::Builtin(value) => {
+            if provider.is_some() {
+                return Err(());
             }
+            usage::observe_managed(accounting, value).await
+        }
+        ManagedObservation::Provider(value) => {
+            if accounting.is_some() {
+                return Err(());
+            }
+            usage::observe_provider(provider, Some(value.clone())).await
         }
     }
 }
@@ -357,6 +360,40 @@ pub(crate) async fn responses(
     } else {
         None
     };
+    let mut provider_accounting = if let Some(binding) = &route.provider_plugin {
+        let timestamp = usage::now();
+        usage::ProviderAttempt::start(
+            state.usage.as_ref(),
+            usage::UsageEventV2 {
+                schema: usage::SCHEMA_V2.into(),
+                producer_id: String::new(),
+                request_id: request_id.clone(),
+                attempt_id: reserved.as_ref().ok_or_else(rejected)?.id.clone(),
+                event_id: uuid::Uuid::new_v4().to_string(),
+                revision: 0,
+                kind: usage::EventKind::AttemptStarted,
+                started_at_ms: timestamp,
+                observed_at_ms: timestamp,
+                provider: route.snapshot.provider_id.clone(),
+                model_alias: model.clone(),
+                upstream_model: route.snapshot.model.clone(),
+                reported_model: None,
+                provider_request_id: None,
+                provider_response_id: None,
+                interpretation: usage::binding_interpretation(binding),
+                configuration_sha256: state.configuration_sha256.clone(),
+                upstream: UsageOutcome::Unknown,
+                gateway: UsageOutcome::Failed,
+                finality: usage::Finality::Unobserved,
+                observation_incomplete: false,
+                usage: Default::default(),
+            },
+        )
+        .await
+        .map_err(|_| crate::proxy::accounting_error())?
+    } else {
+        None
+    };
     let mut prepared = ManagedDispatch::prepare(
         state.config.models[&model]
             .api_codec
@@ -375,6 +412,9 @@ pub(crate) async fn responses(
     )
     .await
     .map_err(|_| {
+        if let Some(a) = &mut provider_accounting {
+            a.event.gateway = UsageOutcome::ConversionFailed;
+        }
         ApiError::new(
             StatusCode::BAD_REQUEST,
             "unsupported_request",
@@ -477,6 +517,9 @@ pub(crate) async fn responses(
     if let Some(a) = &mut accounting {
         a.event.upstream = UsageOutcome::InProgress;
     }
+    if let Some(a) = &mut provider_accounting {
+        a.event.upstream = UsageOutcome::InProgress;
+    }
     let response = tokio::time::timeout(
         Duration::from_millis(state.config.limits.response_header_timeout_ms),
         request,
@@ -490,7 +533,15 @@ pub(crate) async fn responses(
             if let Some(a) = &mut accounting {
                 a.event.upstream = UsageOutcome::TransportLost;
             }
-            let _ = usage::finish(&mut accounting, UsageOutcome::Failed).await;
+            if let Some(a) = &mut provider_accounting {
+                a.event.upstream = UsageOutcome::TransportLost;
+            }
+            let _ = usage::finish_both(
+                &mut accounting,
+                &mut provider_accounting,
+                UsageOutcome::Failed,
+            )
+            .await;
             return Err(error);
         }
     };
@@ -502,11 +553,27 @@ pub(crate) async fn responses(
             .filter(|v| usage::safe_label(v))
             .map(str::to_owned);
     }
+    if let Some(a) = &mut provider_accounting {
+        a.event.provider_request_id = response
+            .headers()
+            .get("x-request-id")
+            .and_then(|v| v.to_str().ok())
+            .filter(|v| usage::safe_label(v))
+            .map(str::to_owned);
+    }
     if !response.status().is_success() {
+        if let Some(a) = &mut provider_accounting {
+            a.event.upstream = UsageOutcome::Failed;
+        }
         if let Some(a) = &mut accounting {
             a.event.upstream = UsageOutcome::Failed;
         }
-        let _ = usage::finish(&mut accounting, UsageOutcome::Failed).await;
+        let _ = usage::finish_both(
+            &mut accounting,
+            &mut provider_accounting,
+            UsageOutcome::Failed,
+        )
+        .await;
         return Err(ApiError::new(
             if response.status().is_redirection() {
                 StatusCode::BAD_GATEWAY
@@ -550,12 +617,22 @@ pub(crate) async fn responses(
         if let Some(a) = &mut accounting {
             a.event.gateway = UsageOutcome::InProgress;
         }
+        if let Some(a) = &mut provider_accounting {
+            a.event.gateway = UsageOutcome::InProgress;
+        }
         let stream = async_stream::stream! {
             let _capacity = permit;
             // Keep the durable attempt guard alive with the downstream stream.
             let _hold = &attempt;
             let mut decoder = SseDecoder::new(max).expect("validated limit");
-            let mut adapter = match prepared.stream(max, attempt_id.clone()).await {Ok(s)=>s,Err(_)=>{let _=usage::finish(&mut accounting,UsageOutcome::ConversionFailed).await;yield Err(std::io::Error::other("Codec stream initialization failed"));return;}};
+            let started=prepared.stream(max,attempt_id.clone()).await;
+            if started.is_err(){
+                drop(started);
+                let _=usage::observe_provider(&mut provider_accounting,prepared.provider_observation().cloned()).await;
+                let _=usage::finish_both(&mut accounting,&mut provider_accounting,UsageOutcome::ConversionFailed).await;
+                yield Err(std::io::Error::other("Codec stream initialization failed"));return;
+            }
+            let mut adapter=started.expect("successful stream initialization");
             let mut complete = false;
             let mut written = 0usize;
             let mut sequence = 0u64;
@@ -567,8 +644,11 @@ pub(crate) async fn responses(
                         Ok(None) => break,
                         Err(_) => break 'read,
                     };
-                    if adapter.event(event).await.is_err() { break 'read; }
-                    if observe_managed(&mut accounting, &adapter.accounting()).await.is_err() { break 'read; }
+                    if adapter.event(event).await.is_err() {
+                        let _=usage::observe_provider(&mut provider_accounting,adapter.provider_observation().cloned()).await;
+                        break 'read;
+                    }
+                    if observe_managed(&mut accounting,&mut provider_accounting, &adapter.accounting()).await.is_err() { break 'read; }
                     for event in adapter.take_progress() {
                         let bytes = numbered(event, &mut sequence);
                         written = written.saturating_add(bytes.len());
@@ -579,18 +659,19 @@ pub(crate) async fn responses(
                 }
             }
             if !complete {
-                let _ = usage::finish(&mut accounting, UsageOutcome::ConversionFailed).await;
+                let _ = usage::finish_both(&mut accounting,&mut provider_accounting, UsageOutcome::ConversionFailed).await;
                 yield Err(std::io::Error::other("Managed stream interrupted"));
             } else {
                 match adapter.finish().await {
                     Ok(decoded) => {
-                        if observe_managed(&mut accounting, &decoded.observation).await.is_err() {
+                        if observe_managed(&mut accounting,&mut provider_accounting, &decoded.observation).await.is_err() {
                             yield Err(std::io::Error::other("Usage observation failed"));
                             return;
                         }
+                        if let Some(a)=&mut provider_accounting{a.event.upstream=UsageOutcome::Completed;}
                         let output=match public_output(&decoded.response){
                             Some(output)=>output,
-                            None=>{let _=usage::finish(&mut accounting,UsageOutcome::ConversionFailed).await;yield Err(std::io::Error::other("Unsupported continuation envelope carrier"));return;}
+                            None=>{let _=usage::finish_both(&mut accounting,&mut provider_accounting,UsageOutcome::ConversionFailed).await;yield Err(std::io::Error::other("Unsupported continuation envelope carrier"));return;}
                         };
                         let record=match ReplayRecord::from_native(ReplayMetadataOwned {
                             session:session.id.clone(),epoch:session.epoch,origin:session.origin.clone(),response:attempt_id.clone(),
@@ -613,7 +694,7 @@ pub(crate) async fn responses(
                         match result {
                             Ok(token) => {
                                 attempt.mark_finalized();
-                                if usage::finish(&mut accounting, UsageOutcome::Completed).await.is_err() {
+                                if usage::finish_both(&mut accounting,&mut provider_accounting, UsageOutcome::Completed).await.is_err() {
                                     yield Err(std::io::Error::other("Usage finalization failed"));
                                     return;
                                 }
@@ -622,13 +703,14 @@ pub(crate) async fn responses(
                                 }
                             }
                             Err(_) => {
-                                let _ = usage::finish(&mut accounting, UsageOutcome::ConversionFailed).await;
+                                let _ = usage::finish_both(&mut accounting,&mut provider_accounting, UsageOutcome::ConversionFailed).await;
                                 yield Err(std::io::Error::other("Continuation finalization failed"));
                             },
                         }
                     }
                     _ => {
-                        let _ = usage::finish(&mut accounting, UsageOutcome::ConversionFailed).await;
+                        let _=usage::observe_provider(&mut provider_accounting,prepared.provider_observation().cloned()).await;
+                        let _ = usage::finish_both(&mut accounting,&mut provider_accounting, UsageOutcome::ConversionFailed).await;
                         yield Err(std::io::Error::other("Managed output incomplete or invalid"));
                     },
                 }
@@ -653,13 +735,32 @@ pub(crate) async fn responses(
             }
             bytes.extend_from_slice(&chunk);
         }
-        let mut decoded = prepared
-            .decode_bytes(&bytes, &attempt_id)
-            .await
-            .map_err(|_| upstream())?;
-        observe_managed(&mut accounting, &decoded.observation)
+        let decoded = prepared.decode_bytes(&bytes, &attempt_id).await;
+        if decoded.is_err() {
+            usage::observe_provider(
+                &mut provider_accounting,
+                prepared.provider_observation().cloned(),
+            )
             .await
             .map_err(|_| crate::proxy::accounting_error())?;
+            let _ = usage::finish_both(
+                &mut accounting,
+                &mut provider_accounting,
+                UsageOutcome::ConversionFailed,
+            )
+            .await;
+        }
+        let mut decoded = decoded.map_err(|_| upstream())?;
+        observe_managed(
+            &mut accounting,
+            &mut provider_accounting,
+            &decoded.observation,
+        )
+        .await
+        .map_err(|_| crate::proxy::accounting_error())?;
+        if let Some(a) = &mut provider_accounting {
+            a.event.upstream = UsageOutcome::Completed;
+        }
         let record = ReplayRecord::from_native(
             ReplayMetadataOwned {
                 session: session.id,
@@ -683,9 +784,13 @@ pub(crate) async fn responses(
             .await
             .map_err(|_| rejected())?;
         attempt.mark_finalized();
-        usage::finish(&mut accounting, UsageOutcome::Completed)
-            .await
-            .map_err(|_| crate::proxy::accounting_error())?;
+        usage::finish_both(
+            &mut accounting,
+            &mut provider_accounting,
+            UsageOutcome::Completed,
+        )
+        .await
+        .map_err(|_| crate::proxy::accounting_error())?;
         add_envelope(&mut decoded.response, &token);
         Response::builder()
             .status(200)

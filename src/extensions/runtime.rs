@@ -117,7 +117,10 @@ impl ExtensionRuntime {
                 return Err(super::invalid());
             }
             super::filesystem::private_dir(&state, Some(plan.owner))?;
-            if package.protocol == gateway_usage_contract::PROTOCOL {
+            if matches!(
+                package.protocol.as_str(),
+                gateway_usage_contract::PROTOCOL | gateway_usage_contract::PROTOCOL_V2
+            ) {
                 let binding = plan
                     .activation
                     .recorder
@@ -126,7 +129,12 @@ impl ExtensionRuntime {
                 if binding.mode != gateway_usage_contract::Mode::Off {
                     let state = plan.root.join("usage").join(&binding.store_id);
                     filesystem_check_config(plan, binding, &state)?;
-                    let (sink, worker) = super::usage_runtime::spawn(&executable, &state, binding)?;
+                    let (sink, worker) = super::usage_runtime::spawn(
+                        &executable,
+                        &state,
+                        binding,
+                        &package.protocol,
+                    )?;
                     runtime.usage_sink = Some(sink);
                     runtime.usage_worker = Some(worker);
                 }

@@ -4,7 +4,7 @@ use crate::{
     ConfigError,
     usage::{Delivery, UsageSink},
 };
-use gateway_usage_contract::{MAX_EVENT_BYTES, Mode, PROTOCOL, RecorderBinding};
+use gateway_usage_contract::{MAX_EVENT_BYTES, Mode, PROTOCOL, PROTOCOL_V2, RecorderBinding};
 use std::{
     sync::{
         Arc,
@@ -30,6 +30,7 @@ pub(super) fn spawn(
     executable: &std::path::Path,
     state: &std::path::Path,
     binding: &RecorderBinding,
+    protocol: &str,
 ) -> Result<(UsageSink, UsageWorker), ConfigError> {
     use std::{
         io::{BufRead, BufReader, Write},
@@ -65,7 +66,7 @@ pub(super) fn spawn(
             data.extend_from_slice(&b[..n]);
             reader.consume(n);
             if end.is_some() {
-                return serde_json::from_slice(&data).map_err(|_| fail());
+                return crate::adapters::json::decode(&data).map_err(|_| fail());
             }
         }
     }
@@ -76,12 +77,16 @@ pub(super) fn spawn(
             let _ = self.0.wait();
         }
     }
+    let v2 = protocol == PROTOCOL_V2;
+    if !v2 && protocol != PROTOCOL {
+        return Err(fail());
+    }
     let (parent, child) = UnixStream::pair().map_err(|_| fail())?;
     let input: OwnedFd = child.try_clone().map_err(|_| fail())?.into();
     let output: OwnedFd = child.into();
     let child = Child(
         Command::new(executable)
-            .arg("serve")
+            .arg(if v2 { "serve-v2" } else { "serve" })
             .env_clear()
             .current_dir(state)
             .stdin(Stdio::from(input))
@@ -100,8 +105,13 @@ pub(super) fn spawn(
         .ok_or_else(fail)?
         .to_owned();
     if ready.get("type").and_then(|v| v.as_str()) != Some("ready")
-        || ready.get("protocol").and_then(|v| v.as_str()) != Some(PROTOCOL)
-        || ready.as_object().is_none_or(|m| m.len() != 3)
+        || ready.get("protocol").and_then(|v| v.as_str()) != Some(protocol)
+        || ready
+            .as_object()
+            .is_none_or(|m| m.len() != if v2 { 4 } else { 3 })
+        || v2
+            && ready.get("capabilities")
+                != Some(&gateway_usage_contract::recorder_v2_capabilities())
     {
         return Err(fail());
     }
@@ -117,12 +127,13 @@ pub(super) fn spawn(
             if stopped.load(Ordering::Relaxed) { break; }
             let delivery=match receiver.try_recv(){Ok(v)=>v,Err(tokio::sync::mpsc::error::TryRecvError::Empty)=>{if stopped.load(Ordering::Relaxed){break}std::thread::sleep(Duration::from_millis(10));continue},Err(_)=>break};
             let result=(||->Result<(),ConfigError>{
+                if delivery.event.is_v2()&&!v2{return Err(fail());}
                 let mut bytes=delivery.event.bytes().map_err(|_|fail())?;
                 if bytes.len()>MAX_EVENT_BYTES{return Err(fail())}bytes.push(b'\n');let deadline=Instant::now()+timeout;
                 let mut remaining=bytes.as_slice();
                 while !remaining.is_empty(){reader.get_mut().set_write_timeout(Some(deadline.checked_duration_since(Instant::now()).ok_or_else(fail)?)).map_err(|_|fail())?;let n=reader.get_mut().write(remaining).map_err(|_|fail())?;if n==0{return Err(fail())}remaining=&remaining[n..];}
                 let ack=read(&mut reader,deadline)?;
-                if ack!=serde_json::json!({"type":"committed","event_id":delivery.event.event_id,"sha256":gateway_usage_contract::digest(&bytes[..bytes.len()-1])}){return Err(fail())}Ok(())
+                if ack!=serde_json::json!({"type":"committed","event_id":delivery.event.view().event_id,"sha256":gateway_usage_contract::digest(&bytes[..bytes.len()-1])}){return Err(fail())}Ok(())
             })();
             let ok=result.is_ok();let _=delivery.ack.send(ok);
             if !ok {lost.fetch_add(1,Ordering::Relaxed);tracing::warn!("usage_recorder_unavailable");break}
@@ -135,6 +146,7 @@ pub(super) fn spawn(
             mode: binding.mode,
             timeout,
             producer,
+            supports_v2: v2,
             dropped,
         },
         UsageWorker {

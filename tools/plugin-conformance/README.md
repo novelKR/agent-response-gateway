@@ -25,7 +25,7 @@ reverify the package and enforce its private-store ownership and permissions.
 The package directory must remain unchanged during inspection.
 
 Execution requires explicit `--execute`. Only the Observer v1 executable runner
-is currently supplied. Static checks support Observer v1, Recorder v1 and codec
+is currently supplied. Static checks support Observer v1, Recorder v1/v2 and codec
 v1/v2/v3 and provider v1 declarations. Package v2 validates sorted API/features,
 exact required host contracts and role-specific provider identity; legacy package
 v1 cannot be reinterpreted as v2. Provider execution reports the explicit

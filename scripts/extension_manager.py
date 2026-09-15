@@ -36,6 +36,8 @@ LOCK_SCHEMA = 'gateway-extension-lock/v1'
 PROTOCOL = 'gateway-observer/v1'
 PERMISSIONS = ['observe_http_metadata', 'write_private_state']
 RECORDER_PROTOCOL = 'gateway-usage-recorder/v1'
+RECORDER_V2_PROTOCOL = 'gateway-usage-recorder/v2'
+RECORDER_PROTOCOLS = (RECORDER_PROTOCOL, RECORDER_V2_PROTOCOL)
 RECORDER_PERMISSIONS = ['export_usage', 'observe_usage', 'write_usage_store']
 MAX_JSON = 65536
 MAX_BINARY = 128 * 1024 * 1024
@@ -143,6 +145,10 @@ def validate_capabilities(value, protocol):
         require(isinstance(entries, list) and all(isinstance(entry, str) for entry in entries),
                 'Capability declarations must contain strings')
         require(entries == sorted(set(entries)), 'Capability declarations must be sorted and unique')
+    if protocol == RECORDER_V2_PROTOCOL:
+        require(value['apis'] == [] and value['features'] == ['usage_event_v1', 'usage_event_v2']
+                and value['requires'] == ['usage_recorder_ipc_v2'], 'Unsupported recorder capabilities')
+        return
     require(bool(value['features']) and 'json' in value['features']
             and all(feature in CAPABILITY_FEATURES for feature in value['features']),
             'Unsupported capability feature')
@@ -168,7 +174,7 @@ def validate_package(raw, *, expected_target=None):
         require(protocol in (PROTOCOL, RECORDER_PROTOCOL, *LEGACY_CODEC_PROTOCOLS),
                 'Unsupported package protocol')
     else:
-        require(schema == CAPABILITY_PACKAGE_SCHEMA and protocol in (SUBSET_CODEC_PROTOCOL, PROVIDER_PROTOCOL),
+        require(schema == CAPABILITY_PACKAGE_SCHEMA and protocol in (SUBSET_CODEC_PROTOCOL, PROVIDER_PROTOCOL, RECORDER_V2_PROTOCOL),
                 'Unsupported package protocol')
         extra = {'capabilities', 'provider_protocol'} if protocol == PROVIDER_PROTOCOL else {'capabilities'}
         require(set(package) == fields | extra, 'Invalid capability package fields')
@@ -184,7 +190,7 @@ def validate_package(raw, *, expected_target=None):
     payload_role = protocol in (*CODEC_PROTOCOLS, PROVIDER_PROTOCOL)
     require(package['permissions'] == (PERMISSIONS if protocol == PROTOCOL else CODEC_PERMISSIONS if payload_role else RECORDER_PERMISSIONS), 'Unsupported package permissions')
     state = ('observer-state/v1' if protocol == PROTOCOL else 'provider-request-memory/v1' if protocol == PROVIDER_PROTOCOL
-             else 'request-memory/v1' if protocol in CODEC_PROTOCOLS else 'usage-store/v1')
+             else 'request-memory/v1' if protocol in CODEC_PROTOCOLS else 'usage-store/v2' if protocol == RECORDER_V2_PROTOCOL else 'usage-store/v1')
     require(package['state_schema'] == state, 'Unsupported package state schema')
     entries = package['files']
     require(isinstance(entries, dict) and 2 <= len(entries) <= 8
@@ -422,7 +428,7 @@ def enable(root, package_id, package_version, sha, grants, recorder=None, *, con
         state_parent = private_dir(root / 'state' / package_id, create=True)
         private_dir(state_parent / sha, create=True)
         entries.append({'id': package_id, 'version': package_version, 'package_sha256': sha, 'grants': sorted(grants)})
-        if package['protocol'] == RECORDER_PROTOCOL:
+        if package['protocol'] in RECORDER_PROTOCOLS:
             require(recorder is not None, 'Explicit recorder binding is required')
             validate_binding(recorder)
             require(not any(e['grants'] == RECORDER_PERMISSIONS for e in entries if e['id'] != package_id), 'Only one recorder is supported')
@@ -454,7 +460,7 @@ def disable(root, package_id, *, condition=None):
         return guarded_result(root, commit_lock(root, lock), condition)
 
 
-def package_binary(binary, license_file, output, package_id, package_version, role="http_metadata_observer", codec_protocol=CODEC_PROTOCOL, *, package_target=None, capabilities=None, provider_protocol=None):
+def package_binary(binary, license_file, output, package_id, package_version, role="http_metadata_observer", codec_protocol=CODEC_PROTOCOL, *, package_target=None, capabilities=None, provider_protocol=None, recorder_protocol=RECORDER_PROTOCOL):
     """Build a flat local package from explicitly supplied bytes; never execute them."""
     host = target()
     selected_target = host if package_target is None else package_target
@@ -468,15 +474,17 @@ def package_binary(binary, license_file, output, package_id, package_version, ro
     require(not output.exists(), 'Package output already exists')
     require(role in ('http_metadata_observer', 'usage_recorder', 'api_codec', 'provider'), 'Unsupported role')
     require(codec_protocol in CODEC_PROTOCOLS and (role == 'api_codec' or codec_protocol == CODEC_PROTOCOL), 'Unsupported codec protocol selection')
+    require(recorder_protocol in RECORDER_PROTOCOLS and (role == 'usage_recorder' or recorder_protocol == RECORDER_PROTOCOL),
+            'Unsupported recorder protocol selection')
     recorder = role == 'usage_recorder'
     codec = role == 'api_codec'
     provider = role == 'provider'
-    versioned = provider or (codec and codec_protocol == SUBSET_CODEC_PROTOCOL)
+    versioned = provider or (codec and codec_protocol == SUBSET_CODEC_PROTOCOL) or (recorder and recorder_protocol == RECORDER_V2_PROTOCOL)
     require(versioned or (capabilities is None and provider_protocol is None), 'Legacy packages cannot declare capabilities')
     require(provider or provider_protocol is None, 'Only providers declare provider protocol identity')
     manifest = {'schema': PACKAGE_SCHEMA, 'id': package_id, 'version': package_version,
-                'target': selected_target, 'protocol': PROVIDER_PROTOCOL if provider else codec_protocol if codec else RECORDER_PROTOCOL if recorder else PROTOCOL, 'permissions': CODEC_PERMISSIONS if codec or provider else RECORDER_PERMISSIONS if recorder else PERMISSIONS,
-                'state_schema': 'provider-request-memory/v1' if provider else 'request-memory/v1' if codec else 'usage-store/v1' if recorder else 'observer-state/v1',
+                'target': selected_target, 'protocol': PROVIDER_PROTOCOL if provider else codec_protocol if codec else recorder_protocol if recorder else PROTOCOL, 'permissions': CODEC_PERMISSIONS if codec or provider else RECORDER_PERMISSIONS if recorder else PERMISSIONS,
+                'state_schema': 'provider-request-memory/v1' if provider else 'request-memory/v1' if codec else ('usage-store/v2' if recorder_protocol == RECORDER_V2_PROTOCOL else 'usage-store/v1') if recorder else 'observer-state/v1',
                 'files': {'extension': digest(binary_bytes), 'LICENSE.txt': digest(license_bytes)}}
     if versioned:
         manifest['schema'] = CAPABILITY_PACKAGE_SCHEMA
@@ -502,6 +510,7 @@ def main(argv=None):
     build.add_argument('--id', required=True)
     build.add_argument('--version', required=True)
     build.add_argument('--role', choices=['http_metadata_observer', 'usage_recorder', 'api_codec', 'provider'], default='http_metadata_observer')
+    build.add_argument('--recorder-protocol', choices=RECORDER_PROTOCOLS, default=RECORDER_PROTOCOL)
     build.add_argument('--codec-protocol', choices=CODEC_PROTOCOLS, default=CODEC_PROTOCOL)
     build.add_argument('--capabilities', type=Path, help='Explicit capability JSON for codec v3 or provider packages')
     build.add_argument('--provider-protocol', help='Provider protocol identity for a provider package')
@@ -539,7 +548,7 @@ def main(argv=None):
                 condition = {'generation': args.expected_generation, 'inventory_sha256': args.expected_inventory_sha256}
         if args.command == 'package':
             capabilities = decode_json(read_file(args.capabilities, MAX_JSON)) if args.capabilities is not None else None
-            result = {'package_sha256': package_binary(args.binary, args.license_file, args.output, args.id, args.version, args.role, args.codec_protocol, package_target=args.target, capabilities=capabilities, provider_protocol=args.provider_protocol)}
+            result = {'package_sha256': package_binary(args.binary, args.license_file, args.output, args.id, args.version, args.role, args.codec_protocol, package_target=args.target, capabilities=capabilities, provider_protocol=args.provider_protocol, recorder_protocol=args.recorder_protocol)}
         elif args.command == 'inspect':
             package, _ = inspect_package(args.package, args.expected_sha256, expected_target=args.target)
             result = {'package': package, 'executed': False}
