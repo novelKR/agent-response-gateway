@@ -88,7 +88,7 @@ jobs:
           python -B scripts/release_package.py build --target "$PACKAGE_TARGET" --output .local/candidate
           python -B scripts/release_package.py verify .local/candidate --commit "$GITHUB_SHA" --target "$PACKAGE_TARGET"
           python -B scripts/release_provenance.py pack --directory .local/candidate --output .local/distribution --qualification .local/qualification/qualification.json
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           archive: true
           name: candidate-input-${{ matrix.target }}
@@ -138,7 +138,7 @@ jobs:
         run: |
           cp "$PROOF_PATH" ".local/signed/$PACKAGE_TARGET.sigstore.jsonl"
           python -B scripts/release_provenance.py verify --directory .local/signed --commit "$GITHUB_SHA" --target "$PACKAGE_TARGET" --run-id "$GITHUB_RUN_ID" --attempt "$GITHUB_RUN_ATTEMPT" --tag "$RELEASE_TAG"
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           archive: true
           name: release-candidate-${{ matrix.target }}
