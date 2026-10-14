@@ -59,7 +59,7 @@ jobs:
         env:
           VALIDATION_RELEASE: ${{ inputs.release_profile }}
         run: python3 -B scripts/ci_plan.py
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           archive: true
           name: validation-plan
@@ -160,7 +160,7 @@ jobs:
           --output .local/provider-acceptance-report.json
       - name: Preserve the synthetic installed acceptance report
         if: ${{ always() && runner.os != 'Windows' }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: provider-acceptance-${{ matrix.target }}
           path: .local/provider-acceptance-report.json
@@ -282,7 +282,7 @@ jobs:
       - id: seal-native
         run: python3 -B scripts/prepared_inputs.py pack .local/prepared/native.tar.gz --variant native
       - id: upload-native
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           archive: true
           name: conformance-prepared-native-${{ github.run_attempt }}
@@ -292,7 +292,7 @@ jobs:
       - id: seal-codec
         run: python3 -B scripts/prepared_inputs.py pack .local/prepared/codec.tar.gz --variant codec
       - id: upload-codec
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           archive: true
           name: conformance-prepared-codec-${{ github.run_attempt }}
@@ -340,7 +340,7 @@ jobs:
         env:
           SUITE: ${{ matrix.group }}
         run: python3 -B scripts/conformance_suite.py "$SUITE"
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ always() }}
         with:
           archive: true
@@ -396,7 +396,7 @@ jobs:
         env:
           SUITE: ${{ matrix.group }}
         run: python3 -B scripts/conformance_suite.py "$SUITE"
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ always() }}
         with:
           archive: true
@@ -464,7 +464,7 @@ jobs:
           python -B scripts/optional_package.py build --base .local/package-candidate --output .local/optional-candidate --web-assets .local/management-web/dist
           python -B scripts/optional_package.py verify .local/optional-candidate --commit "$GITHUB_SHA" --target "$PACKAGE_TARGET"
       - name: Retain verified optional modules separately
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           archive: true
           name: optional-package-${{ matrix.target }}
@@ -472,7 +472,7 @@ jobs:
           if-no-files-found: error
           retention-days: 14
       - name: Retain only verified public candidate files
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           archive: true
           name: package-${{ matrix.target }}
@@ -506,7 +506,7 @@ jobs:
       - run: npm run build --prefix docs-site
       - run: python3 -B docs-site/scripts/check-output.py
       - name: Retain the verified static site for review
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           archive: true
           name: docs-site
@@ -548,7 +548,7 @@ jobs:
             npm test --prefix management-web
           fi
       - name: Retain verified read-only static files
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           archive: true
           name: management-web
@@ -634,7 +634,7 @@ jobs:
           CI_RESULTS: ${{ toJSON(needs) }}
           VALIDATION_PLAN: ${{ needs.validation-plan.outputs.plan }}
         run: python3 -B scripts/release_qualification.py
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ inputs.release_profile }}
         with:
           archive: true
@@ -645,7 +645,7 @@ jobs:
 
       - name: Retain actual aggregate results even on failure
         if: ${{ always() }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           archive: true
           name: validation-result
